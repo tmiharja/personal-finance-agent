@@ -4,7 +4,7 @@ import EmptyState from "@/components/empty-state";
 import PageTitle from "@/components/app/page-title";
 import RuleProposalCard from "@/components/proposals/rule-proposal-card";
 import { getDb } from "@/db/client";
-import { longDate } from "@/lib/format";
+import { longDate, shortDate } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
 import { listPendingProposals, listRecentActivity } from "@/server/import/service";
 
@@ -20,14 +20,11 @@ const EVENT_LABEL: Record<string, string> = {
   undone: "Undone",
 };
 
-const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Singapore",
-  });
+/** "14 Mar, 09:05" in Singapore time. */
+const when = (iso: string) => {
+  const sgt = new Date(Date.parse(iso) + 8 * 3600_000).toISOString();
+  return `${shortDate(sgt.slice(0, 10))}, ${sgt.slice(11, 16)}`;
+};
 
 export default async function ActivityPage() {
   const user = await requireUser();

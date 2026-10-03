@@ -6,7 +6,7 @@ import Stat from "@/components/charts/stat";
 import EmptyState from "@/components/empty-state";
 import PageTitle from "@/components/app/page-title";
 import { getDb } from "@/db/client";
-import { money } from "@/lib/format";
+import { money, monthLabel } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
 import { getMonthOverview } from "@/server/finance/overview";
 import { addMonths, monthRange } from "@/server/finance/spend";
@@ -14,17 +14,8 @@ import { countToReview, filterHref } from "@/server/finance/transactions";
 
 export const metadata: Metadata = { title: "Overview" };
 
-const monthName = (month: string) =>
-  new Date(`${month}-01T00:00:00+08:00`).toLocaleDateString("en-GB", {
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Singapore",
-  });
-const shortMonth = (month: string) =>
-  new Date(`${month}-01T00:00:00+08:00`).toLocaleDateString("en-GB", {
-    month: "short",
-    timeZone: "Asia/Singapore",
-  });
+const monthName = (month: string) => monthLabel(month, "long");
+const shortMonth = (month: string) => monthLabel(month, "short");
 
 export default async function OverviewPage({
   searchParams,

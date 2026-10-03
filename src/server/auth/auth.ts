@@ -2,6 +2,7 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { anonymous } from "better-auth/plugins/anonymous";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { after } from "next/server";
 import { getDb } from "@/db/client";
@@ -80,6 +81,9 @@ function createAuth() {
         },
       }),
       passkey({ rpID: hostname, rpName: site.name, origin }),
+      // "Try the demo": a session with no email. Created only by POST /api/demo,
+      // which seeds the fictional workspace; deleted after 24 h by the daily cron.
+      anonymous({ emailDomainName: "demo.invalid", generateName: () => "Demo" }),
       nextCookies(), // keep last
     ],
   });

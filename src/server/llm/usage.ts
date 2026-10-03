@@ -51,7 +51,11 @@ export async function budgetBlock(
   // Across all users, as the owner role: a single sum, no per-user rows leave the query.
   const [global] = sqlRows<{ usd: string }>(
     await db.execute(
-      sql`select coalesce(sum(cost_usd), 0)::text as usd from usage where created_at >= ${MONTH_START}`,
+      sql`select (
+            coalesce((select sum(cost_usd) from usage where created_at >= ${MONTH_START}), 0)
+          + coalesce((select sum(cost_usd) from llm_spend_archive
+                      where month = (date_trunc('month', now() at time zone 'Asia/Singapore'))::date), 0)
+          )::text as usd`,
     ),
   );
   if (Number(global!.usd) >= env.LLM_GLOBAL_MONTHLY_USD) return "global_budget";

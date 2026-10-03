@@ -170,7 +170,8 @@ describe("no PII reaches the Ask model", () => {
     await runAsk({
       db,
       userId: "alex",
-      question: "What did I spend last 3 months? My card is 4111 1111 1111 1111, email alex.tan@example.com",
+      question:
+        "What did I spend last 3 months? My card is 4111 1111 1111 1111, email alex.tan@example.com",
       history: [{ role: "assistant", content: "Earlier answer mentioning 5555 5555 5555 4444" }],
       emit: (e) => events.push(e),
       today: "2026-10-03",

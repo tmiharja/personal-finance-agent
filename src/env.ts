@@ -52,6 +52,9 @@ const rawSchema = z.object({
   LLM_GLOBAL_MONTHLY_USD: z.coerce.number().positive().default(40),
   LLM_USER_MONTHLY_USD: z.coerce.number().positive().default(3),
   ASK_DAILY_LIMIT: z.coerce.number().int().positive().default(60),
+  // "Try the demo", per visitor per day (PRD AUTH-6).
+  DEMO_WORKSPACES_PER_DAY: z.coerce.number().int().positive().default(5),
+  DEMO_QUESTIONS_PER_DAY: z.coerce.number().int().positive().default(10),
   // Tests/e2e only: deterministic offline responses instead of the API.
   LLM_MOCK: flag,
 });

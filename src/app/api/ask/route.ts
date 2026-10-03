@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { runAsk, type AskEvent } from "@/server/agent/ask";
-import { isSameOrigin, jsonError, sessionUserId } from "@/server/http";
+import { getEnv } from "@/env";
+import { consumeDemoQuota, visitorKey } from "@/server/demo/workspace";
+import { isSameOrigin, jsonError, sessionUser } from "@/server/http";
 import { logError } from "@/server/log";
 
 // The tool loop streams for up to a minute (the loop's own timeout).
@@ -19,10 +21,23 @@ const body = z.object({
 /** Ask: streams newline-delimited JSON events (see AskEvent). Read-only. */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
-  const userId = await sessionUserId(request);
-  if (!userId) return jsonError("unauthenticated", 401);
+  const me = await sessionUser(request);
+  if (!me) return jsonError("unauthenticated", 401);
+  const userId = me.id;
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("bad_request", 400);
+  // Demo: capped per visitor per day (default 10), however many demo workspaces they open.
+  if (
+    me.isDemo &&
+    !(await consumeDemoQuota(
+      getDb(),
+      visitorKey(request),
+      "questions",
+      getEnv().DEMO_QUESTIONS_PER_DAY,
+    ))
+  ) {
+    return jsonError("daily_limit", 429);
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

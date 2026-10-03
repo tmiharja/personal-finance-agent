@@ -36,6 +36,13 @@
       "when": 1791005428430,
       "tag": "0004_import_preview",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791009668088,
+      "tag": "0005_demo",
+      "breakpoints": true
     }
   ]
 }

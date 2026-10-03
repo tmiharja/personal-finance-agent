@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TryDemoButton from "@/components/try-demo-button";
 import Hero from "@/components/hero";
 import Reveal from "@/components/reveal";
 import { buttonVariants } from "@/components/ui/button";
@@ -44,7 +45,7 @@ export default function Landing() {
           <Link href="/login" className={buttonVariants()}>
             Sign in or create an account
           </Link>
-          <span className="text-[13px] text-muted">Demo with fictional data: coming soon</span>
+          <TryDemoButton />
         </div>
       </Hero>
 

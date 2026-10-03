@@ -1,12 +1,8 @@
 import Link from "next/link";
-import { money } from "@/lib/format";
+import { money, monthLabel } from "@/lib/format";
 
 const label = (month: string, style: "short" | "long") =>
-  new Date(`${month}-01T00:00:00+08:00`).toLocaleDateString("en-GB", {
-    month: style === "short" ? "narrow" : "short",
-    ...(style === "long" ? { year: "numeric" } : {}),
-    timeZone: "Asia/Singapore",
-  });
+  monthLabel(month, style === "short" ? "narrow" : "medium");
 
 /**
  * Twelve months of spend as columns. The selected month is the accent; the rest

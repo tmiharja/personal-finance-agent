@@ -26,8 +26,19 @@ export function isSameOrigin(request: Request): boolean {
 
 /** The signed-in user's id, validated against the database. */
 export async function sessionUserId(request: Request): Promise<string | null> {
+  return (await sessionUser(request))?.id ?? null;
+}
+
+/** The signed-in user and whether it's a demo workspace. */
+export async function sessionUser(
+  request: Request,
+): Promise<{ id: string; isDemo: boolean } | null> {
   const session = await getAuth().api.getSession({ headers: request.headers });
-  return session?.user.id ?? null;
+  if (!session) return null;
+  return {
+    id: session.user.id,
+    isDemo: (session.user as { isAnonymous?: boolean | null }).isAnonymous === true,
+  };
 }
 
 export function masterKeys(): MasterKeys {
