@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
@@ -16,6 +15,8 @@ import {
 } from "@/server/finance/ledger";
 import { needsReview, type Categorised } from "@/server/categorise/categorise";
 import { categoriseStatement } from "@/server/categorise/context";
+import { audit, canonical, expireIfDue, sha256 } from "@/server/actions/common";
+import type { RulePreview } from "@/server/actions/rules";
 import { parseStatementPdf, type ParsedStatement } from "@/server/ingest/parsers";
 import { logEvent } from "@/server/log";
 
@@ -134,16 +135,6 @@ type StoredPreview = {
   };
 };
 
-const sha256 = (data: string | Uint8Array) => createHash("sha256").update(data).digest("hex");
-
-function canonical(value: unknown): string {
-  return JSON.stringify(value, (_k, v) =>
-    v && typeof v === "object" && !Array.isArray(v)
-      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
-      : v,
-  );
-}
-
 async function existingDedupeKeys(tx: Tx, keys: string[]): Promise<Set<string>> {
   if (!keys.length) return new Set();
   const rows = await tx
@@ -261,18 +252,6 @@ async function buildPreview(
   return { stored: { statement: { ...statement, cards: storedCards } }, summary, rows };
 }
 
-async function audit(
-  tx: Tx,
-  userId: string,
-  proposalId: string,
-  actor: "user" | "system",
-  event: "proposed" | "approved" | "rejected" | "executed" | "expired",
-  detail: Record<string, unknown> = {},
-  inverse: Record<string, unknown> | null = null,
-) {
-  await tx.insert(auditLog).values({ userId, proposalId, actor, event, detail, inverse });
-}
-
 /**
  * Expires every overdue pending import of the signed-in user (RLS-scoped):
  * proposals become "expired", encrypted previews are deleted. The daily cron
@@ -325,28 +304,6 @@ export async function expireOverdueForAllUsers(
     }
     return { proposals: overdue.length, previews: cleared.length };
   });
-}
-
-/** Expires a pending proposal (and its import) once its 24 hours are up. */
-async function expireIfDue(
-  tx: Tx,
-  userId: string,
-  proposal: typeof proposedActions.$inferSelect,
-): Promise<boolean> {
-  if (proposal.status !== "pending" || proposal.expiresAt.getTime() > Date.now()) return false;
-  await tx
-    .update(proposedActions)
-    .set({ status: "expired" })
-    .where(eq(proposedActions.id, proposal.id));
-  const importId = (proposal.payload as { importId?: string }).importId;
-  if (importId) {
-    await tx
-      .update(imports)
-      .set({ status: "expired", previewEnc: null })
-      .where(eq(imports.id, importId));
-  }
-  await audit(tx, userId, proposal.id, "system", "expired");
-  return true;
 }
 
 function decryptPreview(crypto: UserCrypto, previewEnc: string): StoredPreview {
@@ -664,14 +621,22 @@ export async function rejectProposal(db: AppDb, userId: string, proposalId: stri
   });
 }
 
-export type PendingProposal = {
-  id: string;
-  type: string;
-  importId: string | null;
-  summary: ImportSummary;
-  createdAt: string;
-  expiresAt: string;
-};
+export type PendingProposal =
+  | {
+      id: string;
+      type: "commit_import";
+      importId: string | null;
+      summary: ImportSummary;
+      createdAt: string;
+      expiresAt: string;
+    }
+  | {
+      id: string;
+      type: "create_rule";
+      preview: RulePreview;
+      createdAt: string;
+      expiresAt: string;
+    };
 
 export async function listPendingProposals(db: AppDb, userId: string): Promise<PendingProposal[]> {
   return withUser(db, userId, async (tx) => {
@@ -681,14 +646,24 @@ export async function listPendingProposals(db: AppDb, userId: string): Promise<P
       .from(proposedActions)
       .where(and(eq(proposedActions.status, "pending"), gte(proposedActions.expiresAt, new Date())))
       .orderBy(proposedActions.createdAt);
-    return rows.map((p) => ({
-      id: p.id,
-      type: p.type,
-      importId: (p.payload as { importId?: string }).importId ?? null,
-      summary: p.preview as ImportSummary,
-      createdAt: p.createdAt.toISOString(),
-      expiresAt: p.expiresAt.toISOString(),
-    }));
+    return rows.flatMap((p): PendingProposal[] => {
+      const times = { createdAt: p.createdAt.toISOString(), expiresAt: p.expiresAt.toISOString() };
+      if (p.type === "commit_import") {
+        return [
+          {
+            id: p.id,
+            type: "commit_import",
+            importId: (p.payload as { importId?: string }).importId ?? null,
+            summary: p.preview as ImportSummary,
+            ...times,
+          },
+        ];
+      }
+      if (p.type === "create_rule") {
+        return [{ id: p.id, type: "create_rule", preview: p.preview as RulePreview, ...times }];
+      }
+      return [];
+    });
   });
 }
 

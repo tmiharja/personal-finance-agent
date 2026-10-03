@@ -42,6 +42,9 @@ afterAll(async () => {
   await close();
 });
 
+const pendingImports = async (userId: string) =>
+  (await listPendingProposals(db, userId)).flatMap((p) => (p.type === "commit_import" ? [p] : []));
+
 const txCount = async (userId: string) =>
   sqlRows<{ n: number }>(
     await withUser(db, userId, (tx) =>
@@ -87,7 +90,7 @@ describe("import: preview → approve", () => {
   });
 
   it("another user can neither see nor approve it", async () => {
-    const [p] = await listPendingProposals(db, "alex");
+    const [p] = await pendingImports("alex");
     expect(await getImportPreview(db, "other", keys, p!.importId!)).toBeNull();
     await expect(approveProposal(db, "other", keys, p!.id)).rejects.toMatchObject({
       code: "proposal_not_found",
@@ -166,7 +169,7 @@ describe("import: preview → approve", () => {
   });
 
   it("expired previews can't be approved", async () => {
-    const [p] = await listPendingProposals(db, "alex");
+    const [p] = await pendingImports("alex");
     await withUser(db, "alex", (tx) =>
       tx
         .update(proposedActions)
