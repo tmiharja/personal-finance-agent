@@ -13,7 +13,12 @@ export function isSameOrigin(request: Request): boolean {
   // request.url can carry the server's bind address instead.
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
   try {
-    return !!host && new URL(origin).host === host;
+    // Scheme too: an http:// origin must not pass for an https:// request.
+    const proto =
+      request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+      new URL(request.url).protocol.replace(":", "");
+    const o = new URL(origin);
+    return !!host && o.host === host && o.protocol === `${proto}:`;
   } catch {
     return false;
   }

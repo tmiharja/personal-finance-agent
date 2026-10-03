@@ -42,7 +42,7 @@ The agent can read your data but never changes anything on its own. Every write 
 | Parsing | `src/server/ingest/`: in-memory pdf.js extraction with positions, and DBS + UOB credit-card parsers (`dbs-card-pdf@1`, `uob-card-pdf@1`) per [`docs/statement-formats.md`](docs/statement-formats.md). Year inference, FX lines, multi-card statements, and stop zones so rewards tables and payment slips are never read |
 | Passwords | Owner-password PDFs open without a prompt. For open-password PDFs, the app asks; the password is used once and never stored or logged |
 | Reconciliation | Per card (previous + Σ rows = total) and per statement (Σ cards = printed total). A mismatch needs an explicit "Import anyway" |
-| Import flow | Upload → PII firewall + dedupe keys → encrypted preview (24 h) → `commit_import` proposal → **you approve** → ledger + audit log. Re-uploads are detected; rows already imported from another file are marked duplicate and skipped |
+| Import flow | Upload → PII firewall + dedupe keys → encrypted preview (24 h) → `commit_import` proposal → **you approve** → ledger + audit log. Previews nobody approves are deleted by a daily cron. Re-uploads are detected; rows already imported from another file are marked duplicate and skipped |
 | UI | Import page (drop zone, password prompt, preview card with per-card reconciliation and rows, Approve / Discard). Activity lists pending approvals and history. Screenshots: [`docs/screenshots/phase-1a/`](docs/screenshots/phase-1a/) |
 | Tests | 34 parser golden tests (24 fixtures + 2 encrypted variants + rejections), 11 import-service tests (lifecycle, isolation, expiry, tampering, no PII in DB or logs), 8 new e2e tests. The real samples reconcile in a local-only, git-ignored test |
 
@@ -80,7 +80,7 @@ The database role in `DATABASE_URL` should be the database owner with `CREATEROL
 ## Deploying (Vercel)
 
 1. Connect Neon (Singapore, `aws-ap-southeast-1`) through the Vercel Marketplace, then run `npm run db:migrate` against it.
-2. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `MASTER_KEY`, `RESEND_API_KEY` and `EMAIL_FROM`. The app refuses to start in production without them.
+2. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `MASTER_KEY`, `RESEND_API_KEY` and `EMAIL_FROM`. The app refuses to start in production without them. Also set `CRON_SECRET` (`openssl rand -hex 32`): the daily cron in `vercel.json` (`/api/cron/expire-imports`) uses it to expire overdue previews and delete their encrypted data, and refuses to run without it.
 3. `vercel.json` pins functions to `sin1`.
 
 **Back up `MASTER_KEY` somewhere safe.** Without it, encrypted data can't be read.

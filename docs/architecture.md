@@ -168,6 +168,7 @@ flowchart LR
   AL --> SUG[Suggested actions → proposed_actions]
   C --> DG[Weekly digest · Mondays]
   C --> DM[Delete demo workspaces older than 24 h]
+  C --> XP[Expire import previews older than 24 h · built in Phase 1a]
   C --> RET[Retention · inactive-account notices]
 ```
 

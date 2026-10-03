@@ -70,6 +70,17 @@ export async function extractLines(
     }
     throw new PdfError("unreadable");
   }
+  try {
+    return await readLines(pdf);
+  } finally {
+    // Release the document's worker and resources on every path, errors included.
+    await pdf.loadingTask.destroy().catch(() => undefined);
+  }
+}
+
+async function readLines(
+  pdf: Awaited<ReturnType<typeof getDocumentProxy>>,
+): Promise<{ pageCount: number; lines: Line[] }> {
   if (pdf.numPages > MAX_PAGES) throw new PdfError("too_many_pages");
 
   const lines: Line[] = [];

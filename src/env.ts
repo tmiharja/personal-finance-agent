@@ -35,6 +35,9 @@ const rawSchema = z.object({
   RESEND_API_KEY: optionalString,
   EMAIL_FROM: optionalString,
 
+  // Vercel Cron authenticates with "Authorization: Bearer $CRON_SECRET".
+  CRON_SECRET: z.string().min(16, "CRON_SECRET must be at least 16 characters").optional(),
+
   // Dev/e2e only: keep sent one-time codes in memory, readable at /api/dev/outbox.
   DEV_MAIL_OUTBOX: flag,
 });
@@ -47,6 +50,7 @@ const PRODUCTION_REQUIRED = {
   MASTER_KEY: "MASTER_KEY",
   RESEND_API_KEY: "RESEND_API_KEY",
   EMAIL_FROM: "EMAIL_FROM",
+  CRON_SECRET: "CRON_SECRET",
 } as const;
 
 const envSchema = rawSchema

@@ -10,6 +10,7 @@ const prodBase = {
   MASTER_KEY: Buffer.alloc(32, 7).toString("base64"),
   RESEND_API_KEY: "re_test",
   EMAIL_FROM: "Finance Agent <no-reply@example.com>",
+  CRON_SECRET: "c".repeat(32),
 };
 
 describe("environment validation", () => {

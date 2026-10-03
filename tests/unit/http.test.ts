@@ -17,6 +17,7 @@ describe("same-origin check", () => {
           origin: "https://finance.example.com",
           host: "internal:3000",
           "x-forwarded-host": "finance.example.com",
+          "x-forwarded-proto": "https",
         }),
       ),
     ).toBe(true);
@@ -27,5 +28,10 @@ describe("same-origin check", () => {
     ).toBe(false);
     expect(isSameOrigin(req({ host: "finance.example.com" }))).toBe(false);
     expect(isSameOrigin(req({ origin: "null", host: "finance.example.com" }))).toBe(false);
+  });
+  it("rejects an origin on the right host but the wrong scheme", () => {
+    const headers = { host: "finance.example.com", "x-forwarded-proto": "https" };
+    expect(isSameOrigin(req({ ...headers, origin: "http://finance.example.com" }))).toBe(false);
+    expect(isSameOrigin(req({ ...headers, origin: "https://finance.example.com" }))).toBe(true);
   });
 });

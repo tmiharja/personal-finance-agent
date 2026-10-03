@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { sqlRows } from "@/db/rows";
 import { accounts, categories, statements, transactions } from "@/db/schema";
 import type { Tx } from "@/db/with-user";
@@ -246,11 +246,17 @@ export async function insertPreparedStatement(
         .returning({ id: transactions.id })
     : [];
 
-  // Reconcile what is stored, not what was passed in: a corrected re-import whose
-  // rows no longer add up to the printed total is flagged instead of trusted.
+  // Reconcile what is stored, not what was passed in. A statement's rows are those
+  // linked to it plus its rows first imported from an overlapping statement
+  // (matched by dedupe key, each counted once). A corrected re-import whose stored
+  // rows no longer add up to the printed total is still flagged.
+  const keys = input.rows.map((r) => r.dedupeKey);
+  const ownRows = keys.length
+    ? sql`statement_id = ${stmt!.id} or ${inArray(transactions.dedupeKey, keys)}`
+    : sql`statement_id = ${stmt!.id}`;
   const [sum] = sqlRows<{ cents: number }>(
     await tx.execute(
-      sql`select coalesce(sum(amount_cents), 0)::bigint as cents from transactions where statement_id = ${stmt!.id}`,
+      sql`select coalesce(sum(amount_cents), 0)::bigint as cents from transactions where ${ownRows}`,
     ),
   );
   const reconciled = input.previousBalanceCents + Number(sum!.cents) === input.totalCents;

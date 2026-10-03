@@ -143,7 +143,7 @@ for (const file of files) {
         ...(variant?.password ? { password: variant.password } : {}),
       });
       const { info } = await pdf.getMetadata();
-      await pdf.cleanup?.();
+      await pdf.loadingTask.destroy();
       if (!String(info?.Subject ?? "").includes(SYNTHETIC_MARK))
         flag(file, 0, "PDF is not marked as synthetic");
     } catch {

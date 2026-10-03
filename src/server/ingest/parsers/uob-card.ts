@@ -1,6 +1,6 @@
 import type { Line } from "../pdf";
 import {
-  assignOrdinals,
+  finaliseCards,
   classify,
   cleanDescriptor,
   inferDate,
@@ -30,7 +30,10 @@ const FX = /^([A-Z]{3})\s+([\d,]+\.\d{2})$/;
 const TOTAL_FOR = /^TOTAL BALANCE FOR\s+(.+)$/i;
 const STOP = /End of Transaction Details/i;
 
-type Draft = Omit<ParsedCard, "ordinal" | "reconciled"> & { hasTotal: boolean };
+type Draft = Omit<ParsedCard, "ordinal" | "reconciled"> & {
+  hasTotal: boolean;
+  hasPrevious: boolean;
+};
 
 function headerValue(lines: Line[], label: RegExp): string | null {
   for (const l of lines) {
@@ -72,6 +75,7 @@ export function parseUobCard(lines: Line[]): ParseResult {
           totalCents: 0,
           rows: [],
           hasTotal: false,
+          hasPrevious: false,
         };
         drafts.push(card);
       }
@@ -85,6 +89,7 @@ export function parseUobCard(lines: Line[]): ParseResult {
     const { left, cents } = splitAmount(line);
     if (/^PREVIOUS BALANCE$/i.test(left) && cents !== null) {
       card.previousBalanceCents = cents;
+      card.hasPrevious = true;
       continue;
     }
     if (/^SUB TOTAL$/i.test(left)) continue;
@@ -128,15 +133,9 @@ export function parseUobCard(lines: Line[]): ParseResult {
   if (!drafts.length) throw new ParseError("no_cards");
   drafts.forEach((d, i) => {
     if (!d.hasTotal) warnings.push(`card_${i + 1}_total_missing`);
+    if (!d.hasPrevious) warnings.push(`card_${i + 1}_previous_missing`);
   });
-  const cards = assignOrdinals(
-    drafts.map((d) => ({
-      productName: d.productName,
-      previousBalanceCents: d.previousBalanceCents,
-      totalCents: d.totalCents,
-      rows: d.rows,
-    })),
-  );
+  const cards = finaliseCards(drafts);
   cards.forEach((c, i) => {
     if (!c.reconciled) warnings.push(`card_${i + 1}_unreconciled`);
   });

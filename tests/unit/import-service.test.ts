@@ -8,8 +8,10 @@ import { sqlRows } from "@/db/rows";
 import { imports, proposedActions } from "@/db/schema";
 import { withUser } from "@/db/with-user";
 import type { MasterKeys } from "@/server/crypto/envelope";
+import { getOverviewCounts } from "@/server/finance/overview";
 import {
   approveProposal,
+  expireOverdueForAllUsers,
   getImportPreview,
   ImportError,
   listPendingProposals,
@@ -172,6 +174,50 @@ describe("import: preview → approve", () => {
       ImportError,
     );
     expect(await txCount("alex")).toBe(27);
+  });
+});
+
+describe("import: expiry and races", () => {
+  const pending = async (userId: string) => (await getOverviewCounts(db, userId)).pendingApprovals;
+  const backdate = (userId: string, p: { proposalId: string; importId: string }) =>
+    withUser(db, userId, async (tx) => {
+      const past = new Date(Date.now() - 1000);
+      await tx
+        .update(proposedActions)
+        .set({ expiresAt: past })
+        .where(eq(proposedActions.id, p.proposalId));
+      await tx.update(imports).set({ expiresAt: past }).where(eq(imports.id, p.importId));
+    });
+
+  it("an overdue preview stops counting as pending, then the sweep deletes it", async () => {
+    const p = await previewImport(db, "other", keys, { bytes: pdf("uob/2026-03") });
+    expect(await pending("other")).toBe(1);
+    await backdate("other", p);
+    expect(await pending("other")).toBe(0);
+    const swept = await expireOverdueForAllUsers(db);
+    expect(swept.proposals).toBeGreaterThanOrEqual(1);
+    const [imp] = await withUser(db, "other", (tx) =>
+      tx.select().from(imports).where(eq(imports.id, p.importId)),
+    );
+    expect(imp).toMatchObject({ status: "expired", previewEnc: null });
+    const events = await withUser(db, "other", (tx) =>
+      tx.execute(sql`select event, actor from audit_log where proposal_id = ${p.proposalId}`),
+    );
+    expect(sqlRows<{ event: string; actor: string }>(events)).toContainEqual({
+      event: "expired",
+      actor: "system",
+    });
+    // Nothing left for a second run.
+    expect(await expireOverdueForAllUsers(db)).toEqual({ proposals: 0, previews: 0 });
+  });
+
+  it("concurrent uploads of the same file share one preview", async () => {
+    const [a, b] = await Promise.all([
+      previewImport(db, "other", keys, { bytes: pdf("uob/2026-04") }),
+      previewImport(db, "other", keys, { bytes: pdf("uob/2026-04") }),
+    ]);
+    expect(a.proposalId).toBe(b.proposalId);
+    await rejectProposal(db, "other", a.proposalId);
   });
 });
 

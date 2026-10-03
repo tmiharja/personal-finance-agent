@@ -90,8 +90,11 @@ export default function PreviewCard({
 
       {!summary.allReconciled && (
         <p role="alert" className="mt-3 rounded-lg bg-warn-soft px-4 py-3 text-[15px] text-warn">
-          Doesn&rsquo;t reconcile: the transactions don&rsquo;t add up to the printed totals. Check
-          the cards marked below before importing.
+          {summary.cards.some((c) => !c.reconciled)
+            ? "Doesn’t reconcile: some cards don’t add up to their printed totals. Check the cards marked below before importing."
+            : summary.totalsMatch === false
+              ? "Doesn’t reconcile: the cards don’t add up to the statement’s printed total."
+              : "Couldn’t fully check: the statement’s printed total wasn’t found, so the cards couldn’t be cross-checked against it."}
         </p>
       )}
 
@@ -113,7 +116,9 @@ export default function PreviewCard({
               <span className={cn("text-[13px]", card.reconciled ? "text-accent" : "text-warn")}>
                 {card.reconciled
                   ? "✓ Reconciled"
-                  : `✗ Off by ${money(Math.abs(card.differenceCents))}`}
+                  : card.differenceCents === 0
+                    ? "✗ Total not found"
+                    : `✗ Off by ${money(Math.abs(card.differenceCents))}`}
               </span>
             </div>
             <p className="tabular mt-1 text-[13px] text-muted">

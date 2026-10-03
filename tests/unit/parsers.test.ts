@@ -1,9 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PdfError } from "@/server/ingest/pdf";
+import { extractLines, PdfError } from "@/server/ingest/pdf";
 import { ParseError, parseStatementPdf } from "@/server/ingest/parsers";
 import { classify, inferDate } from "@/server/ingest/parsers/common";
+import { parseDbsCard } from "@/server/ingest/parsers/dbs-card";
+import { parseUobCard } from "@/server/ingest/parsers/uob-card";
 
 const DIR = join(process.cwd(), "evals", "fixtures", "synthetic");
 
@@ -104,6 +106,32 @@ describe("golden: synthetic DBS + UOB card statements", () => {
     expect(
       statement.cards[0]!.rows.some((r) => r.rawDescriptor === "SAMPLE BOOKSTORE SINGAPORE"),
     ).toBe(true);
+  });
+});
+
+describe("missing printed totals never count as reconciled", () => {
+  const without = async (name: string, drop: RegExp) =>
+    (await extractLines(load(name))).lines.filter((l) => !drop.test(l.text));
+
+  it("DBS: a card with no TOTAL line is unreconciled and warned", async () => {
+    const lines = await without("dbs/2026-03", /^TOTAL:/);
+    const { statement } = parseDbsCard(lines);
+    expect(statement.cards.every((c) => !c.reconciled)).toBe(true);
+    expect(statement.warnings).toContain("card_1_total_missing");
+  });
+
+  it("UOB: a card with no TOTAL BALANCE line is unreconciled and warned", async () => {
+    const lines = await without("uob/2026-03", /^TOTAL BALANCE FOR/);
+    const { statement } = parseUobCard(lines);
+    expect(statement.cards.every((c) => !c.reconciled)).toBe(true);
+    expect(statement.warnings).toContain("card_1_total_missing");
+  });
+
+  it("a missing statement total leaves totalsMatch unknown, not true", async () => {
+    const lines = await without("dbs/2026-03", /GRAND TOTAL FOR ALL CARD ACCOUNTS/);
+    const { statement } = parseDbsCard(lines);
+    expect(statement.cards.every((c) => c.reconciled)).toBe(true);
+    expect(statement.totalsMatch).toBeNull();
   });
 });
 

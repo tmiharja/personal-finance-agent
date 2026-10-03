@@ -79,13 +79,26 @@ export function classify(descriptor: string, cents: number): ParsedRow["kind"] {
   return cents < 0 ? "refund" : "charge";
 }
 
-/** Number repeated product names on one statement: 1, 2, … in order of appearance. */
-export function assignOrdinals(cards: Omit<ParsedCard, "ordinal" | "reconciled">[]): ParsedCard[] {
+type CardDraft = Omit<ParsedCard, "ordinal" | "reconciled"> & {
+  hasTotal: boolean;
+  hasPrevious: boolean;
+};
+
+/**
+ * Numbers repeated product names (1, 2, … in order of appearance) and checks each
+ * card. A card whose printed total wasn't found is never "reconciled": a missing
+ * total is unverified, not a verified zero. (A missing previous balance is only a
+ * warning: a card's first statement may not print one, and a real non-zero balance
+ * that was missed still fails the sum check.)
+ */
+export function finaliseCards(drafts: CardDraft[]): ParsedCard[] {
   const seen = new Map<string, number>();
-  return cards.map((c) => {
+  return drafts.map(({ hasTotal, hasPrevious, ...c }) => {
     const ordinal = (seen.get(c.productName) ?? 0) + 1;
     seen.set(c.productName, ordinal);
+    void hasPrevious;
     const reconciled =
+      hasTotal &&
       c.previousBalanceCents + c.rows.reduce((s, r) => s + r.amountCents, 0) === c.totalCents;
     return { ...c, ordinal, reconciled };
   });

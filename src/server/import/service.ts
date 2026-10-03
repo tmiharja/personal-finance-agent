@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
 import { accounts, auditLog, imports, proposedActions, transactions } from "@/db/schema";
@@ -193,7 +193,8 @@ async function buildPreview(
     minimumPaymentCents: statement.minimumPaymentCents,
     statementTotalCents: statement.statementTotalCents,
     totalsMatch: statement.totalsMatch,
-    allReconciled: cards.every((c) => c.reconciled) && statement.totalsMatch !== false,
+    // A statement total that couldn't be found is unverified, not a pass.
+    allReconciled: cards.every((c) => c.reconciled) && statement.totalsMatch === true,
     cards,
     warnings: statement.warnings,
   };
@@ -210,6 +211,60 @@ async function audit(
   inverse: Record<string, unknown> | null = null,
 ) {
   await tx.insert(auditLog).values({ userId, proposalId, actor, event, detail, inverse });
+}
+
+/**
+ * Expires every overdue pending import of the signed-in user (RLS-scoped):
+ * proposals become "expired", encrypted previews are deleted. The daily cron
+ * (/api/cron/expire-imports) does the same for users who never come back.
+ */
+export async function expireOverdueImports(tx: Tx, userId: string): Promise<number> {
+  const now = new Date();
+  const overdue = await tx
+    .update(proposedActions)
+    .set({ status: "expired" })
+    .where(and(eq(proposedActions.status, "pending"), lt(proposedActions.expiresAt, now)))
+    .returning({ id: proposedActions.id });
+  await tx
+    .update(imports)
+    .set({ status: "expired", previewEnc: null })
+    .where(and(eq(imports.status, "previewed"), lt(imports.expiresAt, now)));
+  for (const p of overdue) await audit(tx, userId, p.id, "system", "expired");
+  return overdue.length;
+}
+
+/**
+ * The daily cron sweep (api/cron/expire-imports): the same expiry for every user,
+ * including users who never come back. Runs as the owner role, outside RLS, and
+ * touches only overdue pending proposals and their uncommitted previews.
+ */
+export async function expireOverdueForAllUsers(
+  db: AppDb,
+): Promise<{ proposals: number; previews: number }> {
+  const now = new Date();
+  return db.transaction(async (tx) => {
+    const overdue = await tx
+      .update(proposedActions)
+      .set({ status: "expired" })
+      .where(and(eq(proposedActions.status, "pending"), lt(proposedActions.expiresAt, now)))
+      .returning({ id: proposedActions.id, userId: proposedActions.userId });
+    const cleared = await tx
+      .update(imports)
+      .set({ status: "expired", previewEnc: null })
+      .where(and(eq(imports.status, "previewed"), lt(imports.expiresAt, now)))
+      .returning({ id: imports.id });
+    if (overdue.length) {
+      await tx.insert(auditLog).values(
+        overdue.map((p) => ({
+          userId: p.userId,
+          proposalId: p.id,
+          actor: "system" as const,
+          event: "expired" as const,
+        })),
+      );
+    }
+    return { proposals: overdue.length, previews: cleared.length };
+  });
 }
 
 /** Expires a pending proposal (and its import) once its 24 hours are up. */
@@ -268,6 +323,7 @@ export async function previewImport(
 
   return withUser(db, userId, async (tx) => {
     const crypto = await getUserCrypto(tx, userId, keys);
+    await expireOverdueImports(tx, userId);
     const [existing] = await tx.select().from(imports).where(eq(imports.fileSha256, fileSha256));
     if (existing?.status === "committed") throw new ImportError("already_imported");
     if (existing?.status === "previewed") {
@@ -315,7 +371,27 @@ export async function previewImport(
         summary,
         expiresAt,
       })
+      // Two identical uploads at once: the unique (user, file hash) index makes the
+      // second insert wait for the first, then do nothing; it returns the winner's preview.
+      .onConflictDoNothing()
       .returning();
+    if (!imp) {
+      const [winner] = await tx.select().from(imports).where(eq(imports.fileSha256, fileSha256));
+      if (winner?.status === "committed") throw new ImportError("already_imported");
+      const [winnerProposal] = winner
+        ? await tx
+            .select()
+            .from(proposedActions)
+            .where(
+              and(
+                eq(proposedActions.type, "commit_import"),
+                sql`${proposedActions.payload}->>'importId' = ${winner.id}`,
+              ),
+            )
+        : [];
+      if (!winner || !winnerProposal) throw new ImportError("proposal_not_found");
+      return readPreview(tx, crypto, winner, winnerProposal);
+    }
 
     // The payload binds the approval to exactly this preview (ACT-6).
     const payload = { importId: imp!.id, previewSha256: sha256(previewEnc) };
@@ -543,6 +619,7 @@ export type PendingProposal = {
 
 export async function listPendingProposals(db: AppDb, userId: string): Promise<PendingProposal[]> {
   return withUser(db, userId, async (tx) => {
+    await expireOverdueImports(tx, userId);
     const rows = await tx
       .select()
       .from(proposedActions)
