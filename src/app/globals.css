@@ -255,3 +255,17 @@ body {
     display: none;
   }
 }
+
+/* Gentle pulse for in-progress status text (off under reduced motion). */
+@keyframes step-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.step-pulse {
+  animation: step-pulse 1.6s ease-in-out infinite;
+}

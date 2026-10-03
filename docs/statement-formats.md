@@ -156,38 +156,44 @@ On the next page the section continues after a repeated header: `UOB SAMPLE MILE
 
 ## 3. Output contract (both parsers)
 
+Implemented in `src/server/ingest/parsers/` (`dbs-card-pdf@1`, `uob-card-pdf@1`), and validated at runtime by a strict Zod schema (`types.ts`).
+
 ```ts
-type ParsedCardStatement = {
+type ParsedStatement = {
   bank: "DBS" | "UOB";
-  parserVersion: string;              // e.g. "dbs-card-pdf@1"
+  parserVersion: string;              // "dbs-card-pdf@1" | "uob-card-pdf@1"
   statementDate: string;              // ISO date
-  dueDate: string;
-  minimumPaymentCents: number;
-  statementTotalCents: number;        // DBS grand total / UOB amount to pay
+  dueDate: string | null;
+  minimumPaymentCents: number | null;
+  statementTotalCents: number | null; // DBS grand total / UOB amount to pay
+  totalsMatch: boolean | null;        // Σ card totals == statement total
   cards: Array<{
     productName: string;              // the ONLY card identifier, as printed, e.g. "UOB SAMPLE CASHBACK"
     ordinal: number;                  // 1, 2… only if the same product name repeats
     previousBalanceCents: number;
     totalCents: number;
+    reconciled: boolean;              // previous + Σ rows == total
     rows: Array<{
       txnDate: string;                // ISO
       postDate: string | null;        // UOB only
       amountCents: number;            // + charge, − credit
-      descriptor: string;             // already sanitised (PRD §7.1a): no account numbers, 6+ digit runs → "#"
+      rawDescriptor: string;          // as printed: IN MEMORY ONLY (see below)
+      refNo: string | null;           // IN MEMORY ONLY: enters the dedupe hash, never stored
       fx: { currency: string | null; amount: string } | null;
       kind: "charge" | "refund" | "card_payment" | "fee" | "cashback";
-      dedupeKey: string;              // HMAC(userKey, bank|product|dates|amount|descriptor|refNo)
     }>;
   }>;
   warnings: string[];                 // codes only, never values
 };
+// Returned alongside, never stored: names: string[] (cardholder names seen in the
+// file, used only by the PII firewall's name check during this request).
 ```
 
-The parser has **no field** for a card number, cardholder name, address, credit limit or bank account. The types make it impossible to pass them on. A Zod `.strict()` schema enforces the same at runtime.
+**What gets persisted.** `prepareRows()` (`src/server/finance/ledger.ts`) is the PII firewall step. It turns each row into a sanitised `descriptor`, a normalised `merchantName` and an HMAC `dedupeKey`. The reference number is consumed by the hash and dropped. Only these prepared rows are stored: first encrypted in the import preview (`imports.preview_enc`), and after approval as transactions with an encrypted descriptor. Raw descriptors, reference numbers and names never reach the database.
 
-The fixtures' `.expected.json` files follow this contract. They add a few fields for evals: `rawDescriptor` (fictional, as printed), `expectedCategory` and `supplementary`. They leave out `dedupeKey`, which depends on a per-user key.
+There is **no field** for a card number, cardholder name, address, credit limit or bank account. The schema is strict, so none can be added by accident.
 
----
+The fixtures' `.expected.json` files follow this contract. They add a few fields for evals (`descriptor`, `expectedCategory`, `supplementary`) and leave out `refNo`.
 
 ## 4. Fixtures and tests
 
@@ -195,4 +201,5 @@ The fixtures' `.expected.json` files follow this contract. They add a few fields
 - **Golden tests**: exact rows, totals and reconciliation per fixture.
 - **No-PII tests**: after an import, assert that none of the fixture's test card numbers (in any format), "Alex Tan"/"Jordan Tan" or the fixture address appear in the DB, logs, LLM request bodies or API responses.
 - **Local-only real-sample test**: `tests/private/` is git-ignored and skipped in CI. It runs both parsers on your real PDFs and asserts only that reconciliation passes and that no Luhn-valid number or name reaches the output.
-- **To do**: add encrypted fixture variants (owner-password and open-password). `pdf-lib` can't encrypt, so this needs `qpdf` or an equivalent at generation time.
+- **Encrypted variants** (`synthetic/variants/`, RC4-128 via `@pdfsmaller/pdf-encrypt-lite`, deterministic): an owner-password, copy-restricted DBS statement that must open without a prompt, and a UOB statement with a fictional open password that must be asked for.
+- **Status:** both parsers pass every fixture and variant exactly (`tests/unit/parsers.test.ts`). They also reconcile every card section and the statement totals of the real DBS and UOB samples (local-only test, no values recorded).

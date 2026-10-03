@@ -6,7 +6,7 @@ export default defineConfig({
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   test: {
-    include: ["tests/unit/**/*.test.ts", "tests/no-pii/**/*.test.ts"],
+    include: ["tests/unit/**/*.test.ts", "tests/no-pii/**/*.test.ts", "tests/private/**/*.test.ts"],
     environment: "node",
     // In-process Postgres (PGlite) boots per file; give it room on slow runners.
     testTimeout: 30_000,

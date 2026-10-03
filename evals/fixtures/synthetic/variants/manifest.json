@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "note": "Fictional passwords for synthetic test PDFs only.",
+  "variants": [
+    {
+      "file": "dbs-2026-03-owner-only.pdf",
+      "base": "dbs/2026-03",
+      "password": null
+    },
+    {
+      "file": "uob-2026-01-password.pdf",
+      "base": "uob/2026-01",
+      "password": "alex0000"
+    }
+  ]
+}

@@ -82,6 +82,7 @@ export const importStatusEnum = pgEnum("import_status", [
   "committed",
   "expired",
   "failed",
+  "discarded",
 ]);
 export const txnKindEnum = pgEnum("txn_kind", [
   "charge",
@@ -211,6 +212,14 @@ export const imports = pgTable(
     parserVersion: text("parser_version").notNull(),
     statementDate: date("statement_date").notNull(),
     status: importStatusEnum("status").notNull().default("previewed"),
+    /**
+     * The parsed statement after the PII firewall (sanitised descriptors, dedupe
+     * keys; no reference numbers or names), encrypted. Committed only on approval.
+     */
+    previewEnc: text("preview_enc"),
+    /** Counts and totals only (no descriptors): what the preview card shows. */
+    summary: jsonb("summary"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("imports_file_uq").on(t.userId, t.fileSha256), rls("imports")],

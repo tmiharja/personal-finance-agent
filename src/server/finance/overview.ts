@@ -20,7 +20,7 @@ export async function getOverviewCounts(db: AppDb, userId: string): Promise<Over
         (select count(*)::int from statements) as statements,
         (select count(*)::int from transactions) as transactions,
         (select max(statement_date)::text from statements) as "latestStatement",
-        (select count(*)::int from proposed_actions where status = 'pending') as "pendingApprovals"`);
+        (select count(*)::int from proposed_actions where status = 'pending' and expires_at > now()) as "pendingApprovals"`);
     return sqlRows<OverviewCounts>(res)[0]!;
   });
 }

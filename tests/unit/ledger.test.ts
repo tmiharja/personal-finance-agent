@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import type { AppDb } from "@/db/client";
 import { statements } from "@/db/schema";
@@ -54,7 +55,10 @@ async function importStatement(patch: Partial<CardStatementInput>) {
       ...patch,
     };
     const result = await insertCardStatement(tx, crypto, input, cats);
-    const [stored] = await tx.select().from(statements);
+    const [stored] = await tx
+      .select()
+      .from(statements)
+      .where(eq(statements.statementDate, input.statementDate));
     return { result, stored: stored! };
   });
 }
@@ -99,5 +103,21 @@ describe("card statement re-import", () => {
       rows: [row(10000, "SAMPLE STORE A")],
     });
     expect(stored).toMatchObject({ totalCents: 12000, reconciled: false });
+  });
+});
+
+describe("overlapping statements", () => {
+  it("counts rows first stored under an earlier statement when reconciling a later one", async () => {
+    // The 2026-03-14 statement already holds SAMPLE STORE A and B. A later statement
+    // repeats B (an overlapping period) and adds C: B is a duplicate, not inserted
+    // again, but it is still part of what the later statement's total covers.
+    const { result, stored } = await importStatement({
+      statementDate: "2026-04-14",
+      previousBalanceCents: 0,
+      totalCents: 3000,
+      rows: [row(1000, "SAMPLE STORE B"), row(2000, "SAMPLE STORE C")],
+    });
+    expect(result).toMatchObject({ inserted: 1, duplicates: 1, reconciled: true });
+    expect(stored).toMatchObject({ statementDate: "2026-04-14", reconciled: true });
   });
 });
