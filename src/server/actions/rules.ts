@@ -76,6 +76,7 @@ export async function proposeMerchantRule(
         and(
           sql`lower(${transactions.merchantName}) = lower(${seed.merchant})`,
           inArray(transactions.kind, ["charge", "refund"]),
+          eq(transactions.isTransfer, false),
           sql`${transactions.categoryId} is distinct from ${cat.id}`,
         ),
       )

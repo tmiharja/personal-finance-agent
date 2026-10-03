@@ -45,6 +45,10 @@ export type MonthOverview = {
   byCategory: CategorySpend[];
   /** The 12 months ending at `month`. */
   trend: MonthSpend[];
+  /** How many bank accounts are imported (income needs at least one). */
+  bankAccounts: number;
+  /** Σ closing balances of each bank account's latest statement in or before the month. */
+  balances: { cents: number; asOf: string; accounts: number } | null;
 };
 
 /** Overview for a month (YYYY-MM); defaults to the latest month with transactions. */
@@ -67,12 +71,34 @@ export async function getMonthOverview(
         : last;
     const range = monthRange(month);
     const prevMonth = addMonths(month, -1);
-    const [totals, previous, byCategory, trend] = await Promise.all([
+    const [totals, previous, byCategory, trend, banks] = await Promise.all([
       spendTotals(tx, range),
       prevMonth >= first ? spendTotals(tx, monthRange(prevMonth)) : Promise.resolve(null),
       spendByCategory(tx, range),
       monthlySpend(tx, { from: monthRange(addMonths(month, -11)).from, to: range.to }),
+      tx.execute(sql`select count(*)::int as n from accounts where kind = 'deposit'`),
     ]);
-    return { month, span: { first, last }, totals, previous, byCategory, trend };
+    const bankAccounts = sqlRows<{ n: number }>(banks)[0]?.n ?? 0;
+    // Balances are stored signed like rows (money held is negative).
+    const [b] = sqlRows<{ cents: string | null; as_of: string | null; n: number }>(
+      await tx.execute(sql`
+        select (-sum(s.total_cents))::text as cents, max(s.statement_date)::text as as_of, count(*)::int as n
+        from (select distinct on (s.account_id) s.total_cents, s.statement_date
+              from statements s join accounts a on a.id = s.account_id
+              where a.kind = 'deposit' and s.total_cents is not null and s.statement_date <= ${range.to}
+              order by s.account_id, s.statement_date desc) s`),
+    );
+    const balances =
+      b?.cents && b.as_of ? { cents: Number(b.cents), asOf: b.as_of, accounts: b.n } : null;
+    return {
+      month,
+      span: { first, last },
+      totals,
+      previous,
+      byCategory,
+      trend,
+      bankAccounts,
+      balances,
+    };
   });
 }

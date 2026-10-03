@@ -1,7 +1,7 @@
 {
   "synthetic": true,
   "persona": "Alex Tan (fictional)",
-  "period": "2025-09-15..2026-09-14",
+  "period": "cards 2025-09-15..2026-09-14; bank accounts 2025-10-01..2026-09-30",
   "planted": [
     {
       "type": "subscription",
@@ -136,6 +136,50 @@
       "card": "dbs-mc",
       "statement": "2026-09",
       "note": "payment only, total 0.00"
+    },
+    {
+      "type": "income",
+      "payee": "SAMPLE EMPLOYER PTE LTD",
+      "account": "uob-one",
+      "cadence": "monthly",
+      "amount": "6,800.00 on the 25th, plus a 13,600.00 bonus in Dec 2025"
+    },
+    {
+      "type": "own_transfer",
+      "from": "uob-one",
+      "to": "posb",
+      "amount": "3,000.00 monthly on the 26th; lands the same day or the next",
+      "expect": [
+        "paired",
+        "excluded from spend and income"
+      ]
+    },
+    {
+      "type": "card_payment_from_bank",
+      "note": "every card statement payment appears in a bank account on the same day",
+      "expect": [
+        "paired with the card's payment row",
+        "card marked paid"
+      ]
+    },
+    {
+      "type": "bill",
+      "payee": "SAMPLE TOWN COUNCIL",
+      "account": "uob-one",
+      "cadence": "monthly",
+      "amount": "82.40"
+    },
+    {
+      "type": "unusual_first_time_merchant",
+      "merchant": "PAYNOW TO SAMPLE RENOVATION PTE LTD",
+      "account": "posb",
+      "date": "2026-03-10",
+      "amount": "1,800.00"
+    },
+    {
+      "type": "paynow_person",
+      "account": "posb",
+      "note": "PayNow to and from a fictional person: the name is dropped; out = to review, in = to review"
     }
   ]
 }

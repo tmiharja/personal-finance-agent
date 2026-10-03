@@ -1,5 +1,6 @@
 import type { Line } from "../pdf";
 import {
+  type CardDraft,
   finaliseCards,
   classify,
   cleanDescriptor,
@@ -10,7 +11,7 @@ import {
   splitAmount,
   toCents,
 } from "./common";
-import { ParseError, type ParsedCard, type ParsedRow, type ParseResult } from "./types";
+import { ParseError, type ParsedRow, type ParseResult } from "./types";
 
 export const DBS_CARD_VERSION = "dbs-card-pdf@1";
 
@@ -24,17 +25,14 @@ export function isDbsCard(lines: Line[]): boolean {
   );
 }
 
-const CARD_START = /^(.+?) CARD NO\.:\s*[\d ]{13,23}$/;
+const CARD_START = /^(.+?) CARD NO\.:\s*([\d ]{13,23})$/;
 const NEW_TXNS = /^NEW TRANSACTIONS\s+(.+)$/;
 const ROW = /^(\d{2} [A-Z]{3})\s+(.+)$/;
 const REF = /^REF NO:\s*(\d+)$/i;
 const FX = /^([A-Z][A-Z .]+?)\s+(\d[\d,]*\.\d{2})$/;
 const STOP = /POINTS SUMMARY|USEFUL INFORMATION|SPECIALLY FOR YOU/i;
 
-type Draft = Omit<ParsedCard, "ordinal" | "reconciled"> & {
-  hasTotal: boolean;
-  hasPrevious: boolean;
-};
+type Draft = CardDraft;
 
 export function parseDbsCard(lines: Line[]): ParseResult {
   const warnings: string[] = [];
@@ -68,12 +66,14 @@ export function parseDbsCard(lines: Line[]): ParseResult {
   let lastRow: ParsedRow | null = null;
   let statementTotalCents: number | null = null;
 
+  const refs: string[] = [];
   for (const line of lines) {
     const text = line.text;
     if (STOP.test(text)) break;
 
     const start = CARD_START.exec(text);
     if (start) {
+      refs.push(start[2]!.replace(/\D/g, ""));
       card = {
         productName: cleanDescriptor(start[1]!),
         previousBalanceCents: 0,
@@ -157,8 +157,10 @@ export function parseDbsCard(lines: Line[]): ParseResult {
   const sum = cards.reduce((s, c) => s + c.totalCents, 0);
   return {
     names: [...names],
+    accountRefs: refs,
     statement: {
       bank: "DBS",
+      kind: "card",
       parserVersion: DBS_CARD_VERSION,
       statementDate,
       dueDate,

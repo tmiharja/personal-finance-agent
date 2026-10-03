@@ -1,0 +1,100 @@
+{
+  "synthetic": true,
+  "bank": "DBS",
+  "kind": "deposit",
+  "statementDate": "2026-04-30",
+  "cards": [
+    {
+      "productName": "POSB SAMPLE SAVINGS ACCOUNT",
+      "ordinal": 1,
+      "previousBalanceCents": -1569369,
+      "totalCents": -1757489,
+      "reconciled": true,
+      "rows": [
+        {
+          "txnDate": "2026-04-07",
+          "postDate": null,
+          "amountCents": 57323,
+          "rawDescriptor": "CARD PAYMENT DBS CARD",
+          "descriptor": "CARD PAYMENT DBS CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "dbs-visa"
+        },
+        {
+          "txnDate": "2026-04-07",
+          "postDate": null,
+          "amountCents": 40411,
+          "rawDescriptor": "CARD PAYMENT DBS CARD",
+          "descriptor": "CARD PAYMENT DBS CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "dbs-mc"
+        },
+        {
+          "txnDate": "2026-04-11",
+          "postDate": null,
+          "amountCents": 2091,
+          "rawDescriptor": "PAYNOW TRANSFER OUT",
+          "descriptor": "PAYNOW TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-04-15",
+          "postDate": null,
+          "amountCents": 2316,
+          "rawDescriptor": "SHENG SIONG - SAMPLE",
+          "descriptor": "SHENG SIONG - SAMPLE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-04-15",
+          "postDate": null,
+          "amountCents": 3745,
+          "rawDescriptor": "PAYNOW TRANSFER OUT",
+          "descriptor": "PAYNOW TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-04-25",
+          "postDate": null,
+          "amountCents": 6033,
+          "rawDescriptor": "SHENG SIONG - SAMPLE",
+          "descriptor": "SHENG SIONG - SAMPLE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-04-27",
+          "postDate": null,
+          "amountCents": -300000,
+          "rawDescriptor": "FAST TRANSFER IN",
+          "descriptor": "FAST TRANSFER IN",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Transfers",
+          "transferLeg": "2026-04-26"
+        },
+        {
+          "txnDate": "2026-04-30",
+          "postDate": null,
+          "amountCents": -39,
+          "rawDescriptor": "INTEREST CREDIT",
+          "descriptor": "INTEREST CREDIT",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Income"
+        }
+      ]
+    }
+  ]
+}

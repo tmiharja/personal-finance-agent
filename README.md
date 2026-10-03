@@ -68,7 +68,18 @@ The agent can read your data but never changes anything on its own. Every write 
 | Evaluation | A golden eval over the fixture household's planted events: **recall 17/17**; 18 of 20 detections are planted events and the other 2 are correct overdue-payment alerts (two cards due 2 Oct 2026 with no payment in the data). Edge cases: trials, price levels, coverage gaps, ignored subscriptions, idempotent re-runs |
 | Tests | 192 unit/integration tests and 36 e2e tests (desktop + mobile). The no-PII harness now covers detector output too. Screenshots: [`docs/screenshots/phase-2a/`](docs/screenshots/phase-2a/) |
 
-**Next: Phase 2b.** OCBC cards, and DBS/POSB, UOB and OCBC bank-account statements (PDF + CSV) with transfer pairing. This needs real samples, which stay local and git-ignored. See the PRD §12.
+**Phase 2b: DBS/POSB and UOB bank accounts (done; parsers provisional).**
+
+| Area | What's in place |
+|---|---|
+| Bank statements | POSB/DBS and UOB account statements as **PDF** or the bank's **CSV export** (UOB's XLS saved as CSV). Withdrawals, deposits and the running balance are read by column; each account reconciles `opening − Σ rows = closing`, and every printed running balance is checked. A PDF and the CSV of the same month produce identical rows, so importing both adds nothing. **The layouts are provisional**: built against synthetic statements in the banks' published formats, until real samples pass the local reconciliation test |
+| Privacy | The account number is dropped with the header; the account's product name is its only identifier. **Other people's names never leave the parser**: a PayNow/FAST transfer to or from a person is stored as "PayNow transfer" (date and amount only); payments to businesses keep the business name. `check:pii` now rejects any CSV that isn't a marked synthetic fixture, and any spreadsheet |
+| Transfer pairing | Money moving between your own accounts appears twice; both legs are paired and excluded from spend and income (PRD IMP-10). A bank's card bill payment pairs with the card's own payment row; a FAST transfer out of one account pairs with the same amount into another, within 3 days. Only unambiguous matches pair; the import preview says how many will, and the approval applies them. A bank payment made before its card statement is imported is still linked to the card, so the card shows **paid** (DET-7) |
+| Income | Salary, interest and other money in. Overview shows Income next to Spent (refunds netted), plus the balance across your bank accounts; Ask's `spend_summary` returns income too, and its "Excludes…" note names transfers. An unmatched PayNow in is left for review: confirm it as income, or as a transfer between your own accounts |
+| Evaluation | The fixture household now has a POSB and a UOB One account (salary, an own transfer each month, card bills paid from the bank, a town-council GIRO, ATM, NETS, PayNow). **60 of 60** planted card payments and transfers pair; detector **recall 19/19** (the bank-side town-council bill and a first-time PayNow payee included) |
+| Tests | 269 unit/integration tests and 40 e2e tests (desktop + mobile): 48 bank fixtures parse exactly (PDF and CSV), the bank-row classifier, the pairing matcher, cross-bank pairing and CSV dedupe through the real import path, RLS on the new pair columns, and the no-PII dump with bank data. Screenshots: [`docs/screenshots/phase-2b/`](docs/screenshots/phase-2b/) |
+
+**Next: Phase 3 (act).** The full proposal engine, budgets, undo and the weekly digest. Real DBS/POSB and UOB bank-account samples, when you have them, turn the provisional parsers into verified ones. See the PRD §12.
 
 ## Local development
 

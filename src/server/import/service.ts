@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
-import { accounts, auditLog, imports, proposedActions, transactions } from "@/db/schema";
+import { auditLog, imports, proposedActions, transactions } from "@/db/schema";
 import { withUser, type Tx } from "@/db/with-user";
 import type { MasterKeys, UserCrypto } from "@/server/crypto/envelope";
 import { getUserCrypto } from "@/server/crypto/user-keys";
@@ -9,7 +9,8 @@ import {
   ensureDefaultCategories,
   insertPreparedStatement,
   prepareRows,
-  upsertCardAccount,
+  findAccount,
+  upsertAccount,
   type LedgerRow,
   type PreparedRow,
 } from "@/server/finance/ledger";
@@ -17,7 +18,14 @@ import { needsReview, type Categorised } from "@/server/categorise/categorise";
 import { categoriseStatement } from "@/server/categorise/context";
 import { audit, canonical, expireIfDue, sha256 } from "@/server/actions/common";
 import type { RulePreview } from "@/server/actions/rules";
-import { parseStatementPdf, type ParsedStatement } from "@/server/ingest/parsers";
+import { parseStatementFile, type ParsedStatement } from "@/server/ingest/parsers";
+import {
+  countNewPairs,
+  loadPairCandidates,
+  matchTransfers,
+  pairTransfers,
+  type PairCandidate,
+} from "@/server/finance/transfers";
 import { longDate } from "@/lib/format";
 import { logEvent } from "@/server/log";
 
@@ -49,15 +57,18 @@ export class ImportError extends Error {
   }
 }
 
+/** One card, or one bank account (summary.kind "deposit"). */
 export type PreviewCard = {
   productName: string;
   ordinal: number;
   isNewCard: boolean;
-  previousBalanceCents: number;
-  totalCents: number;
-  reconciled: boolean;
-  /** printed total − (previous balance + Σ rows); 0 when reconciled. */
-  differenceCents: number;
+  /** Signed like rows: + owed, − held (a bank balance is negative). Null: none printed. */
+  previousBalanceCents: number | null;
+  totalCents: number | null;
+  /** Null: no balances in the file, so nothing to check against. */
+  reconciled: boolean | null;
+  /** printed total − (previous balance + Σ rows); 0 when reconciled, null when unknown. */
+  differenceCents: number | null;
   counts: {
     rows: number;
     newRows: number;
@@ -67,13 +78,20 @@ export type PreviewCard = {
     fees: number;
     cashback: number;
     foreignCurrency: number;
+    /** Bank accounts: credits that aren't refunds, and moves between your own accounts. */
+    income?: number;
+    transfers?: number;
   };
   chargesCents: number;
+  /** Bank accounts: Σ income rows (as a positive amount). */
+  incomeCents?: number;
 };
 
 /** Counts and totals only: safe to store unencrypted and to put in a proposal. */
 export type ImportSummary = {
   bank: "DBS" | "UOB";
+  /** Absent on previews made before Phase 2b: those are card statements. */
+  kind?: "card" | "deposit";
   parserVersion: string;
   statementDate: string;
   dueDate: string | null;
@@ -82,6 +100,8 @@ export type ImportSummary = {
   totalsMatch: boolean | null;
   allReconciled: boolean;
   cards: PreviewCard[];
+  /** Rows this import will pair with your other accounts (PRD IMP-10). */
+  pairing?: { cardPayments: number; transfers: number; linkedCardPayments: number };
   /** Category outcome for the rows this import will add (duplicates excluded). */
   categories: {
     toReview: number;
@@ -132,7 +152,11 @@ export type ImportPreview = {
 /** What is encrypted into imports.preview_enc. */
 type StoredPreview = {
   statement: Omit<ParsedStatement, "cards"> & {
-    cards: (Omit<ParsedStatement["cards"][number], "rows"> & { rows: PreparedRow[] })[];
+    cards: (Omit<ParsedStatement["cards"][number], "rows"> & {
+      rows: PreparedRow[];
+      /** HMAC of the card/account number; the number itself is never kept. */
+      identityKey?: string | null;
+    })[];
   };
 };
 
@@ -183,10 +207,13 @@ async function buildPreview(
   statement: ParsedStatement,
   names: string[],
   categorised: StatementCategoriesLike | null,
+  accountRefs: readonly (string | null)[] = [],
 ): Promise<{ stored: StoredPreview; summary: ImportSummary; rows: PreviewRow[][] }> {
-  const myCards = await tx
-    .select({ bank: accounts.bank, productName: accounts.productName, ordinal: accounts.ordinal })
-    .from(accounts);
+  // Transfer pairing, counted (not written) for the preview: this statement's new
+  // rows against everything already in the ledger.
+  const existing = await loadPairCandidates(tx);
+  const newCandidates: PairCandidate[] = [];
+  const newCardStatements: typeof existing.cardStatements = [];
   const storedCards: StoredPreview["statement"]["cards"] = [];
   const cards: PreviewCard[] = [];
   const rows: PreviewRow[][] = [];
@@ -194,9 +221,14 @@ async function buildPreview(
   const freshRows: PreparedRow[] = [];
   for (const [cardIndex, card] of statement.cards.entries()) {
     const cats = categorised?.byCard[cardIndex];
+    // The number becomes a one-way, per-user digest here and is dropped.
+    const number = accountRefs[cardIndex]?.replace(/\D/g, "");
+    const identityKey = number ? crypto.dedupe(["account", statement.bank, number]) : null;
+    const ref = { bank: statement.bank, ...card, identityKey };
+    const existingId = await findAccount(tx, ref);
     const prepared = prepareRows(
       crypto,
-      { bank: statement.bank, ...card },
+      ref,
       card.rows.map((r, i) => withCategory(r, cats?.[i])),
       { names },
     );
@@ -205,23 +237,40 @@ async function buildPreview(
       prepared.map((r) => r.dedupeKey),
     );
     const sum = card.rows.reduce((s, r) => s + r.amountCents, 0);
+    const balances = card.previousBalanceCents !== null && card.totalCents !== null;
     const count = (kind: PreparedRow["kind"]) => prepared.filter((r) => r.kind === kind).length;
-    storedCards.push({ ...card, rows: prepared });
+    storedCards.push({ ...card, rows: prepared, identityKey });
     // Duplicates are skipped on approval, so they don't count towards "to review".
     freshRows.push(...prepared.filter((r) => !dupes.has(r.dedupeKey)));
+    const accountId = existingId ?? `new:${cardIndex}`;
+    prepared.forEach((r, i) => {
+      if (!dupes.has(r.dedupeKey))
+        newCandidates.push({
+          id: `new:${cardIndex}:${i}`,
+          accountId,
+          accountKind: statement.kind,
+          bank: statement.bank,
+          date: r.txnDate,
+          cents: r.amountCents,
+          kind: r.kind,
+          merchant: r.merchantName,
+        });
+    });
+    if (statement.kind === "card")
+      newCardStatements.push({
+        accountId,
+        bank: statement.bank,
+        statementDate: statement.statementDate,
+        totalCents: card.totalCents,
+      });
     cards.push({
       productName: card.productName,
       ordinal: card.ordinal,
-      isNewCard: !myCards.some(
-        (c) =>
-          c.bank === statement.bank &&
-          c.productName === card.productName &&
-          c.ordinal === card.ordinal,
-      ),
+      isNewCard: existingId === null,
       previousBalanceCents: card.previousBalanceCents,
       totalCents: card.totalCents,
       reconciled: card.reconciled,
-      differenceCents: card.totalCents - (card.previousBalanceCents + sum),
+      differenceCents: balances ? card.totalCents! - (card.previousBalanceCents! + sum) : null,
       counts: {
         rows: prepared.length,
         newRows: prepared.filter((r) => !dupes.has(r.dedupeKey)).length,
@@ -231,24 +280,46 @@ async function buildPreview(
         fees: count("fee"),
         cashback: count("cashback"),
         foreignCurrency: prepared.filter((r) => r.fx).length,
+        ...(statement.kind === "deposit"
+          ? { income: count("income"), transfers: count("transfer") }
+          : {}),
       },
       chargesCents: prepared
         .filter((r) => r.kind === "charge" || r.kind === "fee")
         .reduce((s, r) => s + r.amountCents, 0),
+      ...(statement.kind === "deposit"
+        ? {
+            incomeCents: -prepared
+              .filter((r) => r.kind === "income")
+              .reduce((s, r) => s + r.amountCents, 0),
+          }
+        : {}),
     });
     rows.push(prepared.map((r) => previewRow(r, dupes.has(r.dedupeKey))));
   }
 
+  const pairing = countNewPairs(
+    matchTransfers(
+      [...existing.candidates, ...newCandidates],
+      [...existing.cardStatements, ...newCardStatements],
+    ),
+    new Set(newCandidates.map((c) => c.id)),
+  );
   const summary: ImportSummary = {
     bank: statement.bank,
+    kind: statement.kind,
+    pairing,
     parserVersion: statement.parserVersion,
     statementDate: statement.statementDate,
     dueDate: statement.dueDate,
     minimumPaymentCents: statement.minimumPaymentCents,
     statementTotalCents: statement.statementTotalCents,
     totalsMatch: statement.totalsMatch,
-    // A statement total that couldn't be found is unverified, not a pass.
-    allReconciled: cards.every((c) => c.reconciled) && statement.totalsMatch === true,
+    // A statement total that couldn't be found is unverified, not a pass. Bank
+    // statements have no grand total: each account's balances are the check.
+    allReconciled:
+      cards.every((c) => c.reconciled === true) &&
+      (statement.kind === "deposit" || statement.totalsMatch === true),
     cards,
     categories: categoryCounts(freshRows),
     warnings: [...statement.warnings, ...(categorised?.warnings ?? [])],
@@ -332,7 +403,7 @@ export async function previewImport(
 ): Promise<ImportPreview> {
   const fileSha256 = sha256(file.bytes);
   // Parse outside the transaction: pure CPU work, no database.
-  const parsed = await parseStatementPdf(file.bytes, { password: file.password });
+  const parsed = await parseStatementFile(file.bytes, { password: file.password });
   // Categorise outside it too: the classifier is a network call. Skipped for a
   // file that already has a live preview or was committed.
   const categorised = await categoriseStatement(db, userId, fileSha256, parsed);
@@ -372,6 +443,7 @@ export async function previewImport(
       parsed.statement,
       parsed.names,
       categorised,
+      parsed.accountRefs,
     );
     const expiresAt = new Date(Date.now() + PREVIEW_TTL_MS);
     const previewEnc = crypto.encrypt("imports.preview", JSON.stringify(stored));
@@ -509,6 +581,8 @@ export type CommitResult = {
   duplicates: number;
   cards: number;
   allReconciled: boolean;
+  /** Transfer legs paired across your accounts by this import (IMP-10). */
+  paired: number;
 };
 
 /**
@@ -553,12 +627,16 @@ export async function approveProposal(
       duplicates: 0,
       cards: statement.cards.length,
       allReconciled: true,
+      paired: 0,
     };
     for (const card of statement.cards) {
-      const accountId = await upsertCardAccount(tx, userId, {
+      const accountId = await upsertAccount(tx, userId, {
         bank: statement.bank,
         productName: card.productName,
         ordinal: card.ordinal,
+        identityKey: card.identityKey ?? null,
+        // Previews stored before Phase 2b have no kind: they are card statements.
+        kind: statement.kind ?? "card",
       });
       const r = await insertPreparedStatement(
         tx,
@@ -580,8 +658,11 @@ export async function approveProposal(
       );
       result.inserted += r.inserted;
       result.duplicates += r.duplicates;
-      result.allReconciled &&= r.reconciled;
+      result.allReconciled &&= r.reconciled === true;
     }
+
+    // Pair this statement's transfers and card payments with your other accounts.
+    result.paired = (await pairTransfers(tx)).pairs;
 
     const now = new Date();
     // The preview has served its purpose: committed rows live in the ledger now.
@@ -685,7 +766,7 @@ function proposalSubject(type: string | null, preview: unknown): string | null {
   if (type === "commit_import") {
     const p = preview as Partial<ImportSummary> | null;
     return p?.bank && p.statementDate
-      ? `Import ${p.bank} statement ${longDate(p.statementDate)}`
+      ? `Import ${p.bank} ${p.kind === "deposit" ? "account " : ""}statement ${longDate(p.statementDate)}`
       : "Import";
   }
   if (type === "create_rule") {

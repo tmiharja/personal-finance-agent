@@ -11,8 +11,9 @@ export const maxDuration = 60;
 const MAX_BYTES = 4 * 1024 * 1024; // under Vercel's 4.5 MB request limit
 
 /**
- * Upload one statement → parsed, sanitised preview + a pending commit_import
- * proposal. The file and any PDF password live only for this request.
+ * Upload one statement (PDF, or a bank's CSV export) → parsed, sanitised preview
+ * + a pending commit_import proposal. The file and any PDF password live only
+ * for this request.
  */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
@@ -34,7 +35,10 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) return jsonError("bad_request", 400);
   if (file.size > MAX_BYTES) return jsonError("too_large", 413);
   const bytes = new Uint8Array(await file.arrayBuffer());
-  if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") return jsonError("not_pdf", 415);
+  // A PDF statement, or a bank's CSV export (sniffed by its header rows when parsed).
+  const isPdf = new TextDecoder().decode(bytes.slice(0, 5)) === "%PDF-";
+  const isCsv = /\.csv$/i.test(file.name) || file.type === "text/csv";
+  if (!isPdf && !isCsv) return jsonError("unsupported_file", 415);
 
   try {
     const preview = await previewImport(getDb(), userId, masterKeys(), {

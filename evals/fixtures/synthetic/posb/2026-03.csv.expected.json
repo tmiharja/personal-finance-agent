@@ -1,0 +1,110 @@
+{
+  "synthetic": true,
+  "bank": "DBS",
+  "kind": "deposit",
+  "statementDate": "2026-03-31",
+  "cards": [
+    {
+      "productName": "POSB SAMPLE SAVINGS ACCOUNT",
+      "ordinal": 1,
+      "previousBalanceCents": null,
+      "totalCents": -1569369,
+      "reconciled": null,
+      "rows": [
+        {
+          "txnDate": "2026-03-07",
+          "postDate": null,
+          "amountCents": 5757,
+          "rawDescriptor": "PAYNOW TRANSFER OUT",
+          "descriptor": "PAYNOW TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-03-10",
+          "postDate": null,
+          "amountCents": 22722,
+          "rawDescriptor": "CARD PAYMENT DBS CARD",
+          "descriptor": "CARD PAYMENT DBS CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "dbs-visa"
+        },
+        {
+          "txnDate": "2026-03-10",
+          "postDate": null,
+          "amountCents": 23601,
+          "rawDescriptor": "CARD PAYMENT DBS CARD",
+          "descriptor": "CARD PAYMENT DBS CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "dbs-mc"
+        },
+        {
+          "txnDate": "2026-03-10",
+          "postDate": null,
+          "amountCents": 180000,
+          "rawDescriptor": "PAYNOW TO SAMPLE RENOVATION PTE LTD",
+          "descriptor": "PAYNOW TO SAMPLE RENOVATION PTE LTD",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Home"
+        },
+        {
+          "txnDate": "2026-03-24",
+          "postDate": null,
+          "amountCents": 3578,
+          "rawDescriptor": "PAYNOW TRANSFER OUT",
+          "descriptor": "PAYNOW TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-03-26",
+          "postDate": null,
+          "amountCents": -300000,
+          "rawDescriptor": "FAST TRANSFER IN",
+          "descriptor": "FAST TRANSFER IN",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Transfers",
+          "transferLeg": "2026-03-26"
+        },
+        {
+          "txnDate": "2026-03-27",
+          "postDate": null,
+          "amountCents": 6979,
+          "rawDescriptor": "SHENG SIONG - SAMPLE",
+          "descriptor": "SHENG SIONG - SAMPLE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-03-28",
+          "postDate": null,
+          "amountCents": -3771,
+          "rawDescriptor": "PAYNOW TRANSFER IN",
+          "descriptor": "PAYNOW TRANSFER IN",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-03-31",
+          "postDate": null,
+          "amountCents": -39,
+          "rawDescriptor": "INTEREST CREDIT",
+          "descriptor": "INTEREST CREDIT",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Income"
+        }
+      ]
+    }
+  ]
+}

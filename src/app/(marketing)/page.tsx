@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 const STEPS = [
   {
     title: "Upload your statements",
-    body: "DBS and UOB credit-card PDFs to start. Files are read in memory and discarded; card numbers, names and addresses are never stored.",
+    body: "DBS/POSB and UOB card statements and bank-account statements (PDF, or the bank's CSV export). Files are read in memory and discarded; card and account numbers, names and addresses are never stored.",
   },
   {
     title: "Review what we found",

@@ -1,3 +1,4 @@
+import type { TxnKind } from "@/lib/kinds";
 import { sql } from "drizzle-orm";
 import { sqlRows } from "@/db/rows";
 import type { Tx } from "@/db/with-user";
@@ -15,12 +16,17 @@ export type Row = {
   merchant: string;
   /** Lower-cased merchant, the grouping key. */
   key: string;
-  kind: "charge" | "refund" | "card_payment" | "fee" | "cashback";
+  kind: TxnKind;
   category: string;
   fxCurrency: string | null;
   fxAmount: string | null;
   accountId: string;
   card: string;
+  accountKind: "card" | "deposit";
+  /** Paired or marked as a move between your own accounts: never spend (IMP-10). */
+  isTransfer: boolean;
+  /** The other account of a transfer (e.g. the card a bank payment paid), when known. */
+  transferAccountId: string | null;
 };
 
 export type StatementRow = {
@@ -35,7 +41,7 @@ export type StatementRow = {
 export type Ledger = {
   rows: Row[];
   statements: StatementRow[];
-  /** Each card's latest statement date: "now" for date-based states of its charges. */
+  /** Each account's latest statement date: "now" for date-based states of its charges. */
   coverage: Map<string, string>;
 };
 
@@ -51,9 +57,12 @@ export async function loadLedger(tx: Tx): Promise<Ledger> {
     fx_amount: string | null;
     account_id: string;
     card: string;
+    account_kind: "card" | "deposit";
+    is_transfer: boolean;
+    transfer_account_id: string | null;
   }>(
     await tx.execute(sql`
-      select t.id, t.txn_date::text as date, t.amount_cents::text as cents, t.merchant_name as merchant,
+      select t.is_transfer, t.transfer_account_id, a.kind as account_kind, t.id, t.txn_date::text as date, t.amount_cents::text as cents, t.merchant_name as merchant,
              t.kind, c.name as category, t.fx_currency, t.fx_amount::text as fx_amount,
              t.account_id, case when a.ordinal > 1 then a.product_name || ' (' || a.ordinal || ')' else a.product_name end as card
       from transactions t
@@ -67,10 +76,11 @@ export async function loadLedger(tx: Tx): Promise<Ledger> {
     statement_date: string;
     due_date: string | null;
     minimum_payment_cents: string | null;
-    total_cents: string;
+    total_cents: string | null;
+    kind: "card" | "deposit";
   }>(
     await tx.execute(sql`
-      select s.account_id, case when a.ordinal > 1 then a.product_name || ' (' || a.ordinal || ')' else a.product_name end as card,
+      select a.kind, s.account_id, case when a.ordinal > 1 then a.product_name || ' (' || a.ordinal || ')' else a.product_name end as card,
              s.statement_date::text, s.due_date::text, s.minimum_payment_cents::text, s.total_cents::text
       from statements s join accounts a on a.id = s.account_id
       order by s.statement_date`),
@@ -93,16 +103,22 @@ export async function loadLedger(tx: Tx): Promise<Ledger> {
       fxAmount: r.fx_amount,
       accountId: r.account_id,
       card: r.card,
+      accountKind: r.account_kind,
+      isTransfer: r.is_transfer,
+      transferAccountId: r.transfer_account_id,
     })),
-    statements: statements.map((s) => ({
-      accountId: s.account_id,
-      card: s.card,
-      statementDate: s.statement_date,
-      dueDate: s.due_date,
-      minimumPaymentCents:
-        s.minimum_payment_cents === null ? null : Number(s.minimum_payment_cents),
-      totalCents: Number(s.total_cents),
-    })),
+    // Due dates and balances to pay: card statements only.
+    statements: statements
+      .filter((s) => s.kind === "card")
+      .map((s) => ({
+        accountId: s.account_id,
+        card: s.card,
+        statementDate: s.statement_date,
+        dueDate: s.due_date,
+        minimumPaymentCents:
+          s.minimum_payment_cents === null ? null : Number(s.minimum_payment_cents),
+        totalCents: Number(s.total_cents),
+      })),
     coverage,
   };
 }

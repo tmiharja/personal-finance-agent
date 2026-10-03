@@ -11,35 +11,43 @@ import {
   describeRow,
   ensureDefaultCategories,
   insertCardStatement,
-  upsertCardAccount,
+  upsertAccount,
   type LedgerRow,
 } from "@/server/finance/ledger";
+import { pairTransfers } from "@/server/finance/transfers";
 
-/** Shape of evals/fixtures/synthetic/<bank>/*.expected.json (docs/statement-formats.md §3). */
+/** Shape of evals/fixtures/synthetic/<dir>/*.expected.json (docs/statement-formats.md §3). */
 type ExpectedStatement = {
   synthetic: true;
   bank: "DBS" | "UOB";
+  /** Absent on card fixtures. */
+  kind?: "card" | "deposit";
   statementDate: string;
-  dueDate: string;
-  minimumPaymentCents: number;
+  dueDate?: string;
+  minimumPaymentCents?: number;
   cards: {
     productName: string;
     ordinal: number;
-    previousBalanceCents: number;
-    totalCents: number;
+    previousBalanceCents: number | null;
+    totalCents: number | null;
     rows: (Omit<LedgerRow, "categoryName" | "refNo"> & { expectedCategory: string })[];
   }[];
 };
 
-export const FIXTURES_DIR = join(process.cwd(), "evals", "fixtures", "synthetic");
+const FIXTURE_DIRS = ["dbs", "uob", "posb", "uob-one"] as const;
 
-export function loadFixtureStatements(dir = FIXTURES_DIR): ExpectedStatement[] {
+/** Card statements, then the bank accounts' PDF statements (their CSVs carry the same rows). */
+export function loadFixtureStatements(): ExpectedStatement[] {
   const out: ExpectedStatement[] = [];
-  for (const bank of ["dbs", "uob"]) {
-    for (const f of readdirSync(join(dir, bank))
-      .filter((n) => n.endsWith(".expected.json"))
+  for (const bank of FIXTURE_DIRS) {
+    // A statically scoped path, so the build traces only this folder; next.config.ts
+    // narrows it to the expected JSON (never the PDFs or CSVs).
+    for (const f of readdirSync(join(process.cwd(), "evals", "fixtures", "synthetic", bank))
+      .filter((n) => n.endsWith(".expected.json") && !n.endsWith(".csv.expected.json"))
       .sort()) {
-      const st = JSON.parse(readFileSync(join(dir, bank, f), "utf8")) as ExpectedStatement;
+      const st = JSON.parse(
+        readFileSync(join(process.cwd(), "evals", "fixtures", "synthetic", bank, f), "utf8"),
+      ) as ExpectedStatement;
       // Only synthetic data may ever be seeded.
       if (st.synthetic !== true) throw new Error(`${bank}/${f} is not marked synthetic`);
       out.push(st);
@@ -85,40 +93,48 @@ function demoCategory(row: {
 export type SeedResult = {
   statements: number;
   cards: number;
+  bankAccounts: number;
   transactions: number;
   reconciled: number;
+  /** Transfer legs paired across accounts (IMP-10). */
+  paired: number;
 };
 
 /**
  * Fills a workspace with the fictional "Alex Tan" (12 months of DBS + UOB card
- * statements) through the same write path as a real import: PII firewall,
- * envelope encryption and dedupe keys. Idempotent.
+ * statements, and a POSB and a UOB One account) through the same write path as
+ * a real import: PII firewall, envelope encryption, dedupe keys and transfer
+ * pairing. Idempotent.
  */
 export async function seedDemoWorkspace(
   db: AppDb,
   userId: string,
   keys: MasterKeys,
-  dir = FIXTURES_DIR,
 ): Promise<SeedResult> {
-  const fixtures = loadFixtureStatements(dir);
+  const fixtures = loadFixtureStatements();
   return withUser(db, userId, async (tx) => {
     const crypto = await getUserCrypto(tx, userId, keys);
     const categoryIds = await ensureDefaultCategories(tx, userId);
     const result: SeedResult = {
       statements: fixtures.length,
       cards: 0,
+      bankAccounts: 0,
       transactions: 0,
       reconciled: 0,
+      paired: 0,
     };
     const cardIds = new Set<string>();
+    const bankIds = new Set<string>();
     for (const st of fixtures) {
+      const kind = st.kind ?? "card";
       for (const card of st.cards) {
-        const accountId = await upsertCardAccount(tx, userId, {
+        const accountId = await upsertAccount(tx, userId, {
           bank: st.bank,
           productName: card.productName,
           ordinal: card.ordinal,
+          kind,
         });
-        cardIds.add(accountId);
+        (kind === "card" ? cardIds : bankIds).add(accountId);
         const r = await insertCardStatement(
           tx,
           crypto,
@@ -128,8 +144,8 @@ export async function seedDemoWorkspace(
             productName: card.productName,
             ordinal: card.ordinal,
             statementDate: st.statementDate,
-            dueDate: st.dueDate,
-            minimumPaymentCents: st.minimumPaymentCents,
+            dueDate: st.dueDate ?? null,
+            minimumPaymentCents: st.minimumPaymentCents ?? null,
             previousBalanceCents: card.previousBalanceCents,
             totalCents: card.totalCents,
             rows: card.rows.map((row) => ({ ...row, ...demoCategory(row) })),
@@ -141,6 +157,8 @@ export async function seedDemoWorkspace(
       }
     }
     result.cards = cardIds.size;
+    result.bankAccounts = bankIds.size;
+    result.paired = (await pairTransfers(tx)).pairs;
     return result;
   });
 }

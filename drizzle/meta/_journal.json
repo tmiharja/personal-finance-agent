@@ -50,6 +50,20 @@
       "when": 1791013469583,
       "tag": "0006_detectors",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791017053007,
+      "tag": "0007_bank_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791036363289,
+      "tag": "0008_account_identity",
+      "breakpoints": true
     }
   ]
 }

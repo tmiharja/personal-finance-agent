@@ -1,0 +1,160 @@
+{
+  "synthetic": true,
+  "bank": "UOB",
+  "kind": "deposit",
+  "statementDate": "2026-05-31",
+  "cards": [
+    {
+      "productName": "UOB SAMPLE ONE ACCOUNT",
+      "ordinal": 1,
+      "previousBalanceCents": -4485865,
+      "totalCents": -4739151,
+      "reconciled": true,
+      "rows": [
+        {
+          "txnDate": "2026-05-01",
+          "postDate": null,
+          "amountCents": 508,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-05-02",
+          "postDate": null,
+          "amountCents": 42706,
+          "rawDescriptor": "CARD PAYMENT UOB CARD",
+          "descriptor": "CARD PAYMENT UOB CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "uob-cb"
+        },
+        {
+          "txnDate": "2026-05-02",
+          "postDate": null,
+          "amountCents": 22647,
+          "rawDescriptor": "CARD PAYMENT UOB CARD",
+          "descriptor": "CARD PAYMENT UOB CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "uob-miles"
+        },
+        {
+          "txnDate": "2026-05-07",
+          "postDate": null,
+          "amountCents": 30000,
+          "rawDescriptor": "CASH WITHDRAWAL ATM",
+          "descriptor": "CASH WITHDRAWAL ATM",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Cash"
+        },
+        {
+          "txnDate": "2026-05-14",
+          "postDate": null,
+          "amountCents": 807,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-05-15",
+          "postDate": null,
+          "amountCents": 8240,
+          "rawDescriptor": "SAMPLE TOWN COUNCIL",
+          "descriptor": "SAMPLE TOWN COUNCIL",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Bills & Utilities"
+        },
+        {
+          "txnDate": "2026-05-20",
+          "postDate": null,
+          "amountCents": 20000,
+          "rawDescriptor": "CASH WITHDRAWAL ATM",
+          "descriptor": "CASH WITHDRAWAL ATM",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Cash"
+        },
+        {
+          "txnDate": "2026-05-20",
+          "postDate": null,
+          "amountCents": 1184,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-05-21",
+          "postDate": null,
+          "amountCents": 694,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-05-22",
+          "postDate": null,
+          "amountCents": 530,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-05-22",
+          "postDate": null,
+          "amountCents": 957,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-05-25",
+          "postDate": null,
+          "amountCents": -680000,
+          "rawDescriptor": "SALARY SAMPLE EMPLOYER PTE LTD",
+          "descriptor": "SALARY SAMPLE EMPLOYER PTE LTD",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Income"
+        },
+        {
+          "txnDate": "2026-05-26",
+          "postDate": null,
+          "amountCents": 300000,
+          "rawDescriptor": "FAST TRANSFER OUT",
+          "descriptor": "FAST TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transfers",
+          "transferLeg": "2026-05-26"
+        },
+        {
+          "txnDate": "2026-05-31",
+          "postDate": null,
+          "amountCents": -1559,
+          "rawDescriptor": "INTEREST CREDIT",
+          "descriptor": "INTEREST CREDIT",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Income"
+        }
+      ]
+    }
+  ]
+}

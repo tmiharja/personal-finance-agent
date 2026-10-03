@@ -38,13 +38,14 @@ export default async function ImportPage({
   return (
     <>
       <PageTitle title="Import statements">
-        Each statement is reconciled against its printed totals and shown to you first. Nothing is
-        saved until you approve it.
+        Each statement is reconciled against its printed totals or balances and shown to you first.
+        Transfers between your own accounts and card bills paid from your bank are matched up.
+        Nothing is saved until you approve it.
       </PageTitle>
       <ImportFlow initial={initial} />
       <p className="mt-10 text-[13px] text-muted">
-        Never stored: the file itself, card numbers, cardholder names, addresses, account numbers or
-        PDF passwords.
+        Never stored: the file itself, card numbers, account numbers, your name or address, the
+        names of people you pay or are paid by, or PDF passwords.
       </p>
     </>
   );

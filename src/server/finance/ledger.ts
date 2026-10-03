@@ -28,6 +28,7 @@ export const DEFAULT_CATEGORIES: readonly { name: string; kind: CategoryKind }[]
   { name: "Home", kind: "expense" },
   { name: "Fees & Charges", kind: "expense" },
   { name: "Gifts & Donations", kind: "expense" },
+  { name: "Cash", kind: "expense" },
   { name: "Cashback & Rewards", kind: "income" },
   { name: "Income", kind: "income" },
   { name: "Transfers", kind: "transfer" },
@@ -46,29 +47,89 @@ export async function ensureDefaultCategories(
   return new Map(rows.map((r) => [r.name, r.id]));
 }
 
-export async function upsertCardAccount(
+type AccountKind = (typeof accounts.$inferInsert)["kind"];
+
+type AccountRef = {
+  bank: Bank;
+  productName: string;
+  ordinal?: number;
+  /** HMAC of the card/account number (see accounts.identity_key); null if the file had none. */
+  identityKey?: string | null;
+};
+
+type Resolution = { id: string; adopt: boolean } | { id: null; ordinal: number };
+
+/**
+ * Which stored account a statement section belongs to. With a number digest: the
+ * account holding that digest, else one of the same product that has none yet
+ * (created before digests, at the same ordinal), else a new account at the next
+ * free ordinal, so two same-named cards or accounts never merge. Without one:
+ * bank + product name + ordinal, as before.
+ */
+async function resolveAccount(tx: Tx, ref: AccountRef): Promise<Resolution> {
+  const ordinal = ref.ordinal ?? 1;
+  if (ref.identityKey) {
+    const [byKey] = await tx
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.identityKey, ref.identityKey));
+    if (byKey) return { id: byKey.id, adopt: false };
+  }
+  const same = await tx
+    .select({ id: accounts.id, ordinal: accounts.ordinal, key: accounts.identityKey })
+    .from(accounts)
+    .where(and(eq(accounts.bank, ref.bank), eq(accounts.productName, ref.productName)))
+    .orderBy(accounts.ordinal);
+  const atOrdinal = same.find((a) => a.ordinal === ordinal);
+  if (!ref.identityKey)
+    return atOrdinal ? { id: atOrdinal.id, adopt: false } : { id: null, ordinal };
+  if (atOrdinal && atOrdinal.key === null) return { id: atOrdinal.id, adopt: true };
+  return {
+    id: null,
+    ordinal: atOrdinal ? Math.max(...same.map((a) => a.ordinal)) + 1 : ordinal,
+  };
+}
+
+/** The stored account for a statement section, or null if importing it would create one. */
+export async function findAccount(tx: Tx, ref: AccountRef): Promise<string | null> {
+  return (await resolveAccount(tx, ref)).id;
+}
+
+/** A card or bank account: product name as printed, plus a number digest when the file has one. */
+export async function upsertAccount(
+  tx: Tx,
+  userId: string,
+  card: AccountRef & { kind: AccountKind },
+): Promise<string> {
+  assertNoPii({ productName: card.productName });
+  const found = await resolveAccount(tx, card);
+  if ("adopt" in found) {
+    if (found.adopt)
+      await tx
+        .update(accounts)
+        .set({ identityKey: card.identityKey })
+        .where(eq(accounts.id, found.id));
+    return found.id;
+  }
+  const [row] = await tx
+    .insert(accounts)
+    .values({
+      userId,
+      bank: card.bank,
+      kind: card.kind,
+      productName: card.productName,
+      ordinal: found.ordinal,
+      identityKey: card.identityKey ?? null,
+    })
+    .returning({ id: accounts.id });
+  return row!.id;
+}
+
+export const upsertCardAccount = (
   tx: Tx,
   userId: string,
   card: { bank: Bank; productName: string; ordinal?: number },
-): Promise<string> {
-  const ordinal = card.ordinal ?? 1;
-  assertNoPii({ productName: card.productName });
-  await tx
-    .insert(accounts)
-    .values({ userId, bank: card.bank, kind: "card", productName: card.productName, ordinal })
-    .onConflictDoNothing();
-  const [row] = await tx
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(
-      and(
-        eq(accounts.bank, card.bank),
-        eq(accounts.productName, card.productName),
-        eq(accounts.ordinal, ordinal),
-      ),
-    );
-  return row!.id;
-}
+) => upsertAccount(tx, userId, { ...card, kind: "card" });
 
 export type LedgerRow = {
   txnDate: string;
@@ -85,7 +146,13 @@ export type LedgerRow = {
   confidence?: number | null;
 };
 
-export type CardIdentity = { bank: Bank; productName: string; ordinal: number };
+export type CardIdentity = {
+  bank: Bank;
+  productName: string;
+  ordinal: number;
+  /** Number digest (accounts.identity_key), when the file printed a number. */
+  identityKey?: string | null;
+};
 
 /** A row after the PII firewall, ready to encrypt and store. */
 export type PreparedRow = {
@@ -116,9 +183,13 @@ export function describeRow(
 /** Categories every import can set without a classifier (Phase 1b adds the rest). */
 const KIND_CATEGORY: Partial<Record<TxnKind, string>> = {
   card_payment: "Transfers",
+  transfer: "Transfers",
   fee: "Fees & Charges",
   cashback: "Cashback & Rewards",
 };
+
+/** Rows that are never spend or income, whatever their category (PRD IMP-10). */
+export const isTransferKind = (kind: TxnKind) => kind === "card_payment" || kind === "transfer";
 
 /**
  * The PII firewall step: sanitise each descriptor, normalise the merchant,
@@ -136,15 +207,12 @@ export function prepareRows(
   return rows.map((r) => {
     const { descriptor, merchantName } = describeRow(r.rawDescriptor, pii);
     assertNoPii({ descriptor, merchantName }, pii);
-    const identity = [
-      card.bank,
-      card.productName,
-      card.ordinal,
-      r.txnDate,
-      r.postDate,
-      r.amountCents,
-      descriptor,
-    ];
+    // The account: its number digest when known (two same-named accounts stay
+    // apart), else product name + ordinal.
+    const account = card.identityKey
+      ? [`key:${card.identityKey}`]
+      : [card.productName, card.ordinal];
+    const identity = [card.bank, ...account, r.txnDate, r.postDate, r.amountCents, descriptor];
     const occurrence = (seen.get(identity.join("|")) ?? 0) + 1;
     seen.set(identity.join("|"), occurrence);
     return {
@@ -174,8 +242,9 @@ export type StatementSummary = {
   statementDate: string;
   dueDate: string | null;
   minimumPaymentCents: number | null;
-  previousBalanceCents: number;
-  totalCents: number;
+  /** Signed like rows (+ owed, − held); null when the file printed no balances. */
+  previousBalanceCents: number | null;
+  totalCents: number | null;
 };
 
 export type CardStatementInput = CardIdentity &
@@ -199,7 +268,7 @@ export async function insertCardStatement(
   input: CardStatementInput,
   categoryIds: Map<string, string>,
   pii: PiiContext = {},
-): Promise<{ inserted: number; duplicates: number; reconciled: boolean }> {
+): Promise<{ inserted: number; duplicates: number; reconciled: boolean | null }> {
   const rows = prepareRows(crypto, input, input.rows, pii);
   return insertPreparedStatement(tx, crypto, { ...input, rows }, categoryIds);
 }
@@ -210,7 +279,7 @@ export async function insertPreparedStatement(
   crypto: UserCrypto,
   input: PreparedStatementInput,
   categoryIds: Map<string, string>,
-): Promise<{ inserted: number; duplicates: number; reconciled: boolean }> {
+): Promise<{ inserted: number; duplicates: number; reconciled: boolean | null }> {
   const userId = crypto.userId;
   const summary = {
     dueDate: input.dueDate,
@@ -219,8 +288,9 @@ export async function insertPreparedStatement(
     totalCents: input.totalCents,
   };
 
-  // Re-importing the same card statement refreshes every summary field; whether it
-  // reconciles is recomputed below from the rows actually stored.
+  // Re-importing the same statement refreshes every summary field it prints; a file
+  // that prints no balance (a CSV export) keeps the balances already verified from
+  // the PDF. Whether it reconciles is recomputed below from the rows actually stored.
   const [stmt] = await tx
     .insert(statements)
     .values({
@@ -233,9 +303,18 @@ export async function insertPreparedStatement(
     })
     .onConflictDoUpdate({
       target: [statements.userId, statements.accountId, statements.statementDate],
-      set: { ...summary, ...(input.importId ? { importId: input.importId } : {}) },
+      set: {
+        ...summary,
+        previousBalanceCents: sql`coalesce(excluded.previous_balance_cents, ${statements.previousBalanceCents})`,
+        totalCents: sql`coalesce(excluded.total_cents, ${statements.totalCents})`,
+        ...(input.importId ? { importId: input.importId } : {}),
+      },
     })
-    .returning({ id: statements.id });
+    .returning({
+      id: statements.id,
+      previous: statements.previousBalanceCents,
+      total: statements.totalCents,
+    });
 
   const uncategorised = categoryIds.get("Uncategorised") ?? null;
   const values = input.rows.map((r) => {
@@ -260,7 +339,7 @@ export async function insertPreparedStatement(
           : r.categorySource
         : null,
       confidence: r.categoryName ? (r.confidence ?? null) : null,
-      isTransfer: r.kind === "card_payment",
+      isTransfer: isTransferKind(r.kind),
       dedupeKey: r.dedupeKey,
     };
   });
@@ -286,7 +365,12 @@ export async function insertPreparedStatement(
       sql`select coalesce(sum(amount_cents), 0)::bigint as cents from transactions where ${ownRows}`,
     ),
   );
-  const reconciled = input.previousBalanceCents + Number(sum!.cents) === input.totalCents;
+  // No balances in the file (some CSV exports): nothing to check, so null, not a pass.
+  // Against the balances now stored (this file's, or ones kept from an earlier file).
+  const previous = stmt!.previous;
+  const total = stmt!.total;
+  const reconciled =
+    previous === null || total === null ? null : previous + Number(sum!.cents) === total;
   await tx.update(statements).set({ reconciled }).where(eq(statements.id, stmt!.id));
   return { inserted: inserted.length, duplicates: values.length - inserted.length, reconciled };
 }

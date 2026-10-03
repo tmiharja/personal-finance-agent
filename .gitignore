@@ -15,6 +15,7 @@ coverage/
 *.xls
 *.xlsx
 !evals/fixtures/synthetic/**/*.pdf
+!evals/fixtures/synthetic/**/*.csv
 private/
 tests/private/
 .pii-denylist

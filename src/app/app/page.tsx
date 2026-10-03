@@ -6,7 +6,7 @@ import Stat from "@/components/charts/stat";
 import EmptyState from "@/components/empty-state";
 import PageTitle from "@/components/app/page-title";
 import { getDb } from "@/db/client";
-import { money, monthLabel } from "@/lib/format";
+import { money, monthLabel, shortDate } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
 import { getMonthOverview } from "@/server/finance/overview";
 import { addMonths, monthRange } from "@/server/finance/spend";
@@ -51,7 +51,7 @@ export default async function OverviewPage({
         <EmptyState
           title="No statements yet"
           action={{ href: "/app/import", label: "Import a statement" }}
-          note="DBS and UOB credit-card PDFs are supported first. Files are read in memory and discarded."
+          note="DBS/POSB and UOB card statements (PDF) and bank-account statements (PDF or CSV). Files are read in memory and discarded."
         >
           Import a few months of statements and this page will show spend by category and how it
           changes month to month.
@@ -71,8 +71,8 @@ export default async function OverviewPage({
   return (
     <>
       <PageTitle title="Overview">
-        Card spending for the month: charges and fees, with refunds netted. Card payments and
-        cashback are shown separately.
+        Spending across your cards and bank accounts, with refunds netted, and the money that came
+        in. Card payments and transfers between your own accounts are neither.
       </PageTitle>
 
       <nav aria-label="Month" className="mb-6 flex items-baseline justify-between text-[15px]">
@@ -98,17 +98,34 @@ export default async function OverviewPage({
           label="Spent"
           value={money(o.totals.spentCents)}
           note={
-            change === null ? (
-              `${o.totals.count} transactions`
-            ) : (
-              <span className={change > 0 ? "text-warn" : undefined}>
-                {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {Math.abs(change)}% vs{" "}
-                {shortMonth(prev)}
-              </span>
-            )
+            <>
+              {change === null ? (
+                `${o.totals.count} transactions`
+              ) : (
+                <span className={change > 0 ? "text-warn" : undefined}>
+                  {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {Math.abs(change)}% vs{" "}
+                  {shortMonth(prev)}
+                </span>
+              )}
+              {o.totals.refundsCents !== 0 && (
+                <span className="block">{money(-o.totals.refundsCents)} refunds netted</span>
+              )}
+            </>
           }
         />
-        <Stat label="Refunds" value={money(-o.totals.refundsCents)} note="already netted" />
+        <Stat
+          label="Income"
+          value={money(o.totals.incomeCents)}
+          note={
+            o.bankAccounts === 0
+              ? "import a bank-account statement"
+              : `${o.totals.incomeCount} ${o.totals.incomeCount === 1 ? "credit" : "credits"}${
+                  o.totals.excluded.transfers
+                    ? ` · ${o.totals.excluded.transfers} transfers excluded`
+                    : ""
+                }`
+          }
+        />
         <Stat
           label="Cashback"
           value={money(-o.totals.cashbackCents)}
@@ -125,7 +142,18 @@ export default async function OverviewPage({
         <h2 id="coming-up" className="sr-only">
           Coming up
         </h2>
-        <ul className="grid gap-3 text-[15px] md:grid-cols-3">
+        <ul
+          className={`grid gap-3 text-[15px] ${o.balances ? "sm:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-3"}`}
+        >
+          {o.balances && (
+            <li className="rounded-lg border border-rule px-4 py-3">
+              <span className="block text-[13px] text-muted">
+                In your bank {o.balances.accounts === 1 ? "account" : "accounts"}
+              </span>
+              <span className="tabular font-medium">{money(o.balances.cents)}</span>
+              <span className="text-[13px] text-muted"> on {shortDate(o.balances.asOf)}</span>
+            </li>
+          )}
           <li className="rounded-lg border border-rule px-4 py-3">
             <Link href="/app/subscriptions" className="block hover:underline">
               <span className="block text-[13px] text-muted">Subscriptions</span>

@@ -22,15 +22,25 @@ beforeAll(async () => {
 afterAll(() => close());
 
 describe("demo seed (synthetic fixtures)", () => {
-  it("loads 24 synthetic statements", () => {
+  it("loads 48 synthetic statements: 24 card, 24 bank-account", () => {
     const fixtures = loadFixtureStatements();
-    expect(fixtures).toHaveLength(24);
+    expect(fixtures).toHaveLength(48);
+    expect(fixtures.filter((f) => f.kind === "deposit")).toHaveLength(24);
     expect(fixtures.every((f) => f.synthetic)).toBe(true);
   });
 
-  it("seeds 12 months of DBS + UOB cards, every card section reconciled", async () => {
+  it("seeds 12 months of cards and bank accounts, all reconciled, every transfer paired", async () => {
     const r = await seedDemoWorkspace(db, "demo", keys);
-    expect(r).toEqual({ statements: 24, cards: 4, transactions: 885, reconciled: 48 });
+    // 885 card rows + 330 bank rows; 48 card sections + 24 bank statements reconcile;
+    // 48 card bills paid from the bank + 12 own transfers are paired (PRD §12 exit criterion).
+    expect(r).toEqual({
+      statements: 48,
+      cards: 4,
+      bankAccounts: 2,
+      transactions: 1215,
+      reconciled: 72,
+      paired: 60,
+    });
   });
 
   it("is idempotent: a second run inserts nothing", async () => {
@@ -39,7 +49,7 @@ describe("demo seed (synthetic fixtures)", () => {
     const n = await withUser(db, "demo", (tx) =>
       tx.execute(sql`select count(*)::int as n from transactions`),
     );
-    expect(sqlRows(n)[0]).toEqual({ n: 885 });
+    expect(sqlRows(n)[0]).toEqual({ n: 1215 });
   });
 
   it("keeps a genuine same-day duplicate charge (two rows, distinct dedupe keys)", async () => {
@@ -51,13 +61,15 @@ describe("demo seed (synthetic fixtures)", () => {
     expect(sqlRows(rows)[0]).toEqual({ n: 2 });
   });
 
-  it("stores cards by product name only and descriptors encrypted", async () => {
+  it("stores cards and accounts by product name only and descriptors encrypted", async () => {
     const cards = await withUser(db, "demo", (tx) => tx.select().from(accounts));
-    expect(cards.map((c) => c.productName).sort()).toEqual([
-      "DBS SAMPLE VISA SIGNATURE",
-      "DBS SAMPLE WORLD MASTERCARD",
-      "UOB SAMPLE CASHBACK",
-      "UOB SAMPLE MILES VISA CARD",
+    expect(cards.map((c) => `${c.kind} ${c.productName}`).sort()).toEqual([
+      "card DBS SAMPLE VISA SIGNATURE",
+      "card DBS SAMPLE WORLD MASTERCARD",
+      "card UOB SAMPLE CASHBACK",
+      "card UOB SAMPLE MILES VISA CARD",
+      "deposit POSB SAMPLE SAVINGS ACCOUNT",
+      "deposit UOB SAMPLE ONE ACCOUNT",
     ]);
     const sample = await withUser(db, "demo", async (tx) => {
       const crypto = await getUserCrypto(tx, "demo", keys);

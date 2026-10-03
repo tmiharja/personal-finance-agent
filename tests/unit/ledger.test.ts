@@ -121,3 +121,47 @@ describe("overlapping statements", () => {
     expect(stored).toMatchObject({ statementDate: "2026-04-14", reconciled: true });
   });
 });
+
+describe("account identity: same product name, different numbers", () => {
+  it("keeps two same-named accounts apart by their number digest, and reuses each", async () => {
+    const { upsertAccount } = await import("@/server/finance/ledger");
+    const ids = await withUser(db, "u", async (tx) => {
+      const base = {
+        bank: "UOB" as const,
+        productName: "UOB SAMPLE ONE ACCOUNT",
+        kind: "deposit" as const,
+      };
+      const a = await upsertAccount(tx, "u", { ...base, identityKey: "a".repeat(64) });
+      const b = await upsertAccount(tx, "u", { ...base, identityKey: "b".repeat(64) });
+      const again = await upsertAccount(tx, "u", { ...base, identityKey: "a".repeat(64) });
+      return { a, b, again };
+    });
+    expect(ids.b).not.toBe(ids.a);
+    expect(ids.again).toBe(ids.a);
+    const { accounts } = await import("@/db/schema");
+    const rows = await withUser(db, "u", (tx) =>
+      tx
+        .select({ ordinal: accounts.ordinal })
+        .from(accounts)
+        .where(eq(accounts.productName, "UOB SAMPLE ONE ACCOUNT")),
+    );
+    expect(rows.map((r) => r.ordinal).sort()).toEqual([1, 2]);
+  });
+
+  it("an account created without a number is adopted by the first number seen for it", async () => {
+    const { upsertAccount } = await import("@/server/finance/ledger");
+    const ids = await withUser(db, "u", async (tx) => {
+      const base = {
+        bank: "DBS" as const,
+        productName: "POSB SAMPLE SAVINGS ACCOUNT",
+        kind: "deposit" as const,
+      };
+      const legacy = await upsertAccount(tx, "u", base);
+      const keyed = await upsertAccount(tx, "u", { ...base, identityKey: "c".repeat(64) });
+      const other = await upsertAccount(tx, "u", { ...base, identityKey: "d".repeat(64) });
+      return { legacy, keyed, other };
+    });
+    expect(ids.keyed).toBe(ids.legacy);
+    expect(ids.other).not.toBe(ids.legacy);
+  });
+});

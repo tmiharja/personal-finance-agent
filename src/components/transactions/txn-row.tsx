@@ -1,5 +1,6 @@
 "use client";
 
+import { FIXED_KINDS, TRANSFER_MERCHANTS } from "@/lib/kinds";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import RuleProposalCard from "@/components/proposals/rule-proposal-card";
@@ -15,8 +16,10 @@ const KIND_LABEL: Record<string, string> = {
   refund: "Refund",
   fee: "Fee",
   cashback: "Cashback",
+  income: "Money in",
+  transfer: "Transfer",
 };
-const FIXED = new Set(["card_payment", "fee", "cashback"]);
+const FIXED = new Set<string>(FIXED_KINDS);
 const COLS = 5;
 
 /**
@@ -60,7 +63,12 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
     }
   }
 
-  const choosable = categories.filter((c) => c.kind !== "transfer" && c.kind !== "system");
+  // PayNow/FAST transfers can be confirmed as your own money moving (Transfers);
+  // purchases can't. Each transfer is its own case, so there's no "all from" rule.
+  const personTransfer = TRANSFER_MERCHANTS.has(row.merchantName ?? "");
+  const choosable = categories.filter(
+    (c) => c.kind !== "system" && (c.kind !== "transfer" || personTransfer),
+  );
   // A flagged row whose suggested category is right can be confirmed as is.
   const current = choosable.find((c) => c.id === row.categoryId) ?? null;
 
@@ -90,8 +98,11 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
           {titleCase(row.card)}
         </td>
         <td className="py-3 pr-3 text-[13px]">
-          {FIXED.has(row.kind) ? (
-            <span className="text-muted">{row.categoryName}</span>
+          {FIXED.has(row.kind) || row.paired ? (
+            <span className="text-muted">
+              {row.categoryName}
+              {row.paired && <span className="block text-[12px]">matched across accounts</span>}
+            </span>
           ) : (
             <label className="flex items-center gap-1">
               <span className="sr-only">
@@ -110,7 +121,10 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
                   row.review && !choice && "border-warn",
                 )}
               >
-                {!row.categoryId && <option value="">Uncategorised</option>}
+                {/* Uncategorised isn't a choice, but must still show as the current value. */}
+                {!choosable.some((c) => c.id === row.categoryId) && (
+                  <option value={row.categoryId ?? ""}>{row.categoryName}</option>
+                )}
                 {choosable.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -142,7 +156,11 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
           )}
         </td>
         <td className="py-3 text-right whitespace-nowrap">
-          <span className={cn(row.amountCents < 0 && "text-accent")}>{money(row.amountCents)}</span>
+          <span className={cn(row.amountCents < 0 && "text-accent")}>
+            {row.amountCents < 0 && (row.kind === "income" || row.kind === "transfer")
+              ? money(-row.amountCents, { signed: true })
+              : money(row.amountCents)}
+          </span>
           {row.fx && (
             <span className="block text-[12px] text-muted">
               {row.fx.currency ?? "FX"} {Number(row.fx.amount).toLocaleString("en-SG")}
@@ -168,21 +186,26 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
                   <Button size="sm" onClick={() => apply("one")} disabled={busy}>
                     This transaction only
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => apply("merchant")}
-                    disabled={busy || !row.merchantName}
-                  >
-                    All {merchant} transactions, past and future…
-                  </Button>
+                  {!personTransfer && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => apply("merchant")}
+                      disabled={busy || !row.merchantName}
+                    >
+                      All {merchant} transactions, past and future…
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => setChoice(null)} disabled={busy}>
                     Cancel
                   </Button>
                 </div>
                 <p className="mt-2 text-muted">
-                  &ldquo;All&rdquo; creates a rule. You&rsquo;ll see exactly what changes before
-                  approving it.
+                  {personTransfer
+                    ? choice!.kind === "transfer"
+                      ? "Marks this as money moving between your own accounts: not spending or income."
+                      : "Applies to this transfer only."
+                    : "“All” creates a rule. You’ll see exactly what changes before approving it."}
                 </p>
                 {error && (
                   <p role="alert" className="mt-2 text-danger">

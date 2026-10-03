@@ -21,7 +21,13 @@ const KIND_LABEL: Record<string, string> = {
   refund: "Refund",
   fee: "Fee",
   cashback: "Cashback",
+  income: "Income",
+  transfer: "Transfer",
 };
+
+/** Bank accounts read as money in (+) and out; cards keep their statement signs. */
+const rowAmount = (cents: number, deposit: boolean) =>
+  deposit && cents < 0 ? money(-cents, { signed: true }) : money(cents);
 
 /**
  * The commit_import proposal (PRD ACT-4): a deterministic, server-built preview
@@ -46,6 +52,8 @@ export default function PreviewCard({
   const [result, setResult] = useState<CommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acceptMismatch, setAcceptMismatch] = useState(false);
+  const deposit = summary.kind === "deposit";
+  const unit = deposit ? ["account", "accounts"] : ["card", "cards"];
   const total = summary.cards.reduce((s, c) => s + c.counts.rows, 0);
   const fresh = summary.cards.reduce((s, c) => s + c.counts.newRows, 0);
 
@@ -72,7 +80,8 @@ export default function PreviewCard({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <h2 className="text-[17px] font-semibold">
-          {summary.bank} credit-card statement · {longDate(summary.statementDate)}
+          {summary.bank} {deposit ? "bank-account" : "credit-card"} statement ·{" "}
+          {longDate(summary.statementDate)}
         </h2>
         <span className="text-[13px] text-muted">
           {summary.dueDate && <>Due {longDate(summary.dueDate)}</>}
@@ -84,7 +93,7 @@ export default function PreviewCard({
 
       <p className="mt-2 text-[15px]">
         {total} transactions on {summary.cards.length}{" "}
-        {summary.cards.length === 1 ? "card" : "cards"}
+        {summary.cards.length === 1 ? unit[0] : unit[1]}
         {fresh !== total && (
           <>
             {" "}
@@ -108,13 +117,42 @@ export default function PreviewCard({
         </p>
       )}
 
+      {summary.pairing &&
+        summary.pairing.cardPayments +
+          summary.pairing.transfers +
+          summary.pairing.linkedCardPayments >
+          0 && (
+          <p className="mt-1 text-[13px] text-muted">
+            Matched with your other accounts:{" "}
+            {[
+              summary.pairing.cardPayments + summary.pairing.linkedCardPayments > 0 &&
+                `${summary.pairing.cardPayments + summary.pairing.linkedCardPayments} card ${
+                  summary.pairing.cardPayments + summary.pairing.linkedCardPayments === 1
+                    ? "payment"
+                    : "payments"
+                }`,
+              summary.pairing.transfers > 0 &&
+                `${summary.pairing.transfers} ${
+                  summary.pairing.transfers === 1 ? "transfer" : "transfers"
+                } between your accounts`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}{" "}
+            (not counted as spending or income)
+          </p>
+        )}
+
       {!summary.allReconciled && (
         <p role="alert" className="mt-3 rounded-lg bg-warn-soft px-4 py-3 text-[15px] text-warn">
-          {summary.cards.some((c) => !c.reconciled)
-            ? "Doesn’t reconcile: some cards don’t add up to their printed totals. Check the cards marked below before importing."
-            : summary.totalsMatch === false
-              ? "Doesn’t reconcile: the cards don’t add up to the statement’s printed total."
-              : "Couldn’t fully check: the statement’s printed total wasn’t found, so the cards couldn’t be cross-checked against it."}
+          {summary.cards.some((c) => c.reconciled === false)
+            ? deposit
+              ? "Doesn’t reconcile: some accounts’ transactions don’t add up to their closing balance. Check the accounts marked below before importing."
+              : "Doesn’t reconcile: some cards don’t add up to their printed totals. Check the cards marked below before importing."
+            : summary.cards.some((c) => c.reconciled === null)
+              ? "Couldn’t check: this file has no opening and closing balance, so the transactions couldn’t be reconciled. Compare a few rows with your bank before importing."
+              : summary.totalsMatch === false
+                ? "Doesn’t reconcile: the cards don’t add up to the statement’s printed total."
+                : "Couldn’t fully check: the statement’s printed total wasn’t found, so the cards couldn’t be cross-checked against it."}
         </p>
       )}
 
@@ -130,20 +168,40 @@ export default function PreviewCard({
                 {titleCase(card.productName)}
                 {card.ordinal > 1 && ` (${card.ordinal})`}
                 {card.isNewCard && (
-                  <span className="ml-2 text-[12px] font-normal text-muted">new card</span>
+                  <span className="ml-2 text-[12px] font-normal text-muted">new {unit[0]}</span>
                 )}
               </h3>
-              <span className={cn("text-[13px]", card.reconciled ? "text-accent" : "text-warn")}>
-                {card.reconciled
+              <span
+                className={cn(
+                  "text-[13px]",
+                  card.reconciled === true ? "text-accent" : "text-warn",
+                )}
+              >
+                {card.reconciled === true
                   ? "✓ Reconciled"
-                  : card.differenceCents === 0
-                    ? "✗ Total not found"
-                    : `✗ Off by ${money(Math.abs(card.differenceCents))}`}
+                  : card.reconciled === null
+                    ? "No balances to check"
+                    : !card.differenceCents
+                      ? "✗ Total not found"
+                      : `✗ Off by ${money(Math.abs(card.differenceCents))}`}
               </span>
             </div>
             <p className="tabular mt-1 text-[13px] text-muted">
-              Previous {money(card.previousBalanceCents)} · new balance {money(card.totalCents)} ·{" "}
+              {deposit ? (
+                <>
+                  {card.previousBalanceCents !== null &&
+                    `Opening ${money(-card.previousBalanceCents)} · `}
+                  {card.totalCents !== null && `closing ${money(-card.totalCents)} · `}
+                </>
+              ) : (
+                card.previousBalanceCents !== null &&
+                card.totalCents !== null &&
+                `Previous ${money(card.previousBalanceCents)} · new balance ${money(card.totalCents)} · `
+              )}
               {card.counts.rows} rows
+              {(card.counts.income ?? 0) > 0 &&
+                ` · ${card.counts.income} income (${money(card.incomeCents ?? 0)})`}
+              {(card.counts.transfers ?? 0) > 0 && ` · ${card.counts.transfers} transfer`}
               {card.counts.cardPayments > 0 && ` · ${card.counts.cardPayments} card payment`}
               {card.counts.refunds > 0 && ` · ${card.counts.refunds} refund`}
               {card.counts.fees > 0 && ` · ${card.counts.fees} fee`}
@@ -182,7 +240,7 @@ export default function PreviewCard({
                         )}
                       </td>
                       <td className="py-1.5 pr-3 text-[12px] whitespace-nowrap text-muted">
-                        {r.categoryName && r.kind !== "card_payment" && (
+                        {r.categoryName && r.kind !== "card_payment" && r.kind !== "transfer" && (
                           <span
                             title={r.review ? "Low confidence: review after import" : undefined}
                           >
@@ -192,7 +250,7 @@ export default function PreviewCard({
                         )}
                       </td>
                       <td className="py-1.5 text-right whitespace-nowrap">
-                        {money(r.amountCents)}
+                        {rowAmount(r.amountCents, deposit)}
                       </td>
                     </tr>
                   ))}
@@ -206,7 +264,8 @@ export default function PreviewCard({
       <div className="mt-6 border-t border-rule pt-5">
         {state === "committed" ? (
           <p role="status" className="text-[15px]">
-            Imported {result ? `${result.inserted} transactions` : "this statement"}.{" "}
+            Imported {result ? `${result.inserted} transactions` : "this statement"}
+            {result?.paired ? `, ${result.paired} matched with your other accounts` : ""}.{" "}
             <Link href="/app" className="link">
               View overview
             </Link>

@@ -176,6 +176,27 @@ describe("tools (ASK-2)", () => {
     });
   });
 
+  it("spend_summary reports income and leaves out transfers between your own accounts", async () => {
+    const out = await withUser(db, "alex", (tx) =>
+      runTool(ctx(tx), "spend_summary", {
+        from: "2026-03-01",
+        to: "2026-03-31",
+        category: null,
+        merchant: null,
+      }),
+    );
+    const truth = await withUser(db, "alex", (tx) =>
+      spendTotals(tx, { from: "2026-03-01", to: "2026-03-31" }),
+    );
+    expect(out.result).toMatchObject({
+      spent_sgd: (truth.spentCents / 100).toFixed(2),
+      income_sgd: (truth.incomeCents / 100).toFixed(2),
+      own_account_transfers_excluded: 2,
+    });
+    expect(truth.incomeCents).toBeGreaterThanOrEqual(680000);
+    expect(out.excluded).toMatchObject({ transfers: 2 });
+  });
+
   it("compare_periods does the arithmetic so the model doesn't", async () => {
     const out = await withUser(db, "alex", (tx) =>
       runTool(ctx(tx), "compare_periods", {

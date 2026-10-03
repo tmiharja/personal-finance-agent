@@ -916,25 +916,607 @@ function expected(st) {
   };
 }
 
+// ---------------------------------------------------------------- bank accounts (Phase 2b)
+//
+// A POSB savings account and a UOB One account for the same fictional person,
+// Oct 2025 .. Sep 2026, as monthly PDF statements plus each bank's CSV export.
+// The layouts are PROVISIONAL (docs/statement-formats.md §4-5): modelled on
+// the banks' published statements, to be checked against real samples.
+// Card bill payments mirror the card statements' own payment rows exactly, so
+// every one can be paired (PRD IMP-10). A separate random stream keeps the
+// card fixtures above byte-identical.
+
+const bankRng = mulberry32(SEED + 1);
+const bInt = (lo, hi) => lo + Math.floor(bankRng() * (hi - lo + 1));
+const bCents = (lo, hi) => Math.round((lo + bankRng() * (hi - lo)) * 100);
+const bDigits = (n) => Array.from({ length: n }, () => bInt(0, 9)).join("");
+
+const ACCOUNTS = [
+  {
+    key: "posb",
+    bank: "DBS",
+    product: "POSB SAMPLE SAVINGS ACCOUNT",
+    number: "000-00000-0",
+    opening: 600000,
+  },
+  {
+    key: "uob-one",
+    bank: "UOB",
+    product: "UOB SAMPLE ONE ACCOUNT",
+    number: "000-000-000-0",
+    opening: 1520000,
+  },
+];
+const BANK_START = d(2025, 9, 1);
+const BANK_END = d(2026, 8, 30);
+const lastDay = (y, m) => d(y, m + 1, 0);
+const ddmmyyyy = (dt) =>
+  `${String(dt.getUTCDate()).padStart(2, "0")}/${String(dt.getUTCMonth() + 1).padStart(2, "0")}/${dt.getUTCFullYear()}`;
+const ddMon = (dt) => `${String(dt.getUTCDate()).padStart(2, "0")} ${Mon[dt.getUTCMonth()]}`;
+
+/**
+ * One bank row: what is printed (type + detail lines), the signed amount
+ * (+ out, − in) and what the parser should produce from it (desc, kind).
+ */
+function brow(acct, date, type, details, cents, kind, desc, cat, extra = {}) {
+  return { acct, date, type, details, cents, kind, desc, cat, ...extra };
+}
+
+function bankTimeline(cardStatements) {
+  const rows = [];
+  const push = (...a) => rows.push(brow(...a));
+  // Card bill payments: exactly the card statements' payment rows.
+  for (const [bank, sts] of Object.entries(cardStatements)) {
+    for (const st of sts)
+      for (const c of st.cards)
+        for (const r of c.rows) {
+          if (r.kind !== "card_payment" || r.txnDate < BANK_START || r.txnDate > BANK_END) continue;
+          push(
+            bank === "DBS" ? "posb" : "uob-one",
+            r.txnDate,
+            bank === "DBS" ? "Bill Payment" : "GIRO",
+            [`${bank} CARD CENTRE`, c.card.pan.replace(/[ -]/g, "")],
+            -r.cents,
+            "card_payment",
+            `CARD PAYMENT ${bank} CARD`,
+            "Transfers",
+            { pays: c.card.key },
+          );
+        }
+  }
+  for (let y = 2025, m = 9; y < 2026 || m <= 8; m === 11 ? ((m = 0), y++) : m++) {
+    // Salary (UOB) and a December bonus.
+    push(
+      "uob-one",
+      d(y, m, 25),
+      "GIRO - Salary",
+      ["SAMPLE EMPLOYER PTE LTD"],
+      -680000,
+      "income",
+      "SALARY SAMPLE EMPLOYER PTE LTD",
+      "Income",
+    );
+    if (m === 11)
+      push(
+        "uob-one",
+        d(y, m, 19),
+        "GIRO - Bonus",
+        ["SAMPLE EMPLOYER PTE LTD"],
+        -1360000,
+        "income",
+        "SALARY SAMPLE EMPLOYER PTE LTD",
+        "Income",
+      );
+    // Own transfer UOB → POSB by FAST: two legs, a day apart every other month.
+    const out = d(y, m, 26);
+    const lands = addDays(out, m % 2);
+    push(
+      "uob-one",
+      out,
+      "FAST Payment",
+      ["TO ALEX TAN", `PIB${bDigits(16)}`],
+      300000,
+      "charge",
+      "FAST TRANSFER OUT",
+      "Transfers",
+      { transfer: iso(out) },
+    );
+    push(
+      "posb",
+      lands,
+      "FAST Payment / Receipt",
+      ["FROM ALEX TAN", "OTHR"],
+      -300000,
+      "income",
+      "FAST TRANSFER IN",
+      "Transfers",
+      { transfer: iso(out) },
+    );
+    // Town council service & conservancy charges by GIRO (UOB): a bill.
+    push(
+      "uob-one",
+      d(y, m, 15),
+      "GIRO",
+      ["SAMPLE TOWN COUNCIL"],
+      8240,
+      "charge",
+      "SAMPLE TOWN COUNCIL",
+      "Bills & Utilities",
+    );
+    // ATM twice a month (UOB).
+    for (const day of [5, 19])
+      push(
+        "uob-one",
+        d(y, m, day + bInt(0, 2)),
+        "ATM Cash Withdrawal",
+        ["SAMPLE MALL BRANCH"],
+        [10000, 15000, 20000, 30000][bInt(0, 3)],
+        "charge",
+        "CASH WITHDRAWAL ATM",
+        "Cash",
+      );
+    // NETS at the hawker centre (UOB) and Sheng Siong (POSB).
+    // December is busy, so both layouts run over a page break.
+    for (let i = 0, n = m === 11 ? 30 : bInt(4, 7); i < n; i++)
+      push(
+        "uob-one",
+        d(y, m, bInt(1, 28)),
+        "NETS QR",
+        ["NETS QR SAMPLE HAWKER CENTRE", `REF ${bDigits(11)}`],
+        bCents(4, 12),
+        "charge",
+        "SAMPLE HAWKER CENTRE",
+        "Dining",
+      );
+    for (let i = 0, n = m === 11 ? 28 : bInt(1, 3); i < n; i++)
+      push(
+        "posb",
+        d(y, m, bInt(1, 28)),
+        "Point-of-Sale Transaction",
+        ["SHENG SIONG - SAMPLE"],
+        bCents(15, 70),
+        "charge",
+        "SHENG SIONG - SAMPLE",
+        "Groceries",
+      );
+    // PayNow to and from a person (POSB): the name is never kept.
+    for (let i = 0, n = bInt(2, 4); i < n; i++)
+      push(
+        "posb",
+        d(y, m, bInt(1, 28)),
+        "PayNow Transfer",
+        ["TO JORDAN TAN", "OTHR"],
+        bCents(15, 60),
+        "charge",
+        "PAYNOW TRANSFER OUT",
+        "Uncategorised",
+      );
+    if (m % 2 === 0)
+      push(
+        "posb",
+        d(y, m, bInt(1, 28)),
+        "PayNow Transfer",
+        ["FROM JORDAN TAN"],
+        -bCents(20, 50),
+        "income",
+        "PAYNOW TRANSFER IN",
+        "Uncategorised",
+      );
+    // Interest on the last day of the month.
+    push(
+      "uob-one",
+      lastDay(y, m),
+      "Interest Credit",
+      [],
+      -bCents(14, 26),
+      "income",
+      "INTEREST CREDIT",
+      "Income",
+    );
+    push(
+      "posb",
+      lastDay(y, m),
+      "Interest Earned",
+      [],
+      -bCents(0.3, 1.2),
+      "income",
+      "INTEREST CREDIT",
+      "Income",
+    );
+  }
+  // A one-off PayNow to a business: a first-time merchant over S$200.
+  push(
+    "posb",
+    d(2026, 2, 10),
+    "PayNow Transfer",
+    ["TO SAMPLE RENOVATION PTE LTD"],
+    180000,
+    "charge",
+    "PAYNOW TO SAMPLE RENOVATION PTE LTD",
+    "Home",
+  );
+  return rows;
+}
+
+planted.push(
+  {
+    type: "income",
+    payee: "SAMPLE EMPLOYER PTE LTD",
+    account: "uob-one",
+    cadence: "monthly",
+    amount: "6,800.00 on the 25th, plus a 13,600.00 bonus in Dec 2025",
+  },
+  {
+    type: "own_transfer",
+    from: "uob-one",
+    to: "posb",
+    amount: "3,000.00 monthly on the 26th; lands the same day or the next",
+    expect: ["paired", "excluded from spend and income"],
+  },
+  {
+    type: "card_payment_from_bank",
+    note: "every card statement payment appears in a bank account on the same day",
+    expect: ["paired with the card's payment row", "card marked paid"],
+  },
+  {
+    type: "bill",
+    payee: "SAMPLE TOWN COUNCIL",
+    account: "uob-one",
+    cadence: "monthly",
+    amount: "82.40",
+  },
+  {
+    type: "unusual_first_time_merchant",
+    merchant: "PAYNOW TO SAMPLE RENOVATION PTE LTD",
+    account: "posb",
+    date: "2026-03-10",
+    amount: "1,800.00",
+  },
+  {
+    type: "paynow_person",
+    account: "posb",
+    note: "PayNow to and from a fictional person: the name is dropped; out = to review, in = to review",
+  },
+);
+
+function bankStatements(timeline) {
+  const out = [];
+  for (const acct of ACCOUNTS) {
+    let balance = acct.opening;
+    for (let y = 2025, m = 9; y < 2026 || m <= 8; m === 11 ? ((m = 0), y++) : m++) {
+      const from = d(y, m, 1);
+      const to = lastDay(y, m);
+      const rows = timeline
+        .filter((r) => r.acct === acct.key && r.date >= from && r.date <= to)
+        .map((r, i) => ({ ...r, i }))
+        .sort((a, b) => a.date - b.date || a.i - b.i);
+      const opening = balance;
+      for (const r of rows) {
+        balance -= r.cents;
+        r.balance = balance;
+        if (balance < 0) throw new Error(`synthetic ${acct.key} overdrawn on ${iso(r.date)}`);
+      }
+      out.push({ acct, from, to, opening, closing: balance, rows });
+    }
+  }
+  return out;
+}
+
+function renderBankPdf(st) {
+  return st.acct.bank === "DBS" ? renderPosb(st) : renderUobAccount(st);
+}
+
+async function renderPosb(st) {
+  const { pdf, fonts } = await newPdf(`Synthetic POSB account statement ${iso(st.to).slice(0, 7)}`);
+  const W = 400; // Withdrawal (-) right edge
+  const D = 480; // Deposit (+)
+  const B = 555; // Balance
+  const colHeader = (l) => {
+    l.text("Date", 50, { bold: true });
+    l.text("Description", 120, { bold: true });
+    l.text("Withdrawal (-)", W, { bold: true, right: true });
+    l.text("Deposit (+)", D, { bold: true, right: true });
+    l.text("Balance", B, { bold: true, right: true });
+    l.line(14);
+  };
+  let running = st.opening;
+  const L = new Layout(pdf, fonts, {
+    top: 790,
+    bottom: 120,
+    onNewPage: (l) => {
+      if (l.pages.length === 1) return;
+      l.text(st.acct.product, 50, { bold: true, size: 9 });
+      l.text(`Account No. ${st.acct.number}`, 555, { right: true });
+      l.line(16);
+      colHeader(l);
+      l.text("Balance Brought Forward", 120);
+      l.text(money(running), B, { right: true });
+      l.line(14);
+    },
+  });
+  L.newPage();
+  L.text("POSB", 50, { bold: true, size: 20, y: 790 });
+  L.text("DBS Bank Ltd", 555, { right: true, y: 795 });
+  L.text("CONSOLIDATED STATEMENT", 50, { bold: true, size: 11, y: 760 });
+  L.y = 740;
+  for (const a of [PERSON.name, ...PERSON.address]) (L.text(a, 50, { size: 8.5 }), L.line(11));
+  L.text("Statement Date", 420, { y: 740 });
+  L.text(ddMonYYYY(st.to), 555, { y: 740, right: true });
+  L.text("Statement Period", 420, { y: 729 });
+  L.text(`${ddmmyyyy(st.from)} - ${ddmmyyyy(st.to)}`, 555, { y: 718, right: true });
+  L.y = 660;
+  L.text("Account Summary", 50, { bold: true, size: 10 });
+  L.line(16);
+  L.text(st.acct.product, 50, { bold: true, size: 9 });
+  L.text(`Account No. ${st.acct.number}`, 555, { right: true });
+  L.line(16);
+  colHeader(L);
+  L.text("Balance Brought Forward", 120);
+  L.text(money(st.opening), B, { right: true });
+  L.line(14);
+  let wd = 0;
+  let dp = 0;
+  for (const r of st.rows) {
+    const h = 12 + r.details.length * 10;
+    if (L.y - h < L.bottom + 14) {
+      L.text("Balance Carried Forward", 120);
+      L.text(money(running), B, { right: true });
+      L.newPage();
+    }
+    L.text(ddmmyyyy(r.date), 50);
+    L.text(r.type, 120);
+    L.text(money(r.cents), r.cents > 0 ? W : D, { right: true });
+    L.text(money(r.balance), B, { right: true });
+    L.line(11);
+    for (const det of r.details) (L.text(det, 120, { size: 7.5 }), L.line(10));
+    L.line(2);
+    running = r.balance;
+    if (r.cents > 0) wd += r.cents;
+    else dp -= r.cents;
+  }
+  L.ensure(40);
+  L.text("Balance Carried Forward", 120);
+  L.text(money(st.closing), B, { right: true });
+  L.line(14);
+  L.text("Total", 120, { bold: true });
+  L.text(money(wd), W, { right: true, bold: true });
+  L.text(money(dp), D, { right: true, bold: true });
+  L.line(20);
+  L.text("Deposit Insurance Scheme: synthetic sample text.", 50, { size: 7 });
+  furniture(pdf, fonts, L.pages, (p, i, n) =>
+    p.drawText(`Page ${i + 1} of ${n}`, { x: 500, y: 40, size: 7, font: fonts.reg }),
+  );
+  return pdf.save({ useObjectStreams: false });
+}
+
+async function renderUobAccount(st) {
+  const { pdf, fonts } = await newPdf(`Synthetic UOB account statement ${iso(st.to).slice(0, 7)}`);
+  const W = 400; // Withdrawals
+  const D = 480; // Deposits
+  const B = 555; // Balance
+  const colHeader = (l) => {
+    l.text("Date", 50, { bold: true });
+    l.text("Description", 100, { bold: true });
+    l.text("Withdrawals", W, { bold: true, right: true });
+    l.text("Deposits", D, { bold: true, right: true });
+    l.text("Balance", B, { bold: true, right: true });
+    l.line(14);
+  };
+  const L = new Layout(pdf, fonts, {
+    top: 790,
+    bottom: 120,
+    onNewPage: (l) => {
+      if (l.pages.length === 1) return;
+      l.text(`${st.acct.product}  ${st.acct.number} (continued)`, 50, { bold: true, size: 9 });
+      l.line(16);
+      colHeader(l);
+    },
+  });
+  L.newPage();
+  L.text("UOB", 50, { bold: true, size: 20, y: 790 });
+  L.text("United Overseas Bank Limited", 555, { right: true, y: 795 });
+  L.text("Statement of Account", 50, { bold: true, size: 11, y: 760 });
+  L.y = 740;
+  for (const a of [PERSON.name, ...PERSON.address]) (L.text(a, 50, { size: 8.5 }), L.line(11));
+  L.text("Period:", 420, { y: 740 });
+  L.text(`${ddMonYYYY(st.from)} to ${ddMonYYYY(st.to)}`, 555, { y: 729, right: true });
+  L.y = 660;
+  L.text("Account Transaction Details", 50, { bold: true, size: 10 });
+  L.line(16);
+  L.text(`${st.acct.product}  ${st.acct.number}`, 50, { bold: true, size: 9 });
+  L.line(16);
+  colHeader(L);
+  L.text(ddMon(st.from), 50);
+  L.text("BALANCE B/F", 100);
+  L.text(money(st.opening), B, { right: true });
+  L.line(14);
+  let wd = 0;
+  let dp = 0;
+  for (const r of st.rows) {
+    L.ensure(12 + r.details.length * 10);
+    L.text(ddMon(r.date), 50);
+    L.text(r.type, 100);
+    L.text(money(r.cents), r.cents > 0 ? W : D, { right: true });
+    L.text(money(r.balance), B, { right: true });
+    L.line(11);
+    for (const det of r.details) (L.text(det, 100, { size: 7.5 }), L.line(10));
+    L.line(2);
+    if (r.cents > 0) wd += r.cents;
+    else dp -= r.cents;
+  }
+  L.ensure(40);
+  L.text("Total", 100, { bold: true });
+  L.text(money(wd), W, { right: true, bold: true });
+  L.text(money(dp), D, { right: true, bold: true });
+  L.line(14);
+  L.text(ddMon(st.to), 50);
+  L.text("BALANCE C/F", 100);
+  L.text(money(st.closing), B, { right: true });
+  L.line(20);
+  L.text("End of Account Transaction Details", 50, { size: 7 });
+  furniture(pdf, fonts, L.pages, (p, i, n) =>
+    p.drawText(`Page ${i + 1} of ${n}`, { x: 500, y: 40, size: 7, font: fonts.reg }),
+  );
+  return pdf.save({ useObjectStreams: false });
+}
+
+const csvCell = (v) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+const csvLine = (cells) => cells.map((c) => csvCell(String(c))).join(",");
+
+/** DBS/POSB "Download transaction history" CSV: a short header, then one row per transaction. */
+const DBS_CSV_CODE = {
+  "Bill Payment": "BILL",
+  "FAST Payment / Receipt": "ICT",
+  "Point-of-Sale Transaction": "POS",
+  "Interest Earned": "INT",
+};
+function csvPosb(st) {
+  const lines = [
+    csvLine(["SYNTHETIC TEST DATA - fictional person, not a real bank export"]),
+    csvLine(["Account Details For:", `${titleWords(st.acct.product)} ${st.acct.number}`]),
+    csvLine(["Statement as at:", ddMonYYYY(st.to)]),
+    csvLine(["Available Balance:", money(st.closing)]),
+    csvLine(["Ledger Balance:", money(st.closing)]),
+    "",
+    csvLine([
+      "Transaction Date",
+      "Reference",
+      "Debit Amount",
+      "Credit Amount",
+      "Transaction Ref1",
+      "Transaction Ref2",
+      "Transaction Ref3",
+    ]),
+  ];
+  for (const r of st.rows) {
+    const code = DBS_CSV_CODE[r.type] ?? r.type;
+    const refs = [...r.details, "", "", ""].slice(0, 3);
+    lines.push(
+      csvLine([
+        ddMonYYYY(r.date),
+        code,
+        r.cents > 0 ? money(r.cents) : "",
+        r.cents < 0 ? money(r.cents) : "",
+        ...refs,
+      ]),
+    );
+  }
+  return lines.join("\n") + "\n";
+}
+
+/** UOB transaction history export, saved as CSV: one description column and a running balance. */
+function csvUobAccount(st) {
+  const lines = [
+    csvLine(["SYNTHETIC TEST DATA - fictional person, not a real bank export"]),
+    csvLine(["Account Type:", titleWords(st.acct.product)]),
+    csvLine(["Account Number:", st.acct.number]),
+    csvLine(["Statement Period:", `${ddMonYYYY(st.from)} To ${ddMonYYYY(st.to)}`]),
+    "",
+    csvLine([
+      "Transaction Date",
+      "Transaction Description",
+      "Withdrawal",
+      "Deposit",
+      "Available Balance",
+    ]),
+  ];
+  for (const r of st.rows) {
+    const desc = [r.type, ...r.details.filter((x) => !/^(REF |PIB)/.test(x))].join(" ");
+    lines.push(
+      csvLine([
+        ddMonYYYY(r.date),
+        desc,
+        r.cents > 0 ? money(r.cents) : "0.00",
+        r.cents < 0 ? money(r.cents) : "0.00",
+        money(r.balance),
+      ]),
+    );
+  }
+  return lines.join("\n") + "\n";
+}
+
+const titleWords = (s) =>
+  s
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (c) => c.toUpperCase())
+    .replace(/\bUob\b/, "UOB")
+    .replace(/\bPosb\b/, "POSB");
+
+function expectedBank(st, { csv = false } = {}) {
+  // The DBS CSV prints only the closing ("ledger") balance, so nothing to reconcile.
+  const noBalances = csv && st.acct.bank === "DBS";
+  return {
+    synthetic: true,
+    bank: st.acct.bank,
+    kind: "deposit",
+    statementDate: iso(st.to),
+    cards: [
+      {
+        productName: st.acct.product,
+        ordinal: 1,
+        previousBalanceCents: noBalances ? null : -st.opening,
+        totalCents: noBalances ? -st.closing : -st.closing,
+        reconciled: noBalances ? null : true,
+        rows: st.rows.map((r) => ({
+          txnDate: iso(r.date),
+          postDate: null,
+          amountCents: r.cents,
+          rawDescriptor: r.desc,
+          descriptor: sanitise(r.desc),
+          fx: null,
+          kind: r.kind,
+          expectedCategory: r.cat,
+          ...(r.transfer ? { transferLeg: r.transfer } : {}),
+          ...(r.pays ? { pays: r.pays } : {}),
+        })),
+      },
+    ],
+  };
+}
+
 // ---------------------------------------------------------------- main
 
 const timeline = buildTimeline();
+const cardStatements = {};
 for (const [bank, cards, render] of [
   ["DBS", DBS_CARDS, renderDBS],
   ["UOB", UOB_CARDS, renderUOB],
 ]) {
   const dir = join(OUT, bank.toLowerCase());
   mkdirSync(dir, { recursive: true });
+  cardStatements[bank] = [];
   for (const st of bucket(timeline, bank, cards)) {
+    cardStatements[bank].push(st);
     const name = iso(st.stmtDate).slice(0, 7);
     writeFileSync(join(dir, `${name}.pdf`), await render(st));
     writeFileSync(join(dir, `${name}.expected.json`), JSON.stringify(expected(st), null, 2) + "\n");
   }
 }
+for (const st of bankStatements(bankTimeline(cardStatements))) {
+  const dir = join(OUT, st.acct.key);
+  mkdirSync(dir, { recursive: true });
+  const name = iso(st.to).slice(0, 7);
+  const csv = st.acct.bank === "DBS" ? csvPosb(st) : csvUobAccount(st);
+  writeFileSync(join(dir, `${name}.pdf`), await renderBankPdf(st));
+  writeFileSync(
+    join(dir, `${name}.expected.json`),
+    JSON.stringify(expectedBank(st), null, 2) + "\n",
+  );
+  writeFileSync(join(dir, `${name}.csv`), csv);
+  writeFileSync(
+    join(dir, `${name}.csv.expected.json`),
+    JSON.stringify(expectedBank(st, { csv: true }), null, 2) + "\n",
+  );
+}
 writeFileSync(
   join(OUT, "ledger.json"),
   JSON.stringify(
-    { synthetic: true, persona: "Alex Tan (fictional)", period: "2025-09-15..2026-09-14", planted },
+    {
+      synthetic: true,
+      persona: "Alex Tan (fictional)",
+      period: "cards 2025-09-15..2026-09-14; bank accounts 2025-10-01..2026-09-30",
+      planted,
+    },
     null,
     2,
   ) + "\n",

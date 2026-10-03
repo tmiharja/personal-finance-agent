@@ -81,8 +81,8 @@ export default async function BillsPage() {
           })}
         </ul>
         <p className="mt-2 text-[12px] text-muted">
-          &ldquo;Paid&rdquo; means a card payment appears in a later statement. Importing your bank
-          account statements (coming next) will confirm payments as they happen.
+          &ldquo;Paid&rdquo; means a payment to the card appears after the statement: in a later
+          card statement, or in one of your bank accounts as soon as you import it.
         </p>
       </section>
 

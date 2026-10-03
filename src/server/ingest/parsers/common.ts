@@ -79,10 +79,18 @@ export function classify(descriptor: string, cents: number): ParsedRow["kind"] {
   return cents < 0 ? "refund" : "charge";
 }
 
-type CardDraft = Omit<ParsedCard, "ordinal" | "reconciled"> & {
+/** A card section while parsing: card statements always print both balances. */
+export type CardDraft = Omit<
+  ParsedCard,
+  "ordinal" | "reconciled" | "previousBalanceCents" | "totalCents"
+> & {
+  previousBalanceCents: number;
+  totalCents: number;
   hasTotal: boolean;
   hasPrevious: boolean;
 };
+
+export type FinalCard = ParsedCard & { previousBalanceCents: number; totalCents: number };
 
 /**
  * Numbers repeated product names (1, 2, … in order of appearance) and checks each
@@ -91,7 +99,7 @@ type CardDraft = Omit<ParsedCard, "ordinal" | "reconciled"> & {
  * warning: a card's first statement may not print one, and a real non-zero balance
  * that was missed still fails the sum check.)
  */
-export function finaliseCards(drafts: CardDraft[]): ParsedCard[] {
+export function finaliseCards(drafts: CardDraft[]): FinalCard[] {
   const seen = new Map<string, number>();
   return drafts.map(({ hasTotal, hasPrevious, ...c }) => {
     const ordinal = (seen.get(c.productName) ?? 0) + 1;
