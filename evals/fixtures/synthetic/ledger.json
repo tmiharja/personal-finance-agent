@@ -1,0 +1,124 @@
+{
+  "synthetic": true,
+  "persona": "Alex Tan (fictional)",
+  "period": "2025-09-15..2026-09-14",
+  "planted": [
+    {
+      "type": "subscription",
+      "merchant": "NETFLIX.COM SINGAPORE",
+      "card": "dbs-visa",
+      "cadence": "monthly",
+      "amounts": {
+        "2025-09..2026-04": "17.98",
+        "2026-05..": "19.98"
+      },
+      "expect": [
+        "subscription",
+        "price_increase@2026-05-05"
+      ]
+    },
+    {
+      "type": "subscription",
+      "merchant": "SPOTIFY SINGAPORE",
+      "card": "dbs-visa",
+      "cadence": "monthly",
+      "amount": "11.98"
+    },
+    {
+      "type": "subscription",
+      "merchant": "APPLE.COM/BILL CORK IRL",
+      "card": "dbs-visa",
+      "cadence": "monthly",
+      "amount": "4.98"
+    },
+    {
+      "type": "subscription",
+      "merchant": "SAMPLE FITNESS PTE LTD SINGAPORE",
+      "card": "dbs-mc",
+      "cadence": "monthly",
+      "amount": "129.00"
+    },
+    {
+      "type": "subscription",
+      "merchant": "OPENCOURSE ONLINE SAN FRANCISCO CA",
+      "card": "dbs-mc",
+      "cadence": "monthly",
+      "amount": "USD 20.00 (SGD varies with FX)"
+    },
+    {
+      "type": "trial_conversion",
+      "merchant": "DISNEY PLUS SINGAPORE",
+      "card": "dbs-mc",
+      "trial": "2025-11-20 1.00",
+      "converted": "2025-12-20 13.98 monthly"
+    },
+    {
+      "type": "bill",
+      "payee": "SINGTEL BILL SINGAPORE",
+      "card": "uob-miles",
+      "cadence": "monthly",
+      "amount": "42-61 variable"
+    },
+    {
+      "type": "bill",
+      "payee": "SP DIGITAL PTE LTD SINGAPORE",
+      "card": "uob-cb",
+      "cadence": "monthly",
+      "amount": "68-142 variable"
+    },
+    {
+      "type": "fee",
+      "merchant": "ANNUAL FEE + GST @ 9%",
+      "card": "dbs-visa",
+      "date": "2026-03-11",
+      "amount": "196.20 + 17.66"
+    },
+    {
+      "type": "unusual_first_time_merchant",
+      "merchant": "COURTS SAMPLE MEGASTORE SINGAPORE",
+      "card": "dbs-visa",
+      "date": "2026-06-06",
+      "amount": "1,299.00"
+    },
+    {
+      "type": "duplicate",
+      "merchant": "LAZADA SG",
+      "card": "dbs-mc",
+      "date": "2026-07-03",
+      "amount": "89.90 x2"
+    },
+    {
+      "type": "unusual_amount",
+      "merchant": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+      "card": "uob-cb",
+      "date": "2026-08-08",
+      "amount": "412.35"
+    },
+    {
+      "type": "refund",
+      "merchant": "SHOPEE SG MP",
+      "card": "dbs-visa",
+      "date": "2026-02-09",
+      "amount": "45.90 CR"
+    },
+    {
+      "type": "fx_trip",
+      "currency": "JPY",
+      "card": "uob-miles",
+      "dates": "2025-12-18..2025-12-23",
+      "note": "Jan 2026 statement; Dec -> Jan year rollover"
+    },
+    {
+      "type": "supplementary_cardholder",
+      "card": "dbs-visa",
+      "statement": "2026-04",
+      "note": "extra 'NEW TRANSACTIONS <name>' sub-header; name must be dropped"
+    },
+    {
+      "type": "card_unused",
+      "card": "dbs-mc",
+      "statement": "2026-09",
+      "note": "payment only, total 0.00"
+    }
+  ]
+}

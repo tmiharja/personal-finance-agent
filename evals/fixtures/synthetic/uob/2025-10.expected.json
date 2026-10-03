@@ -1,0 +1,436 @@
+{
+  "synthetic": true,
+  "bank": "UOB",
+  "statementDate": "2025-10-13",
+  "dueDate": "2025-11-01",
+  "minimumPaymentCents": 10000,
+  "statementTotalCents": 69331,
+  "cards": [
+    {
+      "productName": "UOB SAMPLE CASHBACK",
+      "ordinal": 1,
+      "previousBalanceCents": 88799,
+      "totalCents": 45724,
+      "rows": [
+        {
+          "txnDate": "2025-10-02",
+          "postDate": "2025-10-02",
+          "amountCents": -88799,
+          "rawDescriptor": "GIRO PAYMENT",
+          "descriptor": "GIRO PAYMENT",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2025-10-11",
+          "postDate": "2025-10-12",
+          "amountCents": -381,
+          "rawDescriptor": "UOB SAMPLE CASHBACK Card Cashback",
+          "descriptor": "UOB SAMPLE CASHBACK Card Cashback",
+          "fx": null,
+          "kind": "cashback",
+          "expectedCategory": "Cashback & Rewards"
+        },
+        {
+          "txnDate": "2025-09-15",
+          "postDate": "2025-09-16",
+          "amountCents": 3503,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-09-19",
+          "postDate": "2025-09-23",
+          "amountCents": 2184,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-09-23",
+          "postDate": "2025-09-23",
+          "amountCents": 10282,
+          "rawDescriptor": "SP DIGITAL PTE LTD SINGAPORE",
+          "descriptor": "SP DIGITAL PTE LTD SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Bills & Utilities"
+        },
+        {
+          "txnDate": "2025-09-25",
+          "postDate": "2025-09-25",
+          "amountCents": 696,
+          "rawDescriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "descriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-09-25",
+          "postDate": "2025-09-26",
+          "amountCents": 7754,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-09-25",
+          "postDate": "2025-09-28",
+          "amountCents": 5861,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-09-28",
+          "postDate": "2025-09-28",
+          "amountCents": 4602,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-09-30",
+          "postDate": "2025-10-01",
+          "amountCents": 2790,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-10-01",
+          "postDate": "2025-10-05",
+          "amountCents": 464,
+          "rawDescriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "descriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-10-05",
+          "postDate": "2025-10-06",
+          "amountCents": 575,
+          "rawDescriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "descriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-10-07",
+          "postDate": "2025-10-09",
+          "amountCents": 1897,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-10-08",
+          "postDate": "2025-10-08",
+          "amountCents": 2414,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-10-08",
+          "postDate": "2025-10-11",
+          "amountCents": 1067,
+          "rawDescriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "descriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-10-09",
+          "postDate": "2025-10-13",
+          "amountCents": 2016,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        }
+      ]
+    },
+    {
+      "productName": "UOB SAMPLE MILES VISA CARD",
+      "ordinal": 1,
+      "previousBalanceCents": 80976,
+      "totalCents": 23607,
+      "rows": [
+        {
+          "txnDate": "2025-10-02",
+          "postDate": "2025-10-02",
+          "amountCents": -80976,
+          "rawDescriptor": "GIRO PAYMENT",
+          "descriptor": "GIRO PAYMENT",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2025-09-16",
+          "postDate": "2025-09-16",
+          "amountCents": 436,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-09-17",
+          "postDate": "2025-09-17",
+          "amountCents": 895,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-09-17",
+          "postDate": "2025-09-20",
+          "amountCents": 111,
+          "rawDescriptor": "BUS/MRT 005738161 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-09-18",
+          "postDate": "2025-09-20",
+          "amountCents": 364,
+          "rawDescriptor": "BUS/MRT 633832259 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-09-19",
+          "postDate": "2025-09-21",
+          "amountCents": 403,
+          "rawDescriptor": "BUS/MRT 853876541 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-09-19",
+          "postDate": "2025-09-23",
+          "amountCents": 4561,
+          "rawDescriptor": "SINGTEL BILL SINGAPORE",
+          "descriptor": "SINGTEL BILL SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Telco & Internet"
+        },
+        {
+          "txnDate": "2025-09-21",
+          "postDate": "2025-09-23",
+          "amountCents": 511,
+          "rawDescriptor": "BUS/MRT 022487421 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-09-27",
+          "postDate": "2025-09-28",
+          "amountCents": 2101,
+          "rawDescriptor": "GRAB* A-3D4HQN93WM97",
+          "descriptor": "GRAB* A-3D4HQN93WM97",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-09-29",
+          "postDate": "2025-10-03",
+          "amountCents": 521,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-09-30",
+          "postDate": "2025-10-02",
+          "amountCents": 234,
+          "rawDescriptor": "BUS/MRT 442780462 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-09-30",
+          "postDate": "2025-10-02",
+          "amountCents": 1809,
+          "rawDescriptor": "GRAB* A-PTEXP8R39KKE",
+          "descriptor": "GRAB* A-PTEXP8R39KKE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-01",
+          "postDate": "2025-10-03",
+          "amountCents": 459,
+          "rawDescriptor": "BUS/MRT 794264960 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-02",
+          "postDate": "2025-10-04",
+          "amountCents": 811,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-10-03",
+          "postDate": "2025-10-03",
+          "amountCents": 831,
+          "rawDescriptor": "GRAB* A-76HMER9YSXZ7",
+          "descriptor": "GRAB* A-76HMER9YSXZ7",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-05",
+          "postDate": "2025-10-05",
+          "amountCents": 147,
+          "rawDescriptor": "BUS/MRT 328949490 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-05",
+          "postDate": "2025-10-06",
+          "amountCents": 787,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-10-06",
+          "postDate": "2025-10-07",
+          "amountCents": 455,
+          "rawDescriptor": "BUS/MRT 480640112 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-07",
+          "postDate": "2025-10-07",
+          "amountCents": 437,
+          "rawDescriptor": "BUS/MRT 680087657 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-08",
+          "postDate": "2025-10-11",
+          "amountCents": 530,
+          "rawDescriptor": "BUS/MRT 014148769 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-09",
+          "postDate": "2025-10-11",
+          "amountCents": 487,
+          "rawDescriptor": "BUS/MRT 473851396 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-10",
+          "postDate": "2025-10-11",
+          "amountCents": 404,
+          "rawDescriptor": "BUS/MRT 044418024 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-10",
+          "postDate": "2025-10-13",
+          "amountCents": 2193,
+          "rawDescriptor": "GRAB* A-6SLRA7A2ER7N",
+          "descriptor": "GRAB* A-6SLRA7A2ER7N",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-11",
+          "postDate": "2025-10-13",
+          "amountCents": 2537,
+          "rawDescriptor": "GRAB* A-Z557QSF6ME9S",
+          "descriptor": "GRAB* A-Z557QSF6ME9S",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-10-12",
+          "postDate": "2025-10-13",
+          "amountCents": 1583,
+          "rawDescriptor": "GRAB* A-AKRFMJJ62R25",
+          "descriptor": "GRAB* A-AKRFMJJ62R25",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        }
+      ]
+    }
+  ]
+}

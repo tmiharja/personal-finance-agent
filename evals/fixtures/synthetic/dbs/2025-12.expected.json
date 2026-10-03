@@ -1,0 +1,359 @@
+{
+  "synthetic": true,
+  "bank": "DBS",
+  "statementDate": "2025-12-14",
+  "dueDate": "2026-01-08",
+  "minimumPaymentCents": 5000,
+  "statementTotalCents": 75256,
+  "cards": [
+    {
+      "productName": "DBS SAMPLE VISA SIGNATURE",
+      "ordinal": 1,
+      "previousBalanceCents": 37292,
+      "totalCents": 47645,
+      "rows": [
+        {
+          "txnDate": "2025-12-08",
+          "postDate": null,
+          "amountCents": -37292,
+          "rawDescriptor": "AUTOPAY AC#0000000000000000",
+          "descriptor": "AUTOPAY",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2025-11-15",
+          "postDate": null,
+          "amountCents": 879,
+          "rawDescriptor": "GRAB* A-6JDEBCXCBYDF",
+          "descriptor": "GRAB* A-6JDEBCXCBYDF",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-11-18",
+          "postDate": null,
+          "amountCents": 1973,
+          "rawDescriptor": "SHOPEE SG MP",
+          "descriptor": "SHOPEE SG MP",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Shopping"
+        },
+        {
+          "txnDate": "2025-11-20",
+          "postDate": null,
+          "amountCents": 1198,
+          "rawDescriptor": "SPOTIFY SINGAPORE",
+          "descriptor": "SPOTIFY SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Subscriptions"
+        },
+        {
+          "txnDate": "2025-11-27",
+          "postDate": null,
+          "amountCents": 3155,
+          "rawDescriptor": "FOODPANDA SG",
+          "descriptor": "FOODPANDA SG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-11-30",
+          "postDate": null,
+          "amountCents": 1926,
+          "rawDescriptor": "GRAB* A-D8GZDKFYMXH6",
+          "descriptor": "GRAB* A-D8GZDKFYMXH6",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-01",
+          "postDate": null,
+          "amountCents": 3040,
+          "rawDescriptor": "SHOPEE SG MP",
+          "descriptor": "SHOPEE SG MP",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Shopping"
+        },
+        {
+          "txnDate": "2025-12-01",
+          "postDate": null,
+          "amountCents": 1710,
+          "rawDescriptor": "GOLDEN VILLAGE - SAMPLE SINGAPORE",
+          "descriptor": "GOLDEN VILLAGE - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Entertainment"
+        },
+        {
+          "txnDate": "2025-12-02",
+          "postDate": null,
+          "amountCents": 5157,
+          "rawDescriptor": "SHOPEE SG MP",
+          "descriptor": "SHOPEE SG MP",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Shopping"
+        },
+        {
+          "txnDate": "2025-12-04",
+          "postDate": null,
+          "amountCents": 2667,
+          "rawDescriptor": "GRAB* A-G3AA43BJFULW",
+          "descriptor": "GRAB* A-G3AA43BJFULW",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-04",
+          "postDate": null,
+          "amountCents": 2175,
+          "rawDescriptor": "GOLDEN VILLAGE - SAMPLE SINGAPORE",
+          "descriptor": "GOLDEN VILLAGE - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Entertainment"
+        },
+        {
+          "txnDate": "2025-12-05",
+          "postDate": null,
+          "amountCents": 2758,
+          "rawDescriptor": "FOODPANDA SG",
+          "descriptor": "FOODPANDA SG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-05",
+          "postDate": null,
+          "amountCents": 1798,
+          "rawDescriptor": "NETFLIX.COM SINGAPORE",
+          "descriptor": "NETFLIX.COM SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Subscriptions"
+        },
+        {
+          "txnDate": "2025-12-07",
+          "postDate": null,
+          "amountCents": 2042,
+          "rawDescriptor": "GOLDEN VILLAGE - SAMPLE SINGAPORE",
+          "descriptor": "GOLDEN VILLAGE - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Entertainment"
+        },
+        {
+          "txnDate": "2025-12-09",
+          "postDate": null,
+          "amountCents": 3449,
+          "rawDescriptor": "SHOPEE SG MP",
+          "descriptor": "SHOPEE SG MP",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Shopping"
+        },
+        {
+          "txnDate": "2025-12-09",
+          "postDate": null,
+          "amountCents": 3976,
+          "rawDescriptor": "FOODPANDA SG",
+          "descriptor": "FOODPANDA SG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-11",
+          "postDate": null,
+          "amountCents": 2816,
+          "rawDescriptor": "FOODPANDA SG",
+          "descriptor": "FOODPANDA SG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-12",
+          "postDate": null,
+          "amountCents": 985,
+          "rawDescriptor": "GRAB* A-YGB4MHWJ9X33",
+          "descriptor": "GRAB* A-YGB4MHWJ9X33",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-12",
+          "postDate": null,
+          "amountCents": 498,
+          "rawDescriptor": "APPLE.COM/BILL CORK IRL",
+          "descriptor": "APPLE.COM/BILL CORK IRL",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Subscriptions"
+        },
+        {
+          "txnDate": "2025-12-13",
+          "postDate": null,
+          "amountCents": 1761,
+          "rawDescriptor": "SHOPEE SG MP",
+          "descriptor": "SHOPEE SG MP",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Shopping"
+        },
+        {
+          "txnDate": "2025-12-13",
+          "postDate": null,
+          "amountCents": 3682,
+          "rawDescriptor": "FOODPANDA SG",
+          "descriptor": "FOODPANDA SG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        }
+      ]
+    },
+    {
+      "productName": "DBS SAMPLE WORLD MASTERCARD",
+      "ordinal": 1,
+      "previousBalanceCents": 19837,
+      "totalCents": 27611,
+      "rows": [
+        {
+          "txnDate": "2025-12-08",
+          "postDate": null,
+          "amountCents": -19837,
+          "rawDescriptor": "AUTOPAY AC#0000000000000000",
+          "descriptor": "AUTOPAY",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2025-11-16",
+          "postDate": null,
+          "amountCents": 865,
+          "rawDescriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "descriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-11-17",
+          "postDate": null,
+          "amountCents": 3326,
+          "rawDescriptor": "SAMPLE RAMEN HOUSE PTE LTD SINGAPORE",
+          "descriptor": "SAMPLE RAMEN HOUSE PTE LTD SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-11-20",
+          "postDate": null,
+          "amountCents": 2238,
+          "rawDescriptor": "SAMPLE RAMEN HOUSE PTE LTD SINGAPORE",
+          "descriptor": "SAMPLE RAMEN HOUSE PTE LTD SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-11-20",
+          "postDate": null,
+          "amountCents": 1323,
+          "rawDescriptor": "WATSONS SAMPLE MALL Singapore",
+          "descriptor": "WATSONS SAMPLE MALL Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Health"
+        },
+        {
+          "txnDate": "2025-11-20",
+          "postDate": null,
+          "amountCents": 100,
+          "rawDescriptor": "DISNEY PLUS SINGAPORE",
+          "descriptor": "DISNEY PLUS SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Subscriptions"
+        },
+        {
+          "txnDate": "2025-11-25",
+          "postDate": null,
+          "amountCents": 733,
+          "rawDescriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "descriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-11-30",
+          "postDate": null,
+          "amountCents": 641,
+          "rawDescriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "descriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-01",
+          "postDate": null,
+          "amountCents": 12900,
+          "rawDescriptor": "SAMPLE FITNESS PTE LTD SINGAPORE",
+          "descriptor": "SAMPLE FITNESS PTE LTD SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Health"
+        },
+        {
+          "txnDate": "2025-12-04",
+          "postDate": null,
+          "amountCents": 713,
+          "rawDescriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "descriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-06",
+          "postDate": null,
+          "amountCents": 2721,
+          "rawDescriptor": "OPENCOURSE ONLINE SAN FRANCISCO CA",
+          "descriptor": "OPENCOURSE ONLINE SAN FRANCISCO CA",
+          "fx": {
+            "currency": "USD",
+            "amount": "20.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Education"
+        },
+        {
+          "txnDate": "2025-12-08",
+          "postDate": null,
+          "amountCents": 2051,
+          "rawDescriptor": "SAMPLE RAMEN HOUSE PTE LTD SINGAPORE",
+          "descriptor": "SAMPLE RAMEN HOUSE PTE LTD SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        }
+      ]
+    }
+  ]
+}

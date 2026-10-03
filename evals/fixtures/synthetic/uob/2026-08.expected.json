@@ -1,0 +1,436 @@
+{
+  "synthetic": true,
+  "bank": "UOB",
+  "statementDate": "2026-08-13",
+  "dueDate": "2026-09-01",
+  "minimumPaymentCents": 10000,
+  "statementTotalCents": 87755,
+  "cards": [
+    {
+      "productName": "UOB SAMPLE CASHBACK",
+      "ordinal": 1,
+      "previousBalanceCents": 61451,
+      "totalCents": 67592,
+      "rows": [
+        {
+          "txnDate": "2026-08-01",
+          "postDate": "2026-08-01",
+          "amountCents": -61451,
+          "rawDescriptor": "GIRO PAYMENT",
+          "descriptor": "GIRO PAYMENT",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2026-08-11",
+          "postDate": "2026-08-12",
+          "amountCents": -542,
+          "rawDescriptor": "UOB SAMPLE CASHBACK Card Cashback",
+          "descriptor": "UOB SAMPLE CASHBACK Card Cashback",
+          "fx": null,
+          "kind": "cashback",
+          "expectedCategory": "Cashback & Rewards"
+        },
+        {
+          "txnDate": "2026-07-13",
+          "postDate": "2026-07-16",
+          "amountCents": 1134,
+          "rawDescriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "descriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-07-15",
+          "postDate": "2026-07-15",
+          "amountCents": 896,
+          "rawDescriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "descriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-07-23",
+          "postDate": "2026-07-26",
+          "amountCents": 9038,
+          "rawDescriptor": "SP DIGITAL PTE LTD SINGAPORE",
+          "descriptor": "SP DIGITAL PTE LTD SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Bills & Utilities"
+        },
+        {
+          "txnDate": "2026-07-25",
+          "postDate": "2026-07-27",
+          "amountCents": 899,
+          "rawDescriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "descriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-08-01",
+          "postDate": "2026-08-03",
+          "amountCents": 5916,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-08-05",
+          "postDate": "2026-08-07",
+          "amountCents": 759,
+          "rawDescriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "descriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-08-07",
+          "postDate": "2026-08-07",
+          "amountCents": 5706,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-08-08",
+          "postDate": "2026-08-09",
+          "amountCents": 1246,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-08-08",
+          "postDate": "2026-08-11",
+          "amountCents": 41235,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-08-09",
+          "postDate": "2026-08-09",
+          "amountCents": 574,
+          "rawDescriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "descriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-08-10",
+          "postDate": "2026-08-10",
+          "amountCents": 731,
+          "rawDescriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "descriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        }
+      ]
+    },
+    {
+      "productName": "UOB SAMPLE MILES VISA CARD",
+      "ordinal": 1,
+      "previousBalanceCents": 14866,
+      "totalCents": 20163,
+      "rows": [
+        {
+          "txnDate": "2026-08-01",
+          "postDate": "2026-08-01",
+          "amountCents": -14866,
+          "rawDescriptor": "GIRO PAYMENT",
+          "descriptor": "GIRO PAYMENT",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2026-07-10",
+          "postDate": "2026-07-14",
+          "amountCents": 365,
+          "rawDescriptor": "BUS/MRT 078352267 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-11",
+          "postDate": "2026-07-15",
+          "amountCents": 740,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-07-13",
+          "postDate": "2026-07-14",
+          "amountCents": 470,
+          "rawDescriptor": "BUS/MRT 262186074 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-16",
+          "postDate": "2026-07-16",
+          "amountCents": 179,
+          "rawDescriptor": "BUS/MRT 293581440 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-18",
+          "postDate": "2026-07-20",
+          "amountCents": 653,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-07-19",
+          "postDate": "2026-07-23",
+          "amountCents": 4714,
+          "rawDescriptor": "SINGTEL BILL SINGAPORE",
+          "descriptor": "SINGTEL BILL SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Telco & Internet"
+        },
+        {
+          "txnDate": "2026-07-20",
+          "postDate": "2026-07-23",
+          "amountCents": 294,
+          "rawDescriptor": "BUS/MRT 511103492 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-22",
+          "postDate": "2026-07-22",
+          "amountCents": 293,
+          "rawDescriptor": "BUS/MRT 766023883 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-23",
+          "postDate": "2026-07-23",
+          "amountCents": 634,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-07-23",
+          "postDate": "2026-07-24",
+          "amountCents": 133,
+          "rawDescriptor": "BUS/MRT 107257476 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-24",
+          "postDate": "2026-07-27",
+          "amountCents": 122,
+          "rawDescriptor": "BUS/MRT 298877417 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-24",
+          "postDate": "2026-07-28",
+          "amountCents": 892,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-07-25",
+          "postDate": "2026-07-26",
+          "amountCents": 131,
+          "rawDescriptor": "BUS/MRT 319250111 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-28",
+          "postDate": "2026-07-31",
+          "amountCents": 259,
+          "rawDescriptor": "BUS/MRT 143343764 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-07-28",
+          "postDate": "2026-08-01",
+          "amountCents": 650,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-07-29",
+          "postDate": "2026-07-31",
+          "amountCents": 612,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-07-30",
+          "postDate": "2026-07-30",
+          "amountCents": 523,
+          "rawDescriptor": "BUS/MRT 567699914 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-02",
+          "postDate": "2026-08-06",
+          "amountCents": 551,
+          "rawDescriptor": "BUS/MRT 332771810 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-03",
+          "postDate": "2026-08-04",
+          "amountCents": 455,
+          "rawDescriptor": "BUS/MRT 348978805 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-04",
+          "postDate": "2026-08-08",
+          "amountCents": 419,
+          "rawDescriptor": "BUS/MRT 339759259 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-04",
+          "postDate": "2026-08-08",
+          "amountCents": 2305,
+          "rawDescriptor": "GRAB* A-KBYXM46B9KGG",
+          "descriptor": "GRAB* A-KBYXM46B9KGG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-05",
+          "postDate": "2026-08-08",
+          "amountCents": 889,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-08-06",
+          "postDate": "2026-08-07",
+          "amountCents": 370,
+          "rawDescriptor": "BUS/MRT 445080258 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-07",
+          "postDate": "2026-08-07",
+          "amountCents": 1542,
+          "rawDescriptor": "GRAB* A-XMZ4XNRXX2MG",
+          "descriptor": "GRAB* A-XMZ4XNRXX2MG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-07",
+          "postDate": "2026-08-09",
+          "amountCents": 308,
+          "rawDescriptor": "BUS/MRT 797734525 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-08",
+          "postDate": "2026-08-12",
+          "amountCents": 878,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-08-08",
+          "postDate": "2026-08-12",
+          "amountCents": 782,
+          "rawDescriptor": "GRAB* A-HEVW8DMPK7Z9",
+          "descriptor": "GRAB* A-HEVW8DMPK7Z9",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        }
+      ]
+    }
+  ]
+}
