@@ -47,8 +47,10 @@ test("correcting a merchant proposes a rule, which changes nothing until approve
     .selectOption({ label: "Health" });
   await page.getByRole("button", { name: /All Starbucks transactions/ }).click();
 
-  const card = page.getByRole("region", { name: "Rule for Starbucks" });
-  await expect(card.getByText("Always categorise Starbucks as Health")).toBeVisible();
+  const card = page.getByRole("region", { name: "Always categorise Starbucks as Health" });
+  await expect(
+    card.getByRole("heading", { name: "Always categorise Starbucks as Health" }),
+  ).toBeVisible();
   await expect(card.getByText(`${count} × Dining → Health`)).toBeVisible();
   // Waiting in Activity, and nothing has changed yet.
   await expect(page.getByRole("link", { name: "Approvals: 1 pending" })).toBeVisible();
@@ -57,11 +59,16 @@ test("correcting a merchant proposes a rule, which changes nothing until approve
 
   await page.goto("/app/activity");
   await page
-    .getByRole("region", { name: "Rule for Starbucks" })
+    .getByRole("region", { name: "Always categorise Starbucks as Health" })
     .getByRole("button", { name: "Approve" })
     .click();
-  // The card leaves the pending list once approved; the history says what happened.
-  await expect(page.getByText("Done · Rule: Starbucks → Health · system")).toBeVisible();
+  // The history says what happened, and offers an undo.
+  const history = page.getByRole("region", { name: "History" });
+  await expect(history.getByText("Always categorise Starbucks as Health")).toBeVisible();
+  await expect(history.getByText(/^Done · You · /)).toBeVisible();
+  await expect(
+    history.getByRole("button", { name: "Undo: Always categorise Starbucks as Health" }),
+  ).toBeVisible();
   await page.goto("/app/transactions?merchant=Starbucks&category=Health");
   await expect(page.getByText(new RegExp(`^${count} transactions`))).toBeVisible();
 });

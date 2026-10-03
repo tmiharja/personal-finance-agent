@@ -3,12 +3,12 @@
 import { FIXED_KINDS, TRANSFER_MERCHANTS } from "@/lib/kinds";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import RuleProposalCard from "@/components/proposals/rule-proposal-card";
+import ProposalCard from "@/components/proposals/proposal-card";
 import { proposalErrorMessage } from "@/components/proposals/messages";
 import { Button } from "@/components/ui/button";
 import { money, shortDate, titleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { RulePreview } from "@/server/actions/rules";
+import type { ActionPreview } from "@/server/actions/engine";
 import type { CategoryOption, TxnRow as Row } from "@/server/finance/transactions";
 
 const KIND_LABEL: Record<string, string> = {
@@ -31,7 +31,7 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
   const [choice, setChoice] = useState<CategoryOption | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [proposal, setProposal] = useState<{ id: string; preview: RulePreview } | null>(null);
+  const [proposal, setProposal] = useState<{ id: string; preview: ActionPreview } | null>(null);
   const merchant = row.merchantName ?? "this merchant";
 
   async function apply(scope: "one" | "merchant", confirm?: CategoryOption) {
@@ -47,7 +47,7 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
     const body = (await res.json().catch(() => ({}))) as {
       error?: string;
       proposalId?: string;
-      preview?: RulePreview;
+      preview?: ActionPreview;
     };
     setBusy(false);
     if (!res.ok) {
@@ -172,7 +172,7 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
         <tr>
           <td colSpan={COLS} className="pb-4">
             {proposal ? (
-              <RuleProposalCard
+              <ProposalCard
                 proposalId={proposal.id}
                 preview={proposal.preview}
                 onDone={() => setChoice(null)}
