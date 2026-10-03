@@ -1,0 +1,156 @@
+{
+  "synthetic": true,
+  "bank": "DBS",
+  "statementDate": "2026-09-14",
+  "dueDate": "2026-10-09",
+  "minimumPaymentCents": 5000,
+  "statementTotalCents": 25398,
+  "cards": [
+    {
+      "productName": "DBS SAMPLE VISA SIGNATURE",
+      "ordinal": 1,
+      "previousBalanceCents": 31780,
+      "totalCents": 25398,
+      "rows": [
+        {
+          "txnDate": "2026-09-07",
+          "postDate": null,
+          "amountCents": -31780,
+          "rawDescriptor": "AUTOPAY AC#0000000000000000",
+          "descriptor": "AUTOPAY",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2026-08-16",
+          "postDate": null,
+          "amountCents": 3942,
+          "rawDescriptor": "FOODPANDA SG",
+          "descriptor": "FOODPANDA SG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-08-18",
+          "postDate": null,
+          "amountCents": 2619,
+          "rawDescriptor": "FOODPANDA SG",
+          "descriptor": "FOODPANDA SG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-08-19",
+          "postDate": null,
+          "amountCents": 730,
+          "rawDescriptor": "GRAB* A-KEG8LBJKASNJ",
+          "descriptor": "GRAB* A-KEG8LBJKASNJ",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-20",
+          "postDate": null,
+          "amountCents": 1198,
+          "rawDescriptor": "SPOTIFY SINGAPORE",
+          "descriptor": "SPOTIFY SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Subscriptions"
+        },
+        {
+          "txnDate": "2026-08-22",
+          "postDate": null,
+          "amountCents": 2594,
+          "rawDescriptor": "GRAB* A-7P3U3NM5ZVF7",
+          "descriptor": "GRAB* A-7P3U3NM5ZVF7",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-08-31",
+          "postDate": null,
+          "amountCents": 2239,
+          "rawDescriptor": "GRAB* A-WLSBYLSPDTFS",
+          "descriptor": "GRAB* A-WLSBYLSPDTFS",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-09-05",
+          "postDate": null,
+          "amountCents": 1998,
+          "rawDescriptor": "NETFLIX.COM SINGAPORE",
+          "descriptor": "NETFLIX.COM SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Subscriptions"
+        },
+        {
+          "txnDate": "2026-09-06",
+          "postDate": null,
+          "amountCents": 3010,
+          "rawDescriptor": "GRAB* A-FBKSY8PEDMT5",
+          "descriptor": "GRAB* A-FBKSY8PEDMT5",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-09-06",
+          "postDate": null,
+          "amountCents": 4965,
+          "rawDescriptor": "SHOPEE SG MP",
+          "descriptor": "SHOPEE SG MP",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Shopping"
+        },
+        {
+          "txnDate": "2026-09-08",
+          "postDate": null,
+          "amountCents": 1605,
+          "rawDescriptor": "FOODPANDA SG",
+          "descriptor": "FOODPANDA SG",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-09-12",
+          "postDate": null,
+          "amountCents": 498,
+          "rawDescriptor": "APPLE.COM/BILL CORK IRL",
+          "descriptor": "APPLE.COM/BILL CORK IRL",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Subscriptions"
+        }
+      ]
+    },
+    {
+      "productName": "DBS SAMPLE WORLD MASTERCARD",
+      "ordinal": 1,
+      "previousBalanceCents": 40712,
+      "totalCents": 0,
+      "rows": [
+        {
+          "txnDate": "2026-09-07",
+          "postDate": null,
+          "amountCents": -40712,
+          "rawDescriptor": "AUTOPAY AC#0000000000000000",
+          "descriptor": "AUTOPAY",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        }
+      ]
+    }
+  ]
+}

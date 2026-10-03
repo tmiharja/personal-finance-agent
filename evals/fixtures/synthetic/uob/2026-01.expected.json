@@ -1,0 +1,624 @@
+{
+  "synthetic": true,
+  "bank": "UOB",
+  "statementDate": "2026-01-13",
+  "dueDate": "2026-02-01",
+  "minimumPaymentCents": 10000,
+  "statementTotalCents": 127442,
+  "cards": [
+    {
+      "productName": "UOB SAMPLE CASHBACK",
+      "ordinal": 1,
+      "previousBalanceCents": 42102,
+      "totalCents": 35730,
+      "rows": [
+        {
+          "txnDate": "2026-01-01",
+          "postDate": "2026-01-01",
+          "amountCents": -42102,
+          "rawDescriptor": "GIRO PAYMENT",
+          "descriptor": "GIRO PAYMENT",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2026-01-11",
+          "postDate": "2026-01-12",
+          "amountCents": -338,
+          "rawDescriptor": "UOB SAMPLE CASHBACK Card Cashback",
+          "descriptor": "UOB SAMPLE CASHBACK Card Cashback",
+          "fx": null,
+          "kind": "cashback",
+          "expectedCategory": "Cashback & Rewards"
+        },
+        {
+          "txnDate": "2025-12-16",
+          "postDate": "2025-12-19",
+          "amountCents": 2142,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-12-18",
+          "postDate": "2025-12-18",
+          "amountCents": 4397,
+          "rawDescriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "descriptor": "COLD STORAGE SAMPLE MALLSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-12-23",
+          "postDate": "2025-12-23",
+          "amountCents": 13661,
+          "rawDescriptor": "SP DIGITAL PTE LTD SINGAPORE",
+          "descriptor": "SP DIGITAL PTE LTD SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Bills & Utilities"
+        },
+        {
+          "txnDate": "2025-12-24",
+          "postDate": "2025-12-27",
+          "amountCents": 593,
+          "rawDescriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "descriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-25",
+          "postDate": "2025-12-29",
+          "amountCents": 6214,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2025-12-29",
+          "postDate": "2025-12-30",
+          "amountCents": 836,
+          "rawDescriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "descriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-30",
+          "postDate": "2025-12-30",
+          "amountCents": 787,
+          "rawDescriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "descriptor": "TOAST BOX - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-31",
+          "postDate": "2026-01-04",
+          "amountCents": 3887,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-01-05",
+          "postDate": "2026-01-07",
+          "amountCents": 3139,
+          "rawDescriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "descriptor": "FAIRPRICE XTRA - SAMPLE SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-01-06",
+          "postDate": "2026-01-07",
+          "amountCents": 412,
+          "rawDescriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "descriptor": "KOPITIAM @ SAMPLE SQUARE Singapore",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        }
+      ]
+    },
+    {
+      "productName": "UOB SAMPLE MILES VISA CARD",
+      "ordinal": 1,
+      "previousBalanceCents": 25075,
+      "totalCents": 91712,
+      "rows": [
+        {
+          "txnDate": "2026-01-01",
+          "postDate": "2026-01-01",
+          "amountCents": -25075,
+          "rawDescriptor": "GIRO PAYMENT",
+          "descriptor": "GIRO PAYMENT",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers"
+        },
+        {
+          "txnDate": "2025-12-13",
+          "postDate": "2025-12-17",
+          "amountCents": 483,
+          "rawDescriptor": "BUS/MRT 770826567 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-14",
+          "postDate": "2025-12-18",
+          "amountCents": 199,
+          "rawDescriptor": "BUS/MRT 094778885 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-16",
+          "postDate": "2025-12-16",
+          "amountCents": 508,
+          "rawDescriptor": "BUS/MRT 953738656 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-17",
+          "postDate": "2025-12-21",
+          "amountCents": 476,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-18",
+          "postDate": "2025-12-20",
+          "amountCents": 1513,
+          "rawDescriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "descriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "1700.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-18",
+          "postDate": "2025-12-21",
+          "amountCents": 566,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-18",
+          "postDate": "2025-12-22",
+          "amountCents": 1780,
+          "rawDescriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "descriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "2000.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-18",
+          "postDate": "2025-12-22",
+          "amountCents": 4094,
+          "rawDescriptor": "JR EAST TOKYO JPN",
+          "descriptor": "JR EAST TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "4600.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-19",
+          "postDate": "2025-12-21",
+          "amountCents": 3293,
+          "rawDescriptor": "JR EAST TOKYO JPN",
+          "descriptor": "JR EAST TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "3700.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-19",
+          "postDate": "2025-12-22",
+          "amountCents": 5910,
+          "rawDescriptor": "SINGTEL BILL SINGAPORE",
+          "descriptor": "SINGTEL BILL SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Telco & Internet"
+        },
+        {
+          "txnDate": "2025-12-19",
+          "postDate": "2025-12-23",
+          "amountCents": 1335,
+          "rawDescriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "descriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "1500.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-19",
+          "postDate": "2025-12-23",
+          "amountCents": 42720,
+          "rawDescriptor": "SAMPLE RYOKAN KYOTO JPN",
+          "descriptor": "SAMPLE RYOKAN KYOTO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "48000.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-20",
+          "postDate": "2025-12-20",
+          "amountCents": 496,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-20",
+          "postDate": "2025-12-20",
+          "amountCents": 623,
+          "rawDescriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "descriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "700.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-20",
+          "postDate": "2025-12-24",
+          "amountCents": 241,
+          "rawDescriptor": "BUS/MRT 471486169 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-21",
+          "postDate": "2025-12-21",
+          "amountCents": 2136,
+          "rawDescriptor": "JR EAST TOKYO JPN",
+          "descriptor": "JR EAST TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "2400.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-21",
+          "postDate": "2025-12-23",
+          "amountCents": 1780,
+          "rawDescriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "descriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "2000.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-21",
+          "postDate": "2025-12-25",
+          "amountCents": 441,
+          "rawDescriptor": "BUS/MRT 094453029 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-21",
+          "postDate": "2025-12-25",
+          "amountCents": 1958,
+          "rawDescriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "descriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "2200.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-22",
+          "postDate": "2025-12-22",
+          "amountCents": 1424,
+          "rawDescriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "descriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "1600.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-22",
+          "postDate": "2025-12-23",
+          "amountCents": 2670,
+          "rawDescriptor": "JR EAST TOKYO JPN",
+          "descriptor": "JR EAST TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "3000.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-22",
+          "postDate": "2025-12-23",
+          "amountCents": 1691,
+          "rawDescriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "descriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "1900.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-22",
+          "postDate": "2025-12-26",
+          "amountCents": 533,
+          "rawDescriptor": "BUS/MRT 561984118 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-23",
+          "postDate": "2025-12-25",
+          "amountCents": 1513,
+          "rawDescriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "descriptor": "LAWSON SHINJUKU TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "1700.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-23",
+          "postDate": "2025-12-26",
+          "amountCents": 483,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-23",
+          "postDate": "2025-12-26",
+          "amountCents": 1602,
+          "rawDescriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "descriptor": "ICHIRAN SHIBUYA TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "1800.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-23",
+          "postDate": "2025-12-27",
+          "amountCents": 2225,
+          "rawDescriptor": "JR EAST TOKYO JPN",
+          "descriptor": "JR EAST TOKYO JPN",
+          "fx": {
+            "currency": "JPY",
+            "amount": "2500.00"
+          },
+          "kind": "charge",
+          "expectedCategory": "Travel"
+        },
+        {
+          "txnDate": "2025-12-26",
+          "postDate": "2025-12-29",
+          "amountCents": 734,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-28",
+          "postDate": "2025-12-30",
+          "amountCents": 282,
+          "rawDescriptor": "BUS/MRT 752100432 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-29",
+          "postDate": "2025-12-29",
+          "amountCents": 112,
+          "rawDescriptor": "BUS/MRT 559313302 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2025-12-30",
+          "postDate": "2026-01-03",
+          "amountCents": 433,
+          "rawDescriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "descriptor": "SAMPLE FOOD COURT - CBDSINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-31",
+          "postDate": "2025-12-31",
+          "amountCents": 179,
+          "rawDescriptor": "BUS/MRT 217869511 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-01",
+          "postDate": "2026-01-05",
+          "amountCents": 525,
+          "rawDescriptor": "BUS/MRT 124664145 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-02",
+          "postDate": "2026-01-04",
+          "amountCents": 494,
+          "rawDescriptor": "BUS/MRT 232695001 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-03",
+          "postDate": "2026-01-06",
+          "amountCents": 421,
+          "rawDescriptor": "BUS/MRT 248369957 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-05",
+          "postDate": "2026-01-09",
+          "amountCents": 440,
+          "rawDescriptor": "BUS/MRT 203601797 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-06",
+          "postDate": "2026-01-08",
+          "amountCents": 183,
+          "rawDescriptor": "BUS/MRT 292842220 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-06",
+          "postDate": "2026-01-09",
+          "amountCents": 874,
+          "rawDescriptor": "GRAB* A-4X5RUXNB9H8S",
+          "descriptor": "GRAB* A-4X5RUXNB9H8S",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-07",
+          "postDate": "2026-01-08",
+          "amountCents": 426,
+          "rawDescriptor": "BUS/MRT 994094169 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-08",
+          "postDate": "2026-01-10",
+          "amountCents": 958,
+          "rawDescriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "descriptor": "STARBUCKS@SAMPLE MALL SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2026-01-13",
+          "postDate": "2026-01-13",
+          "amountCents": 529,
+          "rawDescriptor": "BUS/MRT 701882785 SINGAPORE",
+          "descriptor": "BUS/MRT # SINGAPORE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        },
+        {
+          "txnDate": "2026-01-13",
+          "postDate": "2026-01-13",
+          "amountCents": 2429,
+          "rawDescriptor": "GRAB* A-UHT33ZH94WJ3",
+          "descriptor": "GRAB* A-UHT33ZH94WJ3",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transport"
+        }
+      ]
+    }
+  ]
+}
