@@ -121,7 +121,10 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
                   row.review && !choice && "border-warn",
                 )}
               >
-                {!row.categoryId && <option value="">Uncategorised</option>}
+                {/* Uncategorised isn't a choice, but must still show as the current value. */}
+                {!choosable.some((c) => c.id === row.categoryId) && (
+                  <option value={row.categoryId ?? ""}>{row.categoryName}</option>
+                )}
                 {choosable.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}

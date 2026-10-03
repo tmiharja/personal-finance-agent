@@ -356,7 +356,7 @@ The main entities are `users`, `accounts`, `statements`, `transactions`, `mercha
 
 ## 12. Release plan (phases) ★ (Q61)
 
-**Status:** Phase 0 and Phase 1 are done: DBS + UOB card import with approval (1a), and categorisation, Transactions, Overview, Ask and the demo (1b). Phase 2a (the detectors: subscriptions, bills, alerts) is done. Phase 2b is DBS/POSB and UOB bank-account statements with transfer pairing and income; other banks (OCBC first) move to Phase 4. The bank-account parsers are built against synthetic fixtures in the published layouts and are marked provisional until real samples pass the local reconciliation test. Two choices differ from the plan: Claude is called through the official Anthropic SDK rather than the Vercel AI SDK, and the charts are plain HTML/CSS rather than SVG (still no chart library). The README lists what was built and how it was verified.
+**Status:** Phase 0 and Phase 1 are done: DBS + UOB card import with approval (1a), and categorisation, Transactions, Overview, Ask and the demo (1b). Phase 2a (the detectors: subscriptions, bills, alerts) is done. Phase 2b (DBS/POSB and UOB bank-account statements, PDF + CSV, with transfer pairing, income and card payments confirmed from the bank) is done: every planted transfer and card payment in the synthetic household pairs. Its parsers are marked provisional until real bank-account samples pass the local reconciliation test. Other banks (OCBC first) move to Phase 4. Two choices differ from the plan: Claude is called through the official Anthropic SDK rather than the Vercel AI SDK, and the charts are plain HTML/CSS rather than SVG (still no chart library). The README lists what was built and how it was verified.
 
 | Phase | Scope | Exit criteria |
 |---|---|---|

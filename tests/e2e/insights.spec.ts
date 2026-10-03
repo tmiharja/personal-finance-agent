@@ -113,6 +113,10 @@ test("bank transactions: PayNow names are never shown, and a transfer can be con
   await page.goto("/app/transactions?merchant=PayNow%20transfer");
   const rows = page.getByRole("row");
   await expect(rows.filter({ hasText: "PAYNOW TRANSFER OUT" }).first()).toBeVisible();
+  // Uncategorised isn't a choice in the picker, but it still shows as the current value.
+  await expect(
+    rows.filter({ hasText: "PAYNOW TRANSFER OUT" }).first().locator("select option:checked"),
+  ).toHaveText("Uncategorised");
   await expect(page.getByText(/JORDAN|ALEX/)).toHaveCount(0);
   // The own-account FAST transfers were matched across accounts and are locked.
   await page.goto("/app/transactions?merchant=FAST%20transfer");

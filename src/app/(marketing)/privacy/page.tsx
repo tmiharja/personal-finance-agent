@@ -7,13 +7,14 @@ const SECTIONS: { h: string; p: string[] }[] = [
     h: "What we collect",
     p: [
       "Your email address, to sign you in. Passkeys if you add them.",
-      "From statements you upload: dates, amounts, currencies, merchant descriptions, the card's product name, statement totals and due dates.",
+      "From statements you upload: dates, amounts, currencies, merchant descriptions, the card's or account's product name, statement totals, balances and due dates.",
     ],
   },
   {
     h: "What we never store",
     p: [
       "Card numbers (not even the last four digits), cardholder names, addresses, bank account numbers, statement passwords or the files themselves. Files are read in memory and discarded. Sign-in IP addresses aren't stored either.",
+      "The names of people you pay or are paid by. A PayNow or FAST transfer to or from a person is kept as just “PayNow transfer”, with its date and amount; payments to businesses keep the business name.",
     ],
   },
   {

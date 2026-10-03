@@ -243,10 +243,55 @@ describe("import: expiry and races", () => {
   });
 });
 
+describe("import: bank-account statements", () => {
+  const file = (name: string) => new Uint8Array(readFileSync(join(DIR, name)));
+
+  it("a POSB PDF previews as a reconciled bank account, pairs, and commits", async () => {
+    const preview = await previewImport(db, "alex", keys, { bytes: file("posb/2026-03.pdf") });
+    expect(preview.summary).toMatchObject({ bank: "DBS", kind: "deposit", allReconciled: true });
+    const [acct] = preview.summary.cards;
+    expect(acct).toMatchObject({ productName: "POSB SAMPLE SAVINGS ACCOUNT", reconciled: true });
+    // Balances are stored like rows: money held is negative.
+    expect(acct!.totalCents).toBeLessThan(0);
+    expect(acct!.counts.income).toBeGreaterThan(0);
+    const descriptors = preview.rows.flat().map((r) => r.descriptor);
+    expect(descriptors).toContain("PAYNOW TRANSFER OUT");
+    expect(descriptors.join("\n")).not.toMatch(/JORDAN|ALEX|000-0/);
+    const result = await approveProposal(db, "alex", keys, preview.proposalId);
+    expect(result.inserted).toBe(acct!.counts.rows);
+  });
+
+  it("the CSV export of the same month adds nothing: every row is a duplicate", async () => {
+    const preview = await previewImport(db, "alex", keys, { bytes: file("posb/2026-03.csv") });
+    const [acct] = preview.summary.cards;
+    expect(acct!.counts.newRows).toBe(0);
+    expect(acct!.counts.duplicates).toBe(acct!.counts.rows);
+    // The DBS export has no opening balance: unverified, not a pass.
+    expect(acct!.reconciled).toBeNull();
+    expect(preview.summary.allReconciled).toBe(false);
+    await rejectProposal(db, "alex", preview.proposalId);
+  });
+
+  it("the UOB account's FAST transfer pairs with the POSB receipt across banks", async () => {
+    const preview = await previewImport(db, "alex", keys, { bytes: file("uob-one/2026-03.pdf") });
+    expect(preview.summary.pairing?.transfers).toBe(1);
+    await approveProposal(db, "alex", keys, preview.proposalId);
+    const paired = sqlRows<{ n: number }>(
+      await withUser(db, "alex", (tx) =>
+        tx.execute(sql`select count(*)::int as n from transactions
+                       where merchant_name = 'FAST transfer' and transfer_pair_id is not null
+                         and is_transfer`),
+      ),
+    )[0]!.n;
+    expect(paired).toBe(2);
+  });
+});
+
 describe("import: no PII stored or logged", () => {
   it("database dump and logs carry no names, card numbers or raw descriptors", async () => {
     const dump = await dumpDatabase(db);
     expect(leaks(dump)).toEqual([]);
+    expect(dump).not.toMatch(/000-00000-0|000-000-000-0/); // bank account numbers
     expect(dump).not.toContain("grab* a-"); // descriptors only ever stored encrypted
     expect(dump).not.toMatch(/\b\d{23}\b/); // reference numbers never stored
     expect(leaks(logs.join("\n"))).toEqual([]);

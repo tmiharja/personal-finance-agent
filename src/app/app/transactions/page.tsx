@@ -73,7 +73,7 @@ export default async function TransactionsPage({
   return (
     <>
       <PageTitle title="Transactions">
-        Search by merchant, filter by date, card or category, and correct any category.
+        Search by merchant, filter by date, card or account, or category, and correct any category.
       </PageTitle>
 
       <form method="get" className="flex flex-wrap items-end gap-2" role="search">
@@ -99,7 +99,7 @@ export default async function TransactionsPage({
         </label>
         {options.cards.length > 1 && (
           <label className="flex flex-col gap-1 text-[12px] text-muted">
-            Card
+            Card or account
             <select name="account" defaultValue={filter.account ?? ""} className={input}>
               <option value="">All</option>
               {options.cards.map((c) => (
@@ -155,7 +155,7 @@ export default async function TransactionsPage({
             <tr className="text-left text-[12px] text-muted">
               <th className="py-2 pr-3 font-normal">Date</th>
               <th className="py-2 pr-3 font-normal">Merchant</th>
-              <th className="hidden py-2 pr-3 font-normal md:table-cell">Card</th>
+              <th className="hidden py-2 pr-3 font-normal md:table-cell">Card or account</th>
               <th className="py-2 pr-3 font-normal">Category</th>
               <th className="py-2 text-right font-normal">Amount</th>
             </tr>
