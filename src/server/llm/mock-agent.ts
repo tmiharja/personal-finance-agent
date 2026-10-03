@@ -102,6 +102,19 @@ export async function mockTurn(
   if (/\b(invest|stocks?|should i buy)\b/i.test(question)) {
     return say("I can't give investment advice, but I can tell you what you've spent and where.");
   }
+  if (/subscription/i.test(question)) {
+    const subs = results.find((r) => r.name === "get_subscriptions")?.data;
+    if (!subs)
+      return message(
+        [toolUse("get_subscriptions", {})] as BetaMessage["content"],
+        "tool_use",
+        model,
+      );
+    const list = subs.subscriptions as { merchant: string; monthly_equivalent_sgd: string }[];
+    return say(
+      `Your ${subs.running} running subscriptions cost ${sgd(String(subs.monthly_total_sgd))} a month; the largest is ${list[0]?.merchant ?? "none"} at ${sgd(list[0]?.monthly_equivalent_sgd ?? "0")}.`,
+    );
+  }
   const period = results.find((r) => r.name === "resolve_period")?.data;
   if (!period) {
     const expr =

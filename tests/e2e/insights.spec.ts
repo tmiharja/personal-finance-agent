@@ -56,7 +56,8 @@ test("correcting a merchant proposes a rule, which changes nothing until approve
     .getByRole("region", { name: "Rule for Starbucks" })
     .getByRole("button", { name: "Approve" })
     .click();
-  await expect(page.getByText(/The rule is saved/)).toBeVisible();
+  // The card leaves the pending list once approved; the history says what happened.
+  await expect(page.getByText("Done · Rule: Starbucks → Health · system")).toBeVisible();
   await page.goto("/app/transactions?merchant=Starbucks&category=Health");
   await expect(page.getByText(new RegExp(`^${count} transactions`))).toBeVisible();
 });

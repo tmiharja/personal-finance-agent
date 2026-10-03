@@ -87,6 +87,7 @@ export default async function ActivityPage() {
               >
                 <span>
                   {EVENT_LABEL[e.event] ?? e.event}
+                  {e.subject && <> · {e.subject}</>}
                   <span className="text-muted"> · {e.actor === "user" ? "you" : "system"}</span>
                 </span>
                 <span className="tabular text-[13px] text-muted">{when(e.createdAt)}</span>

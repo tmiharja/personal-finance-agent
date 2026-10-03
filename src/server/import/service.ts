@@ -18,6 +18,7 @@ import { categoriseStatement } from "@/server/categorise/context";
 import { audit, canonical, expireIfDue, sha256 } from "@/server/actions/common";
 import type { RulePreview } from "@/server/actions/rules";
 import { parseStatementPdf, type ParsedStatement } from "@/server/ingest/parsers";
+import { longDate } from "@/lib/format";
 import { logEvent } from "@/server/log";
 
 /**
@@ -676,7 +677,23 @@ export type ActivityEvent = {
   actor: string;
   proposalId: string | null;
   createdAt: string;
+  /** What the event was about, built from the proposal's own preview (no model text). */
+  subject: string | null;
 };
+
+function proposalSubject(type: string | null, preview: unknown): string | null {
+  if (type === "commit_import") {
+    const p = preview as Partial<ImportSummary> | null;
+    return p?.bank && p.statementDate
+      ? `Import ${p.bank} statement ${longDate(p.statementDate)}`
+      : "Import";
+  }
+  if (type === "create_rule") {
+    const p = preview as Partial<RulePreview> | null;
+    return p?.merchant && p.toCategory ? `Rule: ${p.merchant} → ${p.toCategory}` : "Rule";
+  }
+  return null;
+}
 
 export async function listRecentActivity(
   db: AppDb,
@@ -685,8 +702,17 @@ export async function listRecentActivity(
 ): Promise<ActivityEvent[]> {
   return withUser(db, userId, async (tx) => {
     const rows = await tx
-      .select()
+      .select({
+        id: auditLog.id,
+        event: auditLog.event,
+        actor: auditLog.actor,
+        proposalId: auditLog.proposalId,
+        createdAt: auditLog.createdAt,
+        type: proposedActions.type,
+        preview: proposedActions.preview,
+      })
       .from(auditLog)
+      .leftJoin(proposedActions, eq(proposedActions.id, auditLog.proposalId))
       .orderBy(sql`${auditLog.createdAt} desc`)
       .limit(limit);
     return rows.map((r) => ({
@@ -695,6 +721,7 @@ export async function listRecentActivity(
       actor: r.actor,
       proposalId: r.proposalId,
       createdAt: r.createdAt.toISOString(),
+      subject: proposalSubject(r.type, r.preview),
     }));
   });
 }
