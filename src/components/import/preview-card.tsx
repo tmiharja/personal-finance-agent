@@ -117,6 +117,31 @@ export default function PreviewCard({
         </p>
       )}
 
+      {summary.pairing &&
+        summary.pairing.cardPayments +
+          summary.pairing.transfers +
+          summary.pairing.linkedCardPayments >
+          0 && (
+          <p className="mt-1 text-[13px] text-muted">
+            Matched with your other accounts:{" "}
+            {[
+              summary.pairing.cardPayments + summary.pairing.linkedCardPayments > 0 &&
+                `${summary.pairing.cardPayments + summary.pairing.linkedCardPayments} card ${
+                  summary.pairing.cardPayments + summary.pairing.linkedCardPayments === 1
+                    ? "payment"
+                    : "payments"
+                }`,
+              summary.pairing.transfers > 0 &&
+                `${summary.pairing.transfers} ${
+                  summary.pairing.transfers === 1 ? "transfer" : "transfers"
+                } between your accounts`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}{" "}
+            (not counted as spending or income)
+          </p>
+        )}
+
       {!summary.allReconciled && (
         <p role="alert" className="mt-3 rounded-lg bg-warn-soft px-4 py-3 text-[15px] text-warn">
           {summary.cards.some((c) => c.reconciled === false)
@@ -239,7 +264,8 @@ export default function PreviewCard({
       <div className="mt-6 border-t border-rule pt-5">
         {state === "committed" ? (
           <p role="status" className="text-[15px]">
-            Imported {result ? `${result.inserted} transactions` : "this statement"}.{" "}
+            Imported {result ? `${result.inserted} transactions` : "this statement"}
+            {result?.paired ? `, ${result.paired} matched with your other accounts` : ""}.{" "}
             <Link href="/app" className="link">
               View overview
             </Link>
@@ -252,6 +278,31 @@ export default function PreviewCard({
           </p>
         ) : (
           <>
+            {summary.pairing &&
+              summary.pairing.cardPayments +
+                summary.pairing.transfers +
+                summary.pairing.linkedCardPayments >
+                0 && (
+                <p className="mt-1 text-[13px] text-muted">
+                  Matched with your other accounts:{" "}
+                  {[
+                    summary.pairing.cardPayments + summary.pairing.linkedCardPayments > 0 &&
+                      `${summary.pairing.cardPayments + summary.pairing.linkedCardPayments} card ${
+                        summary.pairing.cardPayments + summary.pairing.linkedCardPayments === 1
+                          ? "payment"
+                          : "payments"
+                      }`,
+                    summary.pairing.transfers > 0 &&
+                      `${summary.pairing.transfers} ${
+                        summary.pairing.transfers === 1 ? "transfer" : "transfers"
+                      } between your accounts`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}{" "}
+                  (not counted as spending or income)
+                </p>
+              )}
+
             {!summary.allReconciled && (
               <label className="mb-4 flex items-start gap-2 text-[13px]">
                 <input

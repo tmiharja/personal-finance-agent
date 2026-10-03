@@ -103,7 +103,7 @@ describe("no PII reaches storage or logs", () => {
 
   it("seeds the synthetic demo data through the same path", async () => {
     const r = await seedDemoWorkspace(db, "alex", keys);
-    expect(r.transactions).toBe(885);
+    expect(r.transactions).toBe(1215);
     logEvent("demo.seeded", { ...r });
     logError("import", new Error(`failed on ${FORBIDDEN[0]} for ALEX TAN`));
     // Detector output (alerts, subscriptions, bills) is part of the dump below.

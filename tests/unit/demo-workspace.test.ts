@@ -58,7 +58,7 @@ describe("demo workspaces", () => {
     await createUser(db, "demo1");
     await db.update(user).set({ isAnonymous: true }).where(eq(user.id, "demo1"));
     const r = await prepareDemoWorkspace(db, "demo1", keys);
-    expect(r.transactions).toBe(885);
+    expect(r.transactions).toBe(1215);
     expect(await isDemoUser(db, "demo1")).toBe(true);
     await createUser(db, "real");
     expect(await isDemoUser(db, "real")).toBe(false);

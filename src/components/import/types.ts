@@ -6,21 +6,23 @@ export type CommitResult = {
   duplicates: number;
   cards: number;
   allReconciled: boolean;
+  paired?: number;
 };
 
 /** Plain-English messages for every error code the import API returns. */
 export const IMPORT_ERRORS: Record<string, string> = {
   password_incorrect: "That password didn't open the file. Try again.",
   unsupported_format:
-    "This doesn't look like a DBS or UOB credit-card statement. Those are supported first.",
+    "This doesn't look like a DBS/POSB or UOB statement. Card statements (PDF) and bank-account statements (PDF or the bank's CSV export) are supported.",
   no_cards: "We couldn't find any card sections in this statement.",
+  no_accounts: "We couldn't find any account in this statement.",
   no_statement_date: "We couldn't find the statement date in this file.",
   invalid_output: "We couldn't read this statement reliably, so nothing was imported.",
   no_text:
     "This PDF has no text layer (it may be a scan). Download the e-statement PDF from your bank instead.",
   too_many_pages: "This PDF has more than 30 pages. Statements are usually much shorter.",
   unreadable: "This file couldn't be opened as a PDF.",
-  not_pdf: "Only PDF statements are supported for now.",
+  unsupported_file: "Upload a PDF statement or your bank's CSV export.",
   too_large: "This file is over 4 MB. Statements are usually much smaller.",
   already_imported: "You've already imported this file.",
   rate_limited: "You've reached the import limit for now (40 files per 30 days).",

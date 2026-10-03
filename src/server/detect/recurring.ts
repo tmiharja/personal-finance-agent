@@ -117,13 +117,17 @@ function statusAt(next: string, reference: string, cadence: Cadence): Subscripti
 function byMerchant(rows: readonly Row[]): Map<string, Row[]> {
   const groups = new Map<string, Row[]>();
   for (const r of rows) {
-    if (r.kind !== "charge" || r.amountCents <= 0) continue;
+    // Transfers between your own accounts, and to or from people, are not merchants.
+    if (r.kind !== "charge" || r.amountCents <= 0 || r.isTransfer || PERSON_TRANSFER.test(r.key))
+      continue;
     const list = groups.get(r.key) ?? [];
     list.push(r);
     groups.set(r.key, list);
   }
   return groups;
 }
+
+const PERSON_TRANSFER = /^(paynow|fast|funds) transfer$/;
 
 const isBillLike = (r: Row) => BILL_CATEGORIES.has(r.category) || BILL_PAYEE.test(r.merchant);
 

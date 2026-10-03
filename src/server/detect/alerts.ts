@@ -43,8 +43,13 @@ const MICRO_MAX_CENTS = 2_000;
 
 const pct = (a: number, b: number) => Math.round(((a - b) / b) * 100);
 
+/** Person-to-person transfers: never a merchant to compare amounts against. */
+const PERSON_TRANSFER = new Set(["paynow transfer", "fast transfer", "funds transfer"]);
+
 function charges(rows: readonly Row[]): Row[] {
-  return rows.filter((r) => r.kind === "charge" && r.amountCents > 0);
+  return rows.filter(
+    (r) => r.kind === "charge" && r.amountCents > 0 && !r.isTransfer && !PERSON_TRANSFER.has(r.key),
+  );
 }
 
 export function priceAlerts(subs: readonly Subscription[]): DetectedAlert[] {
@@ -285,8 +290,12 @@ export function dueAlerts(ledger: Ledger, today: string): DetectedAlert[] {
     if (!s.dueDate || s.totalCents <= 0) continue;
     const days = daysBetween(today, s.dueDate);
     if (days < -DUE_GRACE_DAYS || days > 3) continue;
+    // Paid on the card itself, or from a bank account linked to this card (DET-7).
     const paid = ledger.rows.some(
-      (r) => r.accountId === s.accountId && r.kind === "card_payment" && r.date > s.statementDate,
+      (r) =>
+        (r.accountId === s.accountId || r.transferAccountId === s.accountId) &&
+        r.kind === "card_payment" &&
+        r.date > s.statementDate,
     );
     if (paid) continue;
     out.push({

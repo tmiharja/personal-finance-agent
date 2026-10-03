@@ -197,6 +197,9 @@ const row = (date: string, cents: number, merchant = "Acme", over: Partial<Row> 
   fxAmount: null,
   accountId: "card",
   card: "Card",
+  accountKind: "card",
+  isTransfer: false,
+  transferAccountId: null,
   ...over,
 });
 const ledger = (rows: Row[], coverage = "2026-12-31"): Ledger => ({
@@ -376,7 +379,11 @@ describe("read model and the user's own decisions", () => {
     expect(cards).toHaveLength(4);
     expect(cards.every((c) => c.dueDate && c.statementDate.startsWith("2026-09"))).toBe(true);
     expect(cards.some((c) => !c.paid)).toBe(true);
-    expect(found.map((b) => b.payee).sort()).toEqual(["SP Group", "Singtel"]);
+    expect(found.map((b) => b.payee).sort()).toEqual([
+      "SP Group",
+      "Sample Town Council",
+      "Singtel",
+    ]);
     expect((await listBills(db, "other")).cards).toEqual([]);
   });
 

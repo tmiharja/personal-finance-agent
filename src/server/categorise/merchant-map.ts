@@ -42,6 +42,9 @@ export const MERCHANTS: readonly Entry[] = [
   ],
   [/\bCASHBACK$/i, "Card cashback", null],
   // Bank-account system rows (descriptors written by the bank-row parser)
+  // The issuer stays in the merchant name: transfer pairing matches it to your cards.
+  [/^CARD PAYMENT (DBS|POSB) CARD$/i, "DBS card payment", null],
+  [/^CARD PAYMENT UOB CARD$/i, "UOB card payment", null],
   [/^CARD PAYMENT\b/i, "Card payment", null],
   [/^SALARY\b/i, "Salary", null],
   [/^INTEREST CREDIT$/i, "Interest", null],

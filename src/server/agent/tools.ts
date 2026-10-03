@@ -110,7 +110,7 @@ const DESCRIPTIONS: Record<ToolName, string> = {
   resolve_period:
     "Turns the user's words for a time period into exact dates and a label. Call it before any other tool whenever the question mentions a period; use the returned from/to and quote the label in your answer.",
   spend_summary:
-    "Total card spend for a period (charges and fees, refunds netted; card payments and cashback excluded), optionally for one category or merchant. Returns the amount, the transaction count and what was excluded.",
+    "Total spend for a period across cards and bank accounts (charges, fees and debit purchases, refunds netted; card payments, transfers between the person's own accounts and cashback excluded), optionally for one category or merchant. Returns the amount, the transaction count and what was excluded; without a category or merchant it also returns income (salary, interest and other money in) for the period.",
   spend_by_category: "Spend per category for a period, largest first.",
   compare_periods:
     "Spend in two periods side by side, with the difference and percentage change already calculated. Use this for any comparison instead of calculating.",
@@ -201,6 +201,7 @@ function viewFor(range: Range, scope: Scope, count: number): View {
 const excludedNote = (e: SpendTotals["excluded"]) => ({
   card_payments_excluded: e.cardPayments,
   cashback_credits_excluded: e.cashback,
+  own_account_transfers_excluded: e.transfers,
 });
 
 function checkRange(from: string, to: string): Range {
@@ -308,9 +309,11 @@ async function run(
                  case when a.ordinal > 1 then a.product_name || ' (' || a.ordinal || ')' else a.product_name end as card,
                  s.statement_date::text as statement, s.due_date::text as due, s.total_cents::text as total,
                  s.minimum_payment_cents::text as min,
-                 exists (select 1 from transactions t where t.account_id = s.account_id
+                 exists (select 1 from transactions t
+                         where (t.account_id = s.account_id or t.transfer_account_id = s.account_id)
                          and t.kind = 'card_payment' and t.txn_date > s.statement_date) as paid
           from statements s join accounts a on a.id = s.account_id
+          where a.kind = 'card'
           order by s.account_id, s.statement_date desc`),
       );
       const recurring = sqlRows<{
@@ -384,6 +387,9 @@ async function run(
           spent_sgd: sgd(t.spentCents),
           refunds_netted_sgd: sgd(-t.refundsCents),
           transactions: t.count,
+          ...(s.scope.category || s.scope.merchant
+            ? {}
+            : { income_sgd: sgd(t.incomeCents), income_transactions: t.incomeCount }),
           ...excludedNote(t.excluded),
         },
         view: viewFor(range, s.scope, t.count),
@@ -472,6 +478,7 @@ async function run(
         excluded: {
           cardPayments: x.excluded.cardPayments + y.excluded.cardPayments,
           cashback: x.excluded.cashback + y.excluded.cashback,
+          transfers: x.excluded.transfers + y.excluded.transfers,
         },
       };
     }
@@ -545,7 +552,7 @@ async function run(
       );
       if ("error" in s) return { result: s.error };
       const limit = Number(args.limit ?? 10);
-      const where = sql`t.txn_date between ${range.from} and ${range.to} and t.kind in ('charge', 'fee', 'refund')
+      const where = sql`t.txn_date between ${range.from} and ${range.to} and t.kind in ('charge', 'fee', 'refund') and not t.is_transfer
         ${s.scope.category ? sql`and coalesce(c.name, 'Uncategorised') = ${s.scope.category}` : sql``}
         ${s.scope.merchant ? sql`and lower(t.merchant_name) = lower(${s.scope.merchant})` : sql``}`;
       const order =

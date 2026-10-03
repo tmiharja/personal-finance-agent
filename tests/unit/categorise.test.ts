@@ -180,7 +180,10 @@ describe("classifier", () => {
 
 describe("golden set: synthetic statements", () => {
   it("rules + map are right whenever they decide, and decide most rows", () => {
-    const rows = loadFixtureStatements().flatMap((s) => s.cards.flatMap((c) => c.rows));
+    // Transfer legs get their category from pairing, after categorisation (IMP-10).
+    const rows = loadFixtureStatements()
+      .flatMap((s) => s.cards.flatMap((c) => c.rows))
+      .filter((r) => !("transferLeg" in r));
     let decided = 0;
     let correct = 0;
     for (const r of rows) {

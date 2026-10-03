@@ -45,6 +45,8 @@ export type MonthOverview = {
   byCategory: CategorySpend[];
   /** The 12 months ending at `month`. */
   trend: MonthSpend[];
+  /** How many bank accounts are imported (income needs at least one). */
+  bankAccounts: number;
 };
 
 /** Overview for a month (YYYY-MM); defaults to the latest month with transactions. */
@@ -67,12 +69,14 @@ export async function getMonthOverview(
         : last;
     const range = monthRange(month);
     const prevMonth = addMonths(month, -1);
-    const [totals, previous, byCategory, trend] = await Promise.all([
+    const [totals, previous, byCategory, trend, banks] = await Promise.all([
       spendTotals(tx, range),
       prevMonth >= first ? spendTotals(tx, monthRange(prevMonth)) : Promise.resolve(null),
       spendByCategory(tx, range),
       monthlySpend(tx, { from: monthRange(addMonths(month, -11)).from, to: range.to }),
+      tx.execute(sql`select count(*)::int as n from accounts where kind = 'deposit'`),
     ]);
-    return { month, span: { first, last }, totals, previous, byCategory, trend };
+    const bankAccounts = sqlRows<{ n: number }>(banks)[0]?.n ?? 0;
+    return { month, span: { first, last }, totals, previous, byCategory, trend, bankAccounts };
   });
 }

@@ -59,6 +59,9 @@ export function filterHref(filter: Partial<TxnFilter>): string {
   return `/app/transactions${qs ? `?${qs}` : ""}`;
 }
 
+/** Rows whose category the user may need to check: purchases, refunds and money in. */
+const REVIEW_KINDS = ["charge", "refund", "income"] as const;
+
 export const REVIEW_SQL = sql`(${categories.name} = 'Uncategorised' or ${transactions.categoryId} is null or (${transactions.categorySource} = 'llm' and coalesce(${transactions.confidence}, 0) < ${LOW_CONFIDENCE}))`;
 
 function conditions(f: TxnFilter): SQL[] {
@@ -71,9 +74,13 @@ function conditions(f: TxnFilter): SQL[] {
   if (f.q) where.push(ilike(transactions.merchantName, `%${f.q.replace(/[%_\\]/g, "\\$&")}%`));
   if (f.review) {
     where.push(REVIEW_SQL);
-    where.push(inArray(transactions.kind, ["charge", "refund"]));
+    where.push(inArray(transactions.kind, [...REVIEW_KINDS]));
+    where.push(eq(transactions.isTransfer, false));
   }
-  if (f.spend) where.push(inArray(transactions.kind, ["charge", "refund", "fee"]));
+  if (f.spend) {
+    where.push(inArray(transactions.kind, ["charge", "refund", "fee"]));
+    where.push(eq(transactions.isTransfer, false));
+  }
   return where;
 }
 
@@ -91,6 +98,8 @@ export type TxnRow = {
   categorySource: "rule" | "map" | "llm" | "user" | "system" | null;
   confidence: number | null;
   review: boolean;
+  /** Matched with its other leg in another of your accounts (IMP-10): not editable. */
+  paired: boolean;
   card: string;
 };
 
@@ -139,6 +148,8 @@ export async function listTransactions(
         categorySource: transactions.categorySource,
         confidence: transactions.confidence,
         review: sql<boolean>`${REVIEW_SQL}`,
+        isTransfer: transactions.isTransfer,
+        pairId: transactions.transferPairId,
         productName: accounts.productName,
         ordinal: accounts.ordinal,
       })
@@ -164,8 +175,12 @@ export async function listTransactions(
         categoryName: r.categoryName ?? "Uncategorised",
         categorySource: r.categorySource,
         confidence: r.confidence,
-        review: (r.kind === "charge" || r.kind === "refund") && Boolean(r.review),
+        review:
+          (REVIEW_KINDS as readonly string[]).includes(r.kind) &&
+          !r.isTransfer &&
+          Boolean(r.review),
         card: r.ordinal > 1 ? `${r.productName} (${r.ordinal})` : r.productName,
+        paired: r.pairId !== null,
       })),
       total,
       totalCents: Number(agg?.cents ?? 0),
@@ -213,6 +228,7 @@ export class TxnError extends Error {
 /** Kinds whose category comes from the row itself, never from the user. */
 export { FIXED_KINDS } from "@/lib/kinds";
 import { FIXED_KINDS } from "@/lib/kinds";
+import { TRANSFER_MERCHANTS } from "@/lib/kinds";
 
 /** "This transaction only": the user's own direct edit (PRD CAT-5). */
 export async function setTransactionCategory(
@@ -226,20 +242,31 @@ export async function setTransactionCategory(
       .select({ id: categories.id, name: categories.name, kind: categories.kind })
       .from(categories)
       .where(and(eq(categories.id, categoryId), eq(categories.hidden, false)));
-    if (!cat || cat.kind === "transfer") throw new TxnError("invalid_category");
+    if (!cat) throw new TxnError("invalid_category");
     const [row] = await tx
-      .select({ kind: transactions.kind })
+      .select({
+        kind: transactions.kind,
+        merchant: transactions.merchantName,
+        pair: transactions.transferPairId,
+      })
       .from(transactions)
       .where(eq(transactions.id, transactionId));
     if (!row) throw new TxnError("transaction_not_found");
-    if ((FIXED_KINDS as readonly string[]).includes(row.kind))
+    // System rows, and transfers the app paired across your accounts, keep their category.
+    if ((FIXED_KINDS as readonly string[]).includes(row.kind) || row.pair)
       throw new TxnError("not_categorisable");
+    // "Transfers" confirms a PayNow/FAST transfer as your own money moving (IMP-10);
+    // it isn't a category for purchases.
+    const toTransfer = cat.kind === "transfer";
+    if (toTransfer && !TRANSFER_MERCHANTS.has(row.merchant ?? ""))
+      throw new TxnError("invalid_category");
     await tx
       .update(transactions)
       .set({
         categoryId: cat.id,
         categorySource: "user",
         confidence: null,
+        isTransfer: toTransfer,
         version: sql`${transactions.version} + 1`,
         updatedAt: new Date(),
       })
@@ -255,7 +282,8 @@ export async function countToReview(db: AppDb, userId: string): Promise<number> 
       await tx.execute(sql`
         select count(*)::int as n from transactions
         left join categories on categories.id = transactions.category_id
-        where transactions.kind in ('charge', 'refund') and ${REVIEW_SQL}`),
+        where transactions.kind in ('charge', 'refund', 'income') and not transactions.is_transfer
+          and ${REVIEW_SQL}`),
     );
     return r?.n ?? 0;
   });

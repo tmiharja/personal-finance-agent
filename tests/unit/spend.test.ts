@@ -25,12 +25,24 @@ beforeAll(async () => {
 });
 afterAll(() => close());
 
-// Ground truth straight from the fixtures, independent of the SQL.
-const rows = loadFixtureStatements().flatMap((s) => s.cards.flatMap((c) => c.rows));
+// Ground truth straight from the fixtures, independent of the SQL. A transfer leg
+// (one side of a move between Alex's own accounts) is never spend.
+const fixtures = loadFixtureStatements();
+const rows = fixtures.flatMap((s) =>
+  s.cards.flatMap((c) =>
+    c.rows.map(
+      (r) =>
+        ({ ...r, onCard: (s.kind ?? "card") === "card" }) as typeof r & {
+          onCard: boolean;
+          transferLeg?: string;
+        },
+    ),
+  ),
+);
 const inMonth = (m: string) => rows.filter((r) => r.txnDate.startsWith(m));
 const spendOf = (rs: typeof rows) =>
   rs
-    .filter((r) => ["charge", "fee", "refund"].includes(r.kind))
+    .filter((r) => ["charge", "fee", "refund"].includes(r.kind) && !r.transferLeg)
     .reduce((s, r) => s + r.amountCents, 0);
 
 describe("spend definitions (shared by Overview and Ask)", () => {
@@ -42,8 +54,18 @@ describe("spend definitions (shared by Overview and Ask)", () => {
       feb.filter((r) => r.kind === "refund").reduce((s, r) => s + r.amountCents, 0),
     );
     expect(t.refundsCents).toBeLessThan(0);
-    expect(t.excluded.cardPayments).toBe(feb.filter((r) => r.kind === "card_payment").length);
+    // Card payments are counted once, on the card: their bank-side legs are the same money.
+    expect(t.excluded.cardPayments).toBe(
+      feb.filter((r) => r.kind === "card_payment" && r.onCard).length,
+    );
     expect(t.cardPaymentsCents).toBeLessThan(0);
+    expect(t.excluded.transfers).toBe(feb.filter((r) => r.transferLeg).length);
+    expect(t.incomeCents).toBe(
+      -feb
+        .filter((r) => r.kind === "income" && !r.transferLeg)
+        .reduce((s, r) => s + r.amountCents, 0),
+    );
+    expect(t.incomeCents).toBeGreaterThan(680000);
   });
 
   it("breaks spend down by category and merchant", async () => {

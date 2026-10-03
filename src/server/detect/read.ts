@@ -98,9 +98,11 @@ export async function listBills(
         select distinct on (s.account_id) s.account_id,
                case when a.ordinal > 1 then a.product_name || ' (' || a.ordinal || ')' else a.product_name end as card,
                s.statement_date::text, s.due_date::text, s.minimum_payment_cents::text as min, s.total_cents::text as total,
-               exists (select 1 from transactions t where t.account_id = s.account_id
+               exists (select 1 from transactions t
+                       where (t.account_id = s.account_id or t.transfer_account_id = s.account_id)
                        and t.kind = 'card_payment' and t.txn_date > s.statement_date) as paid
         from statements s join accounts a on a.id = s.account_id
+        where a.kind = 'card'
         order by s.account_id, s.statement_date desc`),
     );
     const found = await tx

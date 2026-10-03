@@ -48,14 +48,19 @@ const FALLBACK_MODELS = new Set(["claude-sonnet-5-5", "claude-opus-5-5"]);
 
 function excludesNote(outcomes: ToolOutcome[]): string | undefined {
   const last = [...outcomes].reverse().find((o) => o.excluded)?.excluded;
-  if (!last || (last.cardPayments === 0 && last.cashback === 0)) return undefined;
+  if (!last || (last.cardPayments === 0 && last.cashback === 0 && !last.transfers))
+    return undefined;
   const parts = [
     last.cardPayments
       ? `${last.cardPayments} card ${last.cardPayments === 1 ? "payment" : "payments"}`
       : "",
+    last.transfers
+      ? `${last.transfers} ${last.transfers === 1 ? "transfer" : "transfers"} between your accounts`
+      : "",
     last.cashback ? `${last.cashback} cashback ${last.cashback === 1 ? "credit" : "credits"}` : "",
   ].filter(Boolean);
-  return `Excludes ${parts.join(" and ")}.`;
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+  return `Excludes ${list}.`;
 }
 
 const textOf = (m: BetaMessage) =>

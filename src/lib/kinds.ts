@@ -18,5 +18,13 @@ export type TxnKind = (typeof TXN_KINDS)[number];
 /** Kinds whose category is set by the kind itself and can't be changed row by row. */
 export const FIXED_KINDS = ["card_payment", "fee", "cashback", "transfer"] as const;
 
+/** Merchants of person-to-person transfers (written by the bank-row parser). */
+export const TRANSFER_MERCHANTS: ReadonlySet<string> = new Set([
+  "PayNow transfer",
+  "FAST transfer",
+  "Funds transfer",
+  "Own account transfer",
+]);
+
 /** Never spend or income: money moving between your own accounts and cards (PRD IMP-10). */
 export const TRANSFER_KINDS = ["card_payment", "transfer"] as const;

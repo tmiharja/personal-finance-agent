@@ -51,7 +51,7 @@ export default async function OverviewPage({
         <EmptyState
           title="No statements yet"
           action={{ href: "/app/import", label: "Import a statement" }}
-          note="DBS and UOB credit-card PDFs are supported first. Files are read in memory and discarded."
+          note="DBS/POSB and UOB card statements (PDF) and bank-account statements (PDF or CSV). Files are read in memory and discarded."
         >
           Import a few months of statements and this page will show spend by category and how it
           changes month to month.
@@ -71,8 +71,8 @@ export default async function OverviewPage({
   return (
     <>
       <PageTitle title="Overview">
-        Card spending for the month: charges and fees, with refunds netted. Card payments and
-        cashback are shown separately.
+        Spending across your cards and bank accounts, with refunds netted, and the money that came
+        in. Card payments and transfers between your own accounts are neither.
       </PageTitle>
 
       <nav aria-label="Month" className="mb-6 flex items-baseline justify-between text-[15px]">
@@ -98,17 +98,34 @@ export default async function OverviewPage({
           label="Spent"
           value={money(o.totals.spentCents)}
           note={
-            change === null ? (
-              `${o.totals.count} transactions`
-            ) : (
-              <span className={change > 0 ? "text-warn" : undefined}>
-                {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {Math.abs(change)}% vs{" "}
-                {shortMonth(prev)}
-              </span>
-            )
+            <>
+              {change === null ? (
+                `${o.totals.count} transactions`
+              ) : (
+                <span className={change > 0 ? "text-warn" : undefined}>
+                  {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {Math.abs(change)}% vs{" "}
+                  {shortMonth(prev)}
+                </span>
+              )}
+              {o.totals.refundsCents !== 0 && (
+                <span className="block">{money(-o.totals.refundsCents)} refunds netted</span>
+              )}
+            </>
           }
         />
-        <Stat label="Refunds" value={money(-o.totals.refundsCents)} note="already netted" />
+        <Stat
+          label="Income"
+          value={money(o.totals.incomeCents)}
+          note={
+            o.bankAccounts === 0
+              ? "import a bank-account statement"
+              : `${o.totals.incomeCount} ${o.totals.incomeCount === 1 ? "credit" : "credits"}${
+                  o.totals.excluded.transfers
+                    ? ` · ${o.totals.excluded.transfers} transfers excluded`
+                    : ""
+                }`
+          }
+        />
         <Stat
           label="Cashback"
           value={money(-o.totals.cashbackCents)}

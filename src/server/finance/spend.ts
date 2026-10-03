@@ -3,11 +3,13 @@ import { sqlRows } from "@/db/rows";
 import type { Tx } from "@/db/with-user";
 
 /**
- * One definition of "spend", shared by Overview and Ask (PRD ASK-6) so the two
- * can never disagree:
+ * One definition of "spend" and "income", shared by Overview and Ask (PRD ASK-6)
+ * so the two can never disagree:
  *  - spend = charges + fees, with refunds netted against their category;
- *  - card payments (transfers) and cashback are excluded, and counted separately
- *    so every answer can say what it left out.
+ *  - income = salary, interest and other money in that isn't a refund;
+ *  - transfers are neither (IMP-10): card payments, moves between your own
+ *    accounts (paired or marked), and cashback are counted separately so every
+ *    answer can say what it left out.
  * Periods are inclusive transaction-date ranges (YYYY-MM-DD). Every function
  * runs inside withUser(), so RLS scopes it to one user.
  */
@@ -15,7 +17,10 @@ import type { Tx } from "@/db/with-user";
 export type Range = { from: string; to: string };
 export type Scope = { account?: string; category?: string; merchant?: string };
 
-const SPEND_KINDS = sql`t.kind in ('charge', 'fee', 'refund')`;
+const SPEND_KINDS = sql`(t.kind in ('charge', 'fee', 'refund') and not t.is_transfer)`;
+const INCOME = sql`(t.kind = 'income' and not t.is_transfer)`;
+/** Moves between your own accounts other than card payments (counted separately). */
+const OTHER_TRANSFERS = sql`(t.is_transfer and t.kind <> 'card_payment')`;
 
 function scopeSql(scope: Scope = {}): SQL {
   const parts: SQL[] = [sql`true`];
@@ -33,9 +38,13 @@ export type SpendTotals = {
   refundsCents: number;
   /** Rows counted in spend. */
   count: number;
+  /** Money in that isn't a refund or a transfer, as a positive number. */
+  incomeCents: number;
+  incomeCount: number;
   cashbackCents: number;
+  /** Payments received on your cards (negative). Their bank-side legs aren't double counted. */
   cardPaymentsCents: number;
-  excluded: { cardPayments: number; cashback: number };
+  excluded: { cardPayments: number; cashback: number; transfers: number };
 };
 
 export async function spendTotals(tx: Tx, range: Range, scope: Scope = {}): Promise<SpendTotals> {
@@ -47,26 +56,40 @@ export async function spendTotals(tx: Tx, range: Range, scope: Scope = {}): Prom
     payments: string;
     n_payments: number;
     n_cashback: number;
+    income: string;
+    n_income: number;
+    n_transfers: number;
   }>(
     await tx.execute(sql`
       select
         coalesce(sum(t.amount_cents) filter (where ${SPEND_KINDS}), 0)::text as spent,
-        coalesce(sum(t.amount_cents) filter (where t.kind = 'refund'), 0)::text as refunds,
+        coalesce(sum(t.amount_cents) filter (where ${SPEND_KINDS} and t.kind = 'refund'), 0)::text as refunds,
         (count(*) filter (where ${SPEND_KINDS}))::int as n,
+        coalesce(-sum(t.amount_cents) filter (where ${INCOME}), 0)::text as income,
+        (count(*) filter (where ${INCOME}))::int as n_income,
         coalesce(sum(t.amount_cents) filter (where t.kind = 'cashback'), 0)::text as cashback,
-        coalesce(sum(t.amount_cents) filter (where t.kind = 'card_payment'), 0)::text as payments,
-        (count(*) filter (where t.kind = 'card_payment'))::int as n_payments,
-        (count(*) filter (where t.kind = 'cashback'))::int as n_cashback
-      from transactions t left join categories c on c.id = t.category_id
+        coalesce(sum(t.amount_cents) filter (where t.kind = 'card_payment' and a.kind = 'card'), 0)::text as payments,
+        (count(*) filter (where t.kind = 'card_payment' and a.kind = 'card'))::int as n_payments,
+        (count(*) filter (where t.kind = 'cashback'))::int as n_cashback,
+        (count(*) filter (where ${OTHER_TRANSFERS}))::int as n_transfers
+      from transactions t
+      join accounts a on a.id = t.account_id
+      left join categories c on c.id = t.category_id
       where ${inRange(range)} and ${scopeSql(scope)}`),
   );
   return {
     spentCents: Number(r!.spent),
     refundsCents: Number(r!.refunds),
     count: r!.n,
+    incomeCents: Number(r!.income),
+    incomeCount: r!.n_income,
     cashbackCents: Number(r!.cashback),
     cardPaymentsCents: Number(r!.payments),
-    excluded: { cardPayments: r!.n_payments, cashback: r!.n_cashback },
+    excluded: {
+      cardPayments: r!.n_payments,
+      cashback: r!.n_cashback,
+      transfers: r!.n_transfers,
+    },
   };
 }
 

@@ -46,9 +46,9 @@ const categoryId = async (name: string) =>
 describe("listing", () => {
   it("pages newest first and decrypts descriptors for the page only", async () => {
     const page = await list({});
-    expect(page.total).toBe(885);
+    expect(page.total).toBe(1215);
     expect(page.rows).toHaveLength(PAGE_SIZE);
-    expect(page.pages).toBe(Math.ceil(885 / PAGE_SIZE));
+    expect(page.pages).toBe(Math.ceil(1215 / PAGE_SIZE));
     const dates = page.rows.map((r) => r.txnDate);
     expect([...dates].sort().reverse()).toEqual(dates);
     expect(page.rows.every((r) => r.descriptor.length > 0 && !r.descriptor.startsWith("v1."))).toBe(

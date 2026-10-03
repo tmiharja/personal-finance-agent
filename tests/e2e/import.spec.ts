@@ -8,7 +8,7 @@ const fixture = (name: string) =>
 test("upload a statement, review the preview, approve it", async ({ page, isMobile }) => {
   await signIn(page, newEmail(isMobile ? "im" : "id"));
   await page.goto("/app/import");
-  await page.getByLabel("Statement PDFs").setInputFiles(fixture("dbs/2026-03"));
+  await page.getByLabel("Statement files").setInputFiles(fixture("dbs/2026-03"));
 
   const card = page.getByRole("region", { name: /DBS statement 14 Mar 2026/ });
   await expect(card).toBeVisible();
@@ -29,14 +29,14 @@ test("upload a statement, review the preview, approve it", async ({ page, isMobi
 
   // The same file again is refused.
   await page.goto("/app/import");
-  await page.getByLabel("Statement PDFs").setInputFiles(fixture("dbs/2026-03"));
+  await page.getByLabel("Statement files").setInputFiles(fixture("dbs/2026-03"));
   await expect(page.getByText("You've already imported this file.")).toBeVisible();
 });
 
 test("a password-protected statement asks for its password", async ({ page, isMobile }) => {
   await signIn(page, newEmail(isMobile ? "pm" : "pd"));
   await page.goto("/app/import");
-  await page.getByLabel("Statement PDFs").setInputFiles(fixture("variants/uob-2026-01-password"));
+  await page.getByLabel("Statement files").setInputFiles(fixture("variants/uob-2026-01-password"));
   await page.getByLabel(/password-protected/).fill("wrong");
   await page.getByRole("button", { name: "Unlock" }).click();
   await expect(page.getByText("That password didn't open the file.")).toBeVisible();
@@ -51,7 +51,7 @@ test("a password-protected statement asks for its password", async ({ page, isMo
 test("a pending import waits in Activity until reviewed", async ({ page, isMobile }) => {
   await signIn(page, newEmail(isMobile ? "am" : "ad"));
   await page.goto("/app/import");
-  await page.getByLabel("Statement PDFs").setInputFiles(fixture("uob/2026-02"));
+  await page.getByLabel("Statement files").setInputFiles(fixture("uob/2026-02"));
   await expect(page.getByRole("region", { name: /UOB statement/ })).toBeVisible();
   await expect(page.getByLabel("Approvals: 1 pending")).toBeVisible(); // header refreshes after the preview
   await page.goto("/app/activity");
@@ -62,7 +62,7 @@ test("a pending import waits in Activity until reviewed", async ({ page, isMobil
 test("a file that isn't a supported statement is refused", async ({ page, isMobile }) => {
   await signIn(page, newEmail(isMobile ? "xm" : "xd"));
   await page.goto("/app/import");
-  await page.getByLabel("Statement PDFs").setInputFiles({
+  await page.getByLabel("Statement files").setInputFiles({
     name: "notes.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from("not really a pdf"),

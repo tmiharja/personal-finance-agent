@@ -17,7 +17,14 @@ import { needsReview, type Categorised } from "@/server/categorise/categorise";
 import { categoriseStatement } from "@/server/categorise/context";
 import { audit, canonical, expireIfDue, sha256 } from "@/server/actions/common";
 import type { RulePreview } from "@/server/actions/rules";
-import { parseStatementPdf, type ParsedStatement } from "@/server/ingest/parsers";
+import { parseStatementFile, type ParsedStatement } from "@/server/ingest/parsers";
+import {
+  countNewPairs,
+  loadPairCandidates,
+  matchTransfers,
+  pairTransfers,
+  type PairCandidate,
+} from "@/server/finance/transfers";
 import { longDate } from "@/lib/format";
 import { logEvent } from "@/server/log";
 
@@ -92,6 +99,8 @@ export type ImportSummary = {
   totalsMatch: boolean | null;
   allReconciled: boolean;
   cards: PreviewCard[];
+  /** Rows this import will pair with your other accounts (PRD IMP-10). */
+  pairing?: { cardPayments: number; transfers: number; linkedCardPayments: number };
   /** Category outcome for the rows this import will add (duplicates excluded). */
   categories: {
     toReview: number;
@@ -195,8 +204,18 @@ async function buildPreview(
   categorised: StatementCategoriesLike | null,
 ): Promise<{ stored: StoredPreview; summary: ImportSummary; rows: PreviewRow[][] }> {
   const myCards = await tx
-    .select({ bank: accounts.bank, productName: accounts.productName, ordinal: accounts.ordinal })
+    .select({
+      id: accounts.id,
+      bank: accounts.bank,
+      productName: accounts.productName,
+      ordinal: accounts.ordinal,
+    })
     .from(accounts);
+  // Transfer pairing, counted (not written) for the preview: this statement's new
+  // rows against everything already in the ledger.
+  const existing = await loadPairCandidates(tx);
+  const newCandidates: PairCandidate[] = [];
+  const newCardStatements: typeof existing.cardStatements = [];
   const storedCards: StoredPreview["statement"]["cards"] = [];
   const cards: PreviewCard[] = [];
   const rows: PreviewRow[][] = [];
@@ -220,6 +239,33 @@ async function buildPreview(
     storedCards.push({ ...card, rows: prepared });
     // Duplicates are skipped on approval, so they don't count towards "to review".
     freshRows.push(...prepared.filter((r) => !dupes.has(r.dedupeKey)));
+    const accountId =
+      myCards.find(
+        (c) =>
+          c.bank === statement.bank &&
+          c.productName === card.productName &&
+          c.ordinal === card.ordinal,
+      )?.id ?? `new:${cardIndex}`;
+    prepared.forEach((r, i) => {
+      if (!dupes.has(r.dedupeKey))
+        newCandidates.push({
+          id: `new:${cardIndex}:${i}`,
+          accountId,
+          accountKind: statement.kind,
+          bank: statement.bank,
+          date: r.txnDate,
+          cents: r.amountCents,
+          kind: r.kind,
+          merchant: r.merchantName,
+        });
+    });
+    if (statement.kind === "card")
+      newCardStatements.push({
+        accountId,
+        bank: statement.bank,
+        statementDate: statement.statementDate,
+        totalCents: card.totalCents,
+      });
     cards.push({
       productName: card.productName,
       ordinal: card.ordinal,
@@ -260,9 +306,17 @@ async function buildPreview(
     rows.push(prepared.map((r) => previewRow(r, dupes.has(r.dedupeKey))));
   }
 
+  const pairing = countNewPairs(
+    matchTransfers(
+      [...existing.candidates, ...newCandidates],
+      [...existing.cardStatements, ...newCardStatements],
+    ),
+    new Set(newCandidates.map((c) => c.id)),
+  );
   const summary: ImportSummary = {
     bank: statement.bank,
     kind: statement.kind,
+    pairing,
     parserVersion: statement.parserVersion,
     statementDate: statement.statementDate,
     dueDate: statement.dueDate,
@@ -357,7 +411,7 @@ export async function previewImport(
 ): Promise<ImportPreview> {
   const fileSha256 = sha256(file.bytes);
   // Parse outside the transaction: pure CPU work, no database.
-  const parsed = await parseStatementPdf(file.bytes, { password: file.password });
+  const parsed = await parseStatementFile(file.bytes, { password: file.password });
   // Categorise outside it too: the classifier is a network call. Skipped for a
   // file that already has a live preview or was committed.
   const categorised = await categoriseStatement(db, userId, fileSha256, parsed);
@@ -534,6 +588,8 @@ export type CommitResult = {
   duplicates: number;
   cards: number;
   allReconciled: boolean;
+  /** Transfer legs paired across your accounts by this import (IMP-10). */
+  paired: number;
 };
 
 /**
@@ -578,6 +634,7 @@ export async function approveProposal(
       duplicates: 0,
       cards: statement.cards.length,
       allReconciled: true,
+      paired: 0,
     };
     for (const card of statement.cards) {
       const accountId = await upsertAccount(tx, userId, {
@@ -609,6 +666,9 @@ export async function approveProposal(
       result.duplicates += r.duplicates;
       result.allReconciled &&= r.reconciled === true;
     }
+
+    // Pair this statement's transfers and card payments with your other accounts.
+    result.paired = (await pairTransfers(tx)).pairs;
 
     const now = new Date();
     // The preview has served its purpose: committed rows live in the ledger now.

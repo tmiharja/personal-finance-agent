@@ -99,17 +99,18 @@ export default function ImportFlow({ initial }: { initial?: ImportPreview | null
           dragging ? "border-accent bg-accent-soft" : "border-rule hover:bg-accent-soft",
         )}
       >
-        <span className="text-[15px] font-medium">Drop statement PDFs here, or choose files</span>
+        <span className="text-[15px] font-medium">Drop statements here, or choose files</span>
         <span className="mt-1 text-[13px] text-muted">
-          DBS and UOB credit-card e-statements · up to 4 MB each
+          DBS/POSB and UOB · card statements (PDF) and bank-account statements (PDF or CSV export) ·
+          up to 4 MB each
         </span>
         <input
           ref={inputRef}
           type="file"
-          accept="application/pdf,.pdf"
+          accept="application/pdf,.pdf,text/csv,.csv"
           multiple
           className="sr-only"
-          aria-label="Statement PDFs"
+          aria-label="Statement files"
           onChange={(e) => {
             add(e.target.files);
             e.target.value = "";
