@@ -1,0 +1,16 @@
+{
+  "name": "personal-finance-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "fixtures": "node evals/fixtures/generate-statements.mjs",
+    "check:pii": "node scripts/check-no-pii.mjs"
+  },
+  "devDependencies": {
+    "pdf-lib": "1.17.1"
+  }
+}
