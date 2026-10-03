@@ -3,7 +3,7 @@ import { z } from "zod";
 import { categories, rules, transactions } from "@/db/schema";
 import type { Tx } from "@/db/with-user";
 import { FIXED_KINDS } from "@/lib/kinds";
-import { MAX_ROWS_PER_ACTION, ProposalError } from "../common";
+import { MAX_ROWS_PER_ACTION, ProposalError, sha256 } from "../common";
 import { register, type ActionPreview, type Versions } from "../engine";
 import {
   categoryRefSchema,
@@ -194,6 +194,14 @@ register({
       ...(await txnVersions(tx, p.transactionIds, lock)),
       ...(await categoryVersion(tx, p.categoryId)),
       ...(await rulesVersion(tx, p.pattern)),
+      // The merchant's rows the rule would move, as previewed: a row imported
+      // meanwhile makes the proposal stale rather than being silently left out.
+      [`moves:${p.pattern.toLowerCase()}`]: sha256(
+        (await rowsForMerchant(tx, p.pattern, p.categoryId))
+          .map((r) => r.id)
+          .sort()
+          .join(","),
+      ),
     };
   },
   async execute(tx, userId, p, proposalId) {

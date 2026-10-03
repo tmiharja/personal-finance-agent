@@ -4,7 +4,7 @@ import { alerts, subscriptions } from "@/db/schema";
 import type { Tx } from "@/db/with-user";
 import { ProposalError } from "../common";
 import { register, type Versions } from "../engine";
-import { plural } from "./shared";
+import { lastDecision, payloadHas, payloadIs, plural } from "./shared";
 
 /** Alerts and subscriptions: your decisions about what the detectors found. */
 
@@ -18,8 +18,15 @@ async function alertVersions(tx: Tx, ids: readonly string[], lock: boolean): Pro
     .where(inArray(alerts.id, [...ids]))
     .orderBy(alerts.id);
   const rows = lock ? await q.for("update") : await q;
-  return Object.fromEntries(rows.map((r) => [`alert:${r.id}`, r.status]));
+  const out: Versions = {};
+  for (const r of rows) {
+    const last = await lastDecision(tx, ALERT_TYPES, payloadHas("alertIds", r.id));
+    out[`alert:${r.id}`] = `${r.status}|${last}`;
+  }
+  return out;
 }
+
+const ALERT_TYPES = ["dismiss_alert", "mark_alert_expected"] as const;
 
 const LABEL: Record<string, string> = {
   price_increase: "price rise",
@@ -117,7 +124,12 @@ register({
       .from(subscriptions)
       .where(eq(subscriptions.id, p.subscriptionId));
     const [s] = lock ? await q.for("update") : await q;
-    return { [`sub:${p.subscriptionId}`]: s ? String(s.ignored) : "missing" };
+    const last = await lastDecision(
+      tx,
+      ["set_subscription_status"],
+      payloadIs("subscriptionId", p.subscriptionId),
+    );
+    return { [`sub:${p.subscriptionId}`]: s ? `${s.ignored}|${last}` : "missing" };
   },
   async execute(tx, _userId, p) {
     await tx

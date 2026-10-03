@@ -1,9 +1,9 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { categories, transactions } from "@/db/schema";
+import { categories, proposedActions, transactions } from "@/db/schema";
 import type { Tx } from "@/db/with-user";
 import { MAX_ROWS_PER_ACTION, ProposalError } from "../common";
-import type { ActionPreview, Versions } from "../engine";
+import type { ActionPreview, ActionType, Versions } from "../engine";
 
 /**
  * Building blocks shared by the action definitions. Every lookup runs inside
@@ -158,3 +158,37 @@ export const scopeText = (s: Selection) =>
   s.merchant
     ? `${s.merchant}${s.from || s.to ? ` (${s.from ?? "start"} to ${s.to ?? "now"})` : ""}`
     : null;
+
+/**
+ * The latest executed, not undone, decision on a target: part of its version,
+ * so a value that changes and changes back (S$100 → S$200 → S$100) still
+ * counts as changed, and an older undo can't overwrite the newer decision.
+ */
+export async function lastDecision(
+  tx: Tx,
+  types: readonly ActionType[],
+  target: SQL,
+): Promise<string> {
+  const [d] = await tx
+    .select({ id: proposedActions.id })
+    .from(proposedActions)
+    .where(
+      and(
+        inArray(proposedActions.type, [...types]),
+        eq(proposedActions.status, "executed"),
+        sql`${proposedActions.undoneAt} is null`,
+        target,
+      ),
+    )
+    .orderBy(sql`${proposedActions.executedAt} desc`, sql`${proposedActions.id} desc`)
+    .limit(1);
+  return d?.id ?? "none";
+}
+
+/** `payload->>key = value`, for lastDecision. */
+export const payloadIs = (key: string, value: string) =>
+  sql`${proposedActions.payload}->>${key} = ${value}`;
+
+/** The payload's array `key` contains `value`, for lastDecision. */
+export const payloadHas = (key: string, value: string) =>
+  sql`${proposedActions.payload}->${key} @> ${JSON.stringify([value])}::jsonb`;

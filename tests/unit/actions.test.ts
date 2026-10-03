@@ -488,3 +488,97 @@ describe("action types", () => {
     expect(nextDueDate(1, "2026-12-15")).toBe("2027-01-01");
   });
 });
+
+describe("review fixes: undo and staleness never overwrite a newer decision", () => {
+  it("reopening one alert from a batch reopens only that alert", async () => {
+    const open = await as((tx) =>
+      tx.select({ id: alerts.id }).from(alerts).where(eq(alerts.status, "open")).limit(2),
+    );
+    const [a, b] = open.map((r) => r.id);
+    const batch = await applyDirect(db, "alex", "dismiss_alert", { alertIds: [a!, b!] });
+    await reopenAlert(db, "alex", keys, a!);
+    const status = async (id: string) =>
+      (await as((tx) => tx.select({ s: alerts.status }).from(alerts).where(eq(alerts.id, id))))[0]!
+        .s;
+    expect(await status(a!)).toBe("open");
+    expect(await status(b!)).toBe("dismissed");
+    // The batch's own undo would now overwrite the reopen: refused.
+    await expect(undoAction(db, "alex", keys, batch.proposalId)).rejects.toMatchObject({
+      code: "undo_stale",
+    });
+    await reopenAlert(db, "alex", keys, b!);
+  });
+
+  it("a value that changes and changes back still blocks an older undo", async () => {
+    const set = (cents: number) =>
+      applyDirect(db, "alex", "set_budget", { category: "Health", monthlyAmountCents: cents });
+    const first = await set(10_000);
+    await set(20_000);
+    await set(10_000);
+    await expect(undoAction(db, "alex", keys, first.proposalId)).rejects.toMatchObject({
+      code: "undo_stale",
+    });
+    const [sub] = sqlRows<{ id: string }>(
+      await as((tx) => tx.execute(sql`select id from subscriptions where not ignored limit 1`)),
+    );
+    const flip = (ignored: boolean) =>
+      applyDirect(db, "alex", "set_subscription_status", { subscriptionId: sub!.id, ignored });
+    const hide = await flip(true);
+    await flip(false);
+    await flip(true);
+    await expect(undoAction(db, "alex", keys, hide.proposalId)).rejects.toMatchObject({
+      code: "undo_stale",
+    });
+    await flip(false);
+  });
+
+  it("a second budget proposal for a category without one goes stale after the first", async () => {
+    const p1 = await propose(db, "alex", "agent", "set_budget", {
+      category: "Insurance",
+      monthlyAmountCents: 30_000,
+    });
+    const p2 = await propose(db, "alex", "agent", "set_budget", {
+      category: "Insurance",
+      monthlyAmountCents: 50_000,
+    });
+    await approveAny(db, "alex", keys, p1.proposalId);
+    await expect(approveAny(db, "alex", keys, p2.proposalId)).rejects.toMatchObject({
+      code: "proposal_stale",
+    });
+  });
+
+  it("undoing an added bill after it was edited is refused", async () => {
+    const add = await applyDirect(db, "alex", "add_bill", { payee: "Sample Pool", dueDay: 5 });
+    const [bill] = await as((tx) =>
+      tx.select({ id: bills.id }).from(bills).where(eq(bills.payee, "Sample Pool")),
+    );
+    await applyDirect(db, "alex", "update_bill", { billId: bill!.id, dueDay: 20 });
+    await expect(undoAction(db, "alex", keys, add.proposalId)).rejects.toMatchObject({
+      code: "undo_stale",
+    });
+  });
+
+  it("a rule goes stale if the merchant's set of rows changed since the preview", async () => {
+    const p = await propose(db, "alex", "agent", "create_rule", {
+      merchant: "Starbucks",
+      category: "Health",
+    });
+    // A matching row appears without any previewed row changing, as an import would add one.
+    const [shop] = await merchantRows("Shopee");
+    await db.execute(
+      sql`update transactions set merchant_name = 'Starbucks' where id = ${shop!.id}`,
+    );
+    await expect(approveAny(db, "alex", keys, p.proposalId)).rejects.toMatchObject({
+      code: "proposal_stale",
+    });
+  });
+
+  it("refuses personal data in anything it would store", async () => {
+    await expect(
+      applyDirect(db, "alex", "add_bill", { payee: "Call 9123 4567", dueDay: 3 }),
+    ).rejects.toMatchObject({ code: "contains_personal_data" });
+    await expect(
+      applyDirect(db, "alex", "tag_transactions", { merchant: "Grab", tag: "4111 1111 1111 1111" }),
+    ).rejects.toMatchObject({ code: "contains_personal_data" });
+  });
+});

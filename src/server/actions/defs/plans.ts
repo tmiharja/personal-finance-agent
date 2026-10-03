@@ -1,11 +1,18 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { accounts, bills, budgets } from "@/db/schema";
+import { accounts, bills, budgets, categories } from "@/db/schema";
 import type { Tx } from "@/db/with-user";
 import { todaySgt } from "@/server/agent/period";
 import { ProposalError } from "../common";
 import { register, type Versions } from "../engine";
-import { categoryRefSchema, categoryVersion, resolveCategory, sgd } from "./shared";
+import {
+  categoryRefSchema,
+  categoryVersion,
+  lastDecision,
+  payloadIs,
+  resolveCategory,
+  sgd,
+} from "./shared";
 
 /** Budgets and bills you set yourself (or Ask suggests, for your approval). */
 
@@ -14,13 +21,29 @@ const cents = z.number().int().min(0).max(100_000_000);
 const budgetPayload = z.object({ categoryId: z.uuid(), monthlyAmountCents: cents.nullable() });
 
 const budgetVersion = async (tx: Tx, categoryId: string, lock: boolean): Promise<Versions> => {
-  const q = tx
+  // A new budget has no row to lock: lock the category instead, so two
+  // approvals for it run one after the other and the second sees the first.
+  if (lock)
+    await tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.id, categoryId))
+      .for("update");
+  const [b] = await tx
     .select({ amount: budgets.monthlyAmountCents })
     .from(budgets)
     .where(eq(budgets.categoryId, categoryId));
-  const [b] = lock ? await q.for("update") : await q;
-  return { [`budget:${categoryId}`]: b ? b.amount : "none" };
+  const last = await lastDecision(tx, ["set_budget"], payloadIs("categoryId", categoryId));
+  return { [`budget:${categoryId}`]: `${b ? b.amount : "none"}|${last}` };
 };
+
+async function budgetAmount(tx: Tx, categoryId: string): Promise<number | null> {
+  const [b] = await tx
+    .select({ amount: budgets.monthlyAmountCents })
+    .from(budgets)
+    .where(eq(budgets.categoryId, categoryId));
+  return b?.amount ?? null;
+}
 
 async function writeBudget(tx: Tx, userId: string, categoryId: string, amount: number | null) {
   if (amount === null) {
@@ -46,8 +69,8 @@ register({
   async prepare(tx, _userId, input) {
     const cat = await resolveCategory(tx, input);
     if (cat.kind !== "expense") throw new ProposalError("invalid_category");
-    const before = (await budgetVersion(tx, cat.id, false))[`budget:${cat.id}`];
-    const was = typeof before === "number" ? sgd(before) : null;
+    const before = await budgetAmount(tx, cat.id);
+    const was = before === null ? null : sgd(before);
     const to = input.monthlyAmountCents;
     return {
       payload: { categoryId: cat.id, monthlyAmountCents: to },
@@ -57,7 +80,7 @@ register({
             ? `Remove the ${cat.name} budget`
             : `Budget ${sgd(to)} a month for ${cat.name}`,
         lines: [was ? `It was ${was} a month.` : "No budget before."],
-        affected: (before === "none" && to === null) || before === to ? 0 : 1,
+        affected: before === to ? 0 : 1,
       },
     };
   },
@@ -66,12 +89,9 @@ register({
     ...(await categoryVersion(tx, p.categoryId)),
   }),
   async execute(tx, userId, p) {
-    const before = (await budgetVersion(tx, p.categoryId, false))[`budget:${p.categoryId}`];
+    const before = await budgetAmount(tx, p.categoryId);
     await writeBudget(tx, userId, p.categoryId, p.monthlyAmountCents);
-    return {
-      result: { changed: 1 },
-      inverse: { monthlyAmountCents: typeof before === "number" ? before : null },
-    };
+    return { result: { changed: 1 }, inverse: { monthlyAmountCents: before } };
   },
   async undo(tx, userId, p, inverse) {
     const { monthlyAmountCents } = z
@@ -154,7 +174,12 @@ register({
       .select({ id: bills.id })
       .from(bills)
       .where(sql`lower(${bills.payee}) = lower(${p.payee}) and ${bills.source} = 'manual'`);
-    return { [`bill:${p.payee.toLowerCase()}`]: b?.id ?? "none" };
+    // The bill and everything about it: an undo after a later edit is refused.
+    const snap = b ? await billSnapshot(tx, b.id, false) : undefined;
+    return {
+      [`bill:${p.payee.toLowerCase()}`]: b && snap ? `${b.id}|${billFieldsKey(snap)}` : "none",
+      ...(b ? await billDecision(tx, b.id) : {}),
+    };
   },
   async execute(tx, userId, p) {
     const [b] = await tx
@@ -186,6 +211,18 @@ const billSnapshot = async (tx: Tx, billId: string, lock: boolean) => {
   const [b] = lock ? await q.for("update") : await q;
   return b;
 };
+
+const billFieldsKey = (b: {
+  dueDay: number | null;
+  expectedAmountCents: number | null;
+  accountId: string | null;
+  dueDate: string | null;
+}) => `${b.dueDay}|${b.expectedAmountCents ?? ""}|${b.accountId ?? ""}|${b.dueDate ?? ""}`;
+
+/** The latest edit to a bill, so an undo older than it is refused. */
+const billDecision = async (tx: Tx, billId: string): Promise<Versions> => ({
+  [`bill-edit:${billId}`]: await lastDecision(tx, ["update_bill"], payloadIs("billId", billId)),
+});
 
 register({
   type: "update_bill",
@@ -221,9 +258,8 @@ register({
   async versions(tx, p, lock) {
     const b = await billSnapshot(tx, p.billId, lock);
     return {
-      [`bill:${p.billId}`]: b
-        ? `${b.dueDay}|${b.expectedAmountCents ?? ""}|${b.accountId ?? ""}`
-        : "missing",
+      [`bill:${p.billId}`]: b ? billFieldsKey(b) : "missing",
+      ...(await billDecision(tx, p.billId)),
     };
   },
   async execute(tx, _userId, p) {

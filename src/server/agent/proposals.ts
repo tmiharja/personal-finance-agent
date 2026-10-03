@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sqlRows } from "@/db/rows";
 import { proposeIn, type ActionPreview, type ActionType } from "@/server/actions";
 import { ProposalError } from "@/server/actions/common";
+import { maskForLlm } from "@/server/pii/firewall";
 
 /**
  * Ask's propose-only tools (PRD ACT-10, architecture ⑮). Each one creates a
@@ -159,8 +160,9 @@ export async function runPropose(
     return {
       result: {
         proposed: true,
-        title: p.preview.title,
-        details: p.preview.lines,
+        // Masked like every other tool result: merchant names come from statements.
+        title: maskForLlm(p.preview.title),
+        details: p.preview.lines.map((l) => maskForLlm(l)),
         affected: p.preview.affected,
         note: "Shown to the person as a card to approve or discard. Tell them to check it; don't say it's done.",
       },

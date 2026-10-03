@@ -21,6 +21,7 @@ const STATUS: Record<string, number> = {
   already_imported: 409,
   action_not_allowed: 400,
   invalid_input: 400,
+  contains_personal_data: 400,
   invalid_category: 400,
   not_categorisable: 400,
   too_many_rows: 400,

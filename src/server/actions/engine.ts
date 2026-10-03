@@ -4,6 +4,7 @@ import type { AppDb } from "@/db/client";
 import { auditLog, proposedActions } from "@/db/schema";
 import { withUser, type Tx } from "@/db/with-user";
 import { logEvent } from "@/server/log";
+import { scanForPii } from "@/server/pii/firewall";
 import {
   audit,
   canonical,
@@ -98,6 +99,10 @@ async function proposeTx(
   if (!input.success) throw new ProposalError("invalid_input");
   const { payload, preview } = await def.prepare(tx, userId, input.data);
   if (preview.affected === 0) throw new ProposalError("nothing_to_change");
+  // The PII firewall, before anything is stored: a tag, a payee or a preview
+  // must never carry a card number, NRIC, phone number or email.
+  if (textOf({ payload, preview }).some((t) => scanForPii(t).length))
+    throw new ProposalError("contains_personal_data");
   const baseVersions = await def.versions(tx, payload, false);
   const [proposal] = await tx
     .insert(proposedActions)
@@ -117,6 +122,17 @@ async function proposeTx(
     affected: preview.affected,
   });
   return { proposal: proposal!, preview };
+}
+
+const ID_OR_DATE =
+  /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2})$/i;
+
+/** Every free-text string in a value (ids and dates aren't text). */
+function textOf(value: unknown): string[] {
+  if (typeof value === "string") return ID_OR_DATE.test(value) ? [] : [value];
+  if (Array.isArray(value)) return value.flatMap(textOf);
+  if (value && typeof value === "object") return Object.values(value).flatMap(textOf);
+  return [];
 }
 
 type Decided = { result: Record<string, unknown>; type: ActionType; ledger: boolean };
@@ -148,12 +164,15 @@ async function executeTx(
   }
   await audit(tx, userId, proposal.id, "user", "approved");
   const { result, inverse } = await def.execute(tx, userId, payload.data, proposal.id);
-  const after = await def.versions(tx, payload.data, false);
   const at = new Date();
   await tx
     .update(proposedActions)
     .set({ status: "executed", decidedAt: at, executedAt: at })
     .where(eq(proposedActions.id, proposal.id));
+  // Recorded once this proposal counts as executed: versions can include the
+  // latest decision on a target (see lastDecision), so a later change that
+  // restores the same value still blocks this undo.
+  const after = await def.versions(tx, payload.data, false);
   // The inverse is ids and previous values only, never descriptors (ACT-8).
   await audit(tx, userId, proposal.id, "system", "executed", result, {
     undo: def.undoable ? inverse : null,

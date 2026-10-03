@@ -22,7 +22,8 @@ export type ProposalErrorCode =
   | "not_undoable"
   | "undo_expired"
   | "undo_stale"
-  | "already_undone";
+  | "already_undone"
+  | "contains_personal_data";
 
 export class ProposalError extends Error {
   constructor(readonly code: ProposalErrorCode) {

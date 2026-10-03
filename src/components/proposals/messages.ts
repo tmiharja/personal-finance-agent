@@ -12,6 +12,8 @@ const MESSAGES: Record<string, string> = {
   transaction_not_found: "That transaction no longer exists.",
   invalid_reference: "Something this refers to no longer exists.",
   invalid_input: "That change isn't valid.",
+  contains_personal_data:
+    "That looks like personal data (a card, phone or ID number, or an email). It isn't stored.",
   action_not_allowed: "That kind of change isn't allowed.",
   nothing_to_change: "Nothing would change.",
   not_undoable: "This change can't be undone.",
