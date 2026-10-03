@@ -33,9 +33,20 @@ The agent can read your data but never changes anything on its own. Every write 
 | Encryption | Per-user data keys wrapped by `MASTER_KEY` (AES-256-GCM). Ciphertexts are bound to user and field. HMAC dedupe keys. Master-key rotation |
 | PII firewall | Sanitises descriptors, masks text for the LLM, and runs a last assertion before every write. The logger only keeps codes and numbers |
 | Demo seed | 12 months of synthetic "Alex Tan" statements loaded through the real write path |
-| Tests | 59 unit/integration tests (two-user isolation, cross-user reference checks, encryption, firewall, no-PII harness over a full DB dump and logs, demo seed). 12 Playwright e2e tests (sign-in with a code, session enforcement, security headers), on desktop and mobile |
+| Tests (Phase 0) | 59 unit/integration tests (two-user isolation, cross-user reference checks, encryption, firewall, no-PII harness over a full DB dump and logs, demo seed). 12 Playwright e2e tests (sign-in with a code, session enforcement, security headers), on desktop and mobile |
 
-**Next: Phase 1.** DBS and UOB card PDF parsers, import preview and approval, categorisation, Transactions and Ask (see the PRD §12).
+**Phase 1a: statement import (done).**
+
+| Area | What's in place |
+|---|---|
+| Parsing | `src/server/ingest/`: in-memory pdf.js extraction with positions, and DBS + UOB credit-card parsers (`dbs-card-pdf@1`, `uob-card-pdf@1`) per [`docs/statement-formats.md`](docs/statement-formats.md). Year inference, FX lines, multi-card statements, and stop zones so rewards tables and payment slips are never read |
+| Passwords | Owner-password PDFs open without a prompt. For open-password PDFs, the app asks; the password is used once and never stored or logged |
+| Reconciliation | Per card (previous + Σ rows = total) and per statement (Σ cards = printed total). A mismatch needs an explicit "Import anyway" |
+| Import flow | Upload → PII firewall + dedupe keys → encrypted preview (24 h) → `commit_import` proposal → **you approve** → ledger + audit log. Re-uploads are detected; rows already imported from another file are marked duplicate and skipped |
+| UI | Import page (drop zone, password prompt, preview card with per-card reconciliation and rows, Approve / Discard). Activity lists pending approvals and history. Screenshots: [`docs/screenshots/phase-1a/`](docs/screenshots/phase-1a/) |
+| Tests | 34 parser golden tests (24 fixtures + 2 encrypted variants + rejections), 11 import-service tests (lifecycle, isolation, expiry, tampering, no PII in DB or logs), 8 new e2e tests. The real samples reconcile in a local-only, git-ignored test |
+
+**Next: Phase 1b.** Categorisation (rules → merchant map → Claude Haiku), the Transactions table, Overview charts, and Ask (see the PRD §12).
 
 ## Local development
 

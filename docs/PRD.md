@@ -353,7 +353,7 @@ The main entities are `users`, `accounts`, `statements`, `transactions`, `mercha
 
 ## 12. Release plan (phases) ★ (Q61)
 
-**Status:** Phase 0 is done. The README lists what was built and how it was verified.
+**Status:** Phase 0 and Phase 1a (DBS + UOB card import with approval) are done. Phase 1b (categorisation, Transactions, Overview charts, Ask) is next. The README lists what was built and how it was verified.
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
