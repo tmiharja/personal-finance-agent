@@ -27,6 +27,7 @@
     "keys:rewrap": "tsx scripts/rewrap-keys.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "@better-auth/passkey": "1.7.7",
     "@neondatabase/serverless": "1.2.0",
     "@vercel/analytics": "2.0.1",

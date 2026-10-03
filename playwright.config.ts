@@ -33,6 +33,8 @@ export default defineConfig({
       BETTER_AUTH_SECRET: "e2e-secret-e2e-secret-e2e-secret-123456",
       MASTER_KEY: "ZTJlLW1hc3Rlci1rZXktbm90LWZvci1wcm9kLTAwMDE=",
       DEV_MAIL_OUTBOX: "1",
+      LLM_MOCK: "1",
+      ANTHROPIC_API_KEY: "",
     },
   },
 });

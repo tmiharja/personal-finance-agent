@@ -11,8 +11,11 @@ import {
   insertPreparedStatement,
   prepareRows,
   upsertCardAccount,
+  type LedgerRow,
   type PreparedRow,
 } from "@/server/finance/ledger";
+import { needsReview, type Categorised } from "@/server/categorise/categorise";
+import { categoriseStatement } from "@/server/categorise/context";
 import { parseStatementPdf, type ParsedStatement } from "@/server/ingest/parsers";
 import { logEvent } from "@/server/log";
 
@@ -77,6 +80,11 @@ export type ImportSummary = {
   totalsMatch: boolean | null;
   allReconciled: boolean;
   cards: PreviewCard[];
+  /** Category outcome: how many rows to review after import, by how they were categorised. */
+  categories: {
+    toReview: number;
+    bySource: Record<"system" | "rule" | "map" | "llm" | "none", number>;
+  };
   warnings: string[];
 };
 
@@ -85,7 +93,29 @@ export type PreviewRow = Pick<
   "txnDate" | "postDate" | "amountCents" | "descriptor" | "fx" | "kind"
 > & {
   duplicate: boolean;
+  categoryName: string;
+  /** Uncategorised, or a classifier decision below the confidence bar (PRD CAT-4). */
+  review: boolean;
 };
+
+function previewRow(r: PreparedRow, duplicate: boolean): PreviewRow {
+  const categoryName = r.categoryName ?? "Uncategorised";
+  return {
+    txnDate: r.txnDate,
+    postDate: r.postDate,
+    amountCents: r.amountCents,
+    descriptor: r.descriptor,
+    fx: r.fx,
+    kind: r.kind,
+    duplicate,
+    categoryName,
+    review: needsReview({
+      categoryName,
+      source: r.categorySource ?? null,
+      confidence: r.confidence ?? null,
+    }),
+  };
+}
 
 export type ImportPreview = {
   importId: string;
@@ -123,11 +153,44 @@ async function existingDedupeKeys(tx: Tx, keys: string[]): Promise<Set<string>> 
   return new Set(rows.map((r) => r.k));
 }
 
+type StatementCategoriesLike = { byCard: Categorised[][]; warnings: string[] };
+
+function withCategory<R extends ParsedStatement["cards"][number]["rows"][number]>(
+  row: R,
+  c: Categorised | undefined,
+): R & Partial<Pick<LedgerRow, "categoryName" | "categorySource" | "confidence">> {
+  if (!c) return row;
+  return {
+    ...row,
+    categoryName: c.categoryName,
+    categorySource: c.source,
+    confidence: c.confidence,
+  };
+}
+
+function categoryCounts(rows: PreparedRow[]): ImportSummary["categories"] {
+  const bySource = { system: 0, rule: 0, map: 0, llm: 0, none: 0 };
+  let toReview = 0;
+  for (const r of rows) {
+    const source = r.categorySource ?? null;
+    bySource[source ?? "none"]++;
+    const categoryName = r.categoryName ?? "Uncategorised";
+    if (
+      r.kind !== "card_payment" &&
+      needsReview({ categoryName, source, confidence: r.confidence ?? null })
+    ) {
+      toReview++;
+    }
+  }
+  return { toReview, bySource };
+}
+
 async function buildPreview(
   tx: Tx,
   crypto: UserCrypto,
   statement: ParsedStatement,
   names: string[],
+  categorised: StatementCategoriesLike | null,
 ): Promise<{ stored: StoredPreview; summary: ImportSummary; rows: PreviewRow[][] }> {
   const myCards = await tx
     .select({ bank: accounts.bank, productName: accounts.productName, ordinal: accounts.ordinal })
@@ -136,8 +199,14 @@ async function buildPreview(
   const cards: PreviewCard[] = [];
   const rows: PreviewRow[][] = [];
 
-  for (const card of statement.cards) {
-    const prepared = prepareRows(crypto, { bank: statement.bank, ...card }, card.rows, { names });
+  for (const [cardIndex, card] of statement.cards.entries()) {
+    const cats = categorised?.byCard[cardIndex];
+    const prepared = prepareRows(
+      crypto,
+      { bank: statement.bank, ...card },
+      card.rows.map((r, i) => withCategory(r, cats?.[i])),
+      { names },
+    );
     const dupes = await existingDedupeKeys(
       tx,
       prepared.map((r) => r.dedupeKey),
@@ -172,17 +241,7 @@ async function buildPreview(
         .filter((r) => r.kind === "charge" || r.kind === "fee")
         .reduce((s, r) => s + r.amountCents, 0),
     });
-    rows.push(
-      prepared.map((r) => ({
-        txnDate: r.txnDate,
-        postDate: r.postDate,
-        amountCents: r.amountCents,
-        descriptor: r.descriptor,
-        fx: r.fx,
-        kind: r.kind,
-        duplicate: dupes.has(r.dedupeKey),
-      })),
-    );
+    rows.push(prepared.map((r) => previewRow(r, dupes.has(r.dedupeKey))));
   }
 
   const summary: ImportSummary = {
@@ -196,7 +255,8 @@ async function buildPreview(
     // A statement total that couldn't be found is unverified, not a pass.
     allReconciled: cards.every((c) => c.reconciled) && statement.totalsMatch === true,
     cards,
-    warnings: statement.warnings,
+    categories: categoryCounts(storedCards.flatMap((c) => c.rows)),
+    warnings: [...statement.warnings, ...(categorised?.warnings ?? [])],
   };
   return { stored: { statement: { ...statement, cards: storedCards } }, summary, rows };
 }
@@ -295,15 +355,7 @@ function decryptPreview(crypto: UserCrypto, previewEnc: string): StoredPreview {
 
 function rowsFromStored(stored: StoredPreview, dupes: Set<string>): PreviewRow[][] {
   return stored.statement.cards.map((c) =>
-    c.rows.map((r) => ({
-      txnDate: r.txnDate,
-      postDate: r.postDate,
-      amountCents: r.amountCents,
-      descriptor: r.descriptor,
-      fx: r.fx,
-      kind: r.kind,
-      duplicate: dupes.has(r.dedupeKey),
-    })),
+    c.rows.map((r) => previewRow(r, dupes.has(r.dedupeKey))),
   );
 }
 
@@ -320,6 +372,9 @@ export async function previewImport(
   const fileSha256 = sha256(file.bytes);
   // Parse outside the transaction: pure CPU work, no database.
   const parsed = await parseStatementPdf(file.bytes, { password: file.password });
+  // Categorise outside it too: the classifier is a network call. Skipped for a
+  // file that already has a live preview or was committed.
+  const categorised = await categoriseStatement(db, userId, fileSha256, parsed);
 
   return withUser(db, userId, async (tx) => {
     const crypto = await getUserCrypto(tx, userId, keys);
@@ -355,6 +410,7 @@ export async function previewImport(
       crypto,
       parsed.statement,
       parsed.names,
+      categorised,
     );
     const expiresAt = new Date(Date.now() + PREVIEW_TTL_MS);
     const previewEnc = crypto.encrypt("imports.preview", JSON.stringify(stored));

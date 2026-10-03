@@ -8,6 +8,14 @@ import { longDate, money, shortDate, titleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { errorMessage, type CommitResult, type ImportPreview } from "./types";
 
+const CATEGORY_WARNING: Record<string, string> = {
+  categoriser_unavailable: "AI categorisation is off, so unknown merchants are Uncategorised",
+  categoriser_paused: "AI categorisation is paused (monthly limit reached)",
+  categoriser_failed: "AI categorisation didn’t respond; unknown merchants are Uncategorised",
+  categoriser_blocked: "some merchants weren’t sent for AI categorisation",
+  categoriser_refused: "some merchants couldn’t be categorised",
+};
+
 const KIND_LABEL: Record<string, string> = {
   card_payment: "Card payment",
   refund: "Refund",
@@ -88,6 +96,18 @@ export default function PreviewCard({
         )}
       </p>
 
+      {summary.categories && (
+        <p className="mt-1 text-[13px] text-muted">
+          Categorised automatically
+          {summary.categories.toReview > 0
+            ? ` · ${summary.categories.toReview} to review after import (marked ?)`
+            : " · nothing to review"}
+          {CATEGORY_WARNING[summary.warnings.find((w) => w in CATEGORY_WARNING) ?? ""] && (
+            <> · {CATEGORY_WARNING[summary.warnings.find((w) => w in CATEGORY_WARNING)!]}</>
+          )}
+        </p>
+      )}
+
       {!summary.allReconciled && (
         <p role="alert" className="mt-3 rounded-lg bg-warn-soft px-4 py-3 text-[15px] text-warn">
           {summary.cards.some((c) => !c.reconciled)
@@ -158,6 +178,16 @@ export default function PreviewCard({
                         {r.fx && (
                           <span className="ml-2 text-[11px] text-muted">
                             {r.fx.currency ?? "FX"} {Number(r.fx.amount).toLocaleString("en-SG")}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-1.5 pr-3 text-[12px] whitespace-nowrap text-muted">
+                        {r.categoryName && r.kind !== "card_payment" && (
+                          <span
+                            title={r.review ? "Low confidence: review after import" : undefined}
+                          >
+                            {r.categoryName}
+                            {r.review && <span className="ml-1 text-warn">?</span>}
                           </span>
                         )}
                       </td>

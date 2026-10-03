@@ -64,6 +64,14 @@ describe("import: preview → approve", () => {
       "DBS SAMPLE WORLD MASTERCARD",
     ]);
     expect(p.summary.cards.every((c) => c.isNewCard && c.differenceCents === 0)).toBe(true);
+    // Categorised before approval: rules/map first, the (mock) classifier for the rest.
+    expect(p.summary.categories.bySource.map).toBeGreaterThan(0);
+    expect(p.summary.categories.bySource.none + p.summary.categories.bySource.llm).toBeLessThan(
+      p.rows.flat().length,
+    );
+    expect(p.rows.flat().find((r) => r.descriptor.startsWith("GRAB"))?.categoryName).toBe(
+      "Transport",
+    );
     expect(p.summary.cards[0]!.counts).toMatchObject({ cardPayments: 1, fees: 2, duplicates: 0 });
     // Sanitised rows for the review screen: no account number on the payment row.
     expect(p.rows[0]!.find((r) => r.kind === "card_payment")!.descriptor).toBe("AUTOPAY");
@@ -99,6 +107,15 @@ describe("import: preview → approve", () => {
     });
     const [imp] = await withUser(db, "alex", (tx) => tx.select().from(imports));
     expect(imp).toMatchObject({ status: "committed", previewEnc: null });
+    const sources = sqlRows<{ source: string | null; n: number }>(
+      await withUser(db, "alex", (tx) =>
+        tx.execute(
+          sql`select category_source as source, count(*)::int as n from transactions group by 1`,
+        ),
+      ),
+    );
+    expect(sources.find((s) => s.source === "map")?.n).toBeGreaterThan(0);
+    expect(sources.find((s) => s.source === "system")?.n).toBeGreaterThan(0);
     const events = await withUser(db, "alex", (tx) =>
       tx.execute(sql`select event from audit_log where proposal_id = ${p!.id} order by created_at`),
     );

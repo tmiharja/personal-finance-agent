@@ -124,3 +124,34 @@ describe("no PII reaches storage or logs", () => {
     expect(leaks(logs.join("\n"))).toEqual([]);
   });
 });
+
+describe("no PII reaches the categoriser", () => {
+  it("masks names, card numbers and contact details in every request body", async () => {
+    const { categoriseRows } = await import("@/server/categorise/categorise");
+    const { describeRow } = await import("@/server/finance/ledger");
+    const { mockLlm } = await import("@/server/llm/mock");
+    const bodies: string[] = [];
+    const classify: typeof mockLlm.classify = (req) => {
+      bodies.push(req.system, req.prompt, JSON.stringify(req.items));
+      return mockLlm.classify(req);
+    };
+    const llm = { ...mockLlm, classify };
+    const rows = hostileRows.map((r) => ({
+      ...describeRow(r.rawDescriptor, persona),
+      kind: r.kind,
+      amountCents: r.amountCents,
+      fx: null,
+    }));
+    const res = await categoriseRows(rows, {
+      rules: [],
+      history: new Map(),
+      categories: ["Shopping", "Dining", "Uncategorised"],
+      llm,
+      model: "claude-haiku-4-5",
+      pii: persona,
+    });
+    expect(bodies.length).toBeGreaterThan(0);
+    expect(leaks(bodies.join("\n"), persona.names)).toEqual([]);
+    expect(res.warnings).toEqual([]);
+  });
+});

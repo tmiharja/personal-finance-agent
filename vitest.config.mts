@@ -15,6 +15,9 @@ export default defineConfig({
     env: {
       MASTER_KEY: "dW5pdC1tYXN0ZXIta2V5LW5vdC1mb3ItcHJvZC0wMDE=",
       BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret-1234",
+      // Offline, deterministic model responses; a developer's real key is never used.
+      LLM_MOCK: "1",
+      ANTHROPIC_API_KEY: "",
     },
   },
 });

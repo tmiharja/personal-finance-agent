@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { sqlRows } from "@/db/rows";
 import { accounts, categories, statements, transactions } from "@/db/schema";
 import type { Tx } from "@/db/with-user";
+import type { CategorySource } from "@/server/categorise/categorise";
 import type { UserCrypto } from "@/server/crypto/envelope";
 import { assertNoPii, sanitiseDescriptor, type PiiContext } from "@/server/pii/firewall";
 import { normaliseMerchant } from "./merchant";
@@ -80,6 +81,8 @@ export type LedgerRow = {
   /** Statement reference number: only ever enters the dedupe hash. */
   refNo?: string | null;
   categoryName?: string;
+  categorySource?: CategorySource | null;
+  confidence?: number | null;
 };
 
 export type CardIdentity = { bank: Bank; productName: string; ordinal: number };
@@ -97,7 +100,18 @@ export type PreparedRow = {
   /** HMAC under the user's key; the reference number never leaves this function. */
   dedupeKey: string;
   categoryName?: string;
+  categorySource?: CategorySource | null;
+  confidence?: number | null;
 };
+
+/** The sanitised descriptor and merchant name a raw row will be stored with. */
+export function describeRow(
+  rawDescriptor: string,
+  pii: PiiContext = {},
+): { descriptor: string; merchantName: string } {
+  const descriptor = sanitiseDescriptor(rawDescriptor, pii);
+  return { descriptor, merchantName: normaliseMerchant(descriptor) };
+}
 
 /** Categories every import can set without a classifier (Phase 1b adds the rest). */
 const KIND_CATEGORY: Partial<Record<TxnKind, string>> = {
@@ -120,8 +134,7 @@ export function prepareRows(
   // Identical rows on one statement (e.g. a real duplicate charge) stay distinct.
   const seen = new Map<string, number>();
   return rows.map((r) => {
-    const descriptor = sanitiseDescriptor(r.rawDescriptor, pii);
-    const merchantName = normaliseMerchant(descriptor);
+    const { descriptor, merchantName } = describeRow(r.rawDescriptor, pii);
     assertNoPii({ descriptor, merchantName }, pii);
     const identity = [
       card.bank,
@@ -144,6 +157,15 @@ export function prepareRows(
       kind: r.kind,
       dedupeKey: crypto.dedupe([...identity, r.refNo, occurrence]),
       categoryName: r.categoryName ?? KIND_CATEGORY[r.kind],
+      // Explicit null (e.g. "Uncategorised" from the categoriser) stays null.
+      categorySource: r.categoryName
+        ? r.categorySource === undefined
+          ? "system"
+          : r.categorySource
+        : KIND_CATEGORY[r.kind]
+          ? "system"
+          : null,
+      confidence: r.categoryName ? (r.confidence ?? null) : KIND_CATEGORY[r.kind] ? 1 : null,
     };
   });
 }
@@ -232,7 +254,12 @@ export async function insertPreparedStatement(
       merchantName: r.merchantName,
       kind: r.kind,
       categoryId: (r.categoryName && categoryIds.get(r.categoryName)) || uncategorised,
-      categorySource: r.categoryName ? ("system" as const) : null,
+      categorySource: r.categoryName
+        ? r.categorySource === undefined
+          ? ("system" as const)
+          : r.categorySource
+        : null,
+      confidence: r.categoryName ? (r.confidence ?? null) : null,
       isTransfer: r.kind === "card_payment",
       dedupeKey: r.dedupeKey,
     };
