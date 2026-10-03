@@ -11,6 +11,9 @@ import { requireUser } from "@/server/auth/session";
 import { getMonthOverview } from "@/server/finance/overview";
 import { addMonths, monthRange } from "@/server/finance/spend";
 import { countToReview, filterHref } from "@/server/finance/transactions";
+import { todaySgt } from "@/server/agent/period";
+import { countOpenAlerts, listBills, listSubscriptions } from "@/server/detect/read";
+import { dueLabel } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -25,10 +28,19 @@ export default async function OverviewPage({
   const user = await requireUser();
   const requested = (await searchParams).month;
   const db = getDb();
-  const [o, toReview] = await Promise.all([
+  const [o, toReview, subs, openAlerts, dues] = await Promise.all([
     getMonthOverview(db, user.id, Array.isArray(requested) ? requested[0] : requested),
     countToReview(db, user.id),
+    listSubscriptions(db, user.id),
+    countOpenAlerts(db, user.id),
+    listBills(db, user.id),
   ]);
+  const today = todaySgt();
+  // The next card payment still to make (or the latest one, if all are paid).
+  const nextDue =
+    dues.cards.find((c) => !c.paid && c.dueDate && c.dueDate >= today) ??
+    dues.cards.find((c) => !c.paid) ??
+    null;
 
   if (!o) {
     return (
@@ -108,6 +120,45 @@ export default async function OverviewPage({
           note="not counted as spend"
         />
       </dl>
+
+      <section aria-labelledby="coming-up" className="mt-10">
+        <h2 id="coming-up" className="sr-only">
+          Coming up
+        </h2>
+        <ul className="grid gap-3 text-[15px] md:grid-cols-3">
+          <li className="rounded-lg border border-rule px-4 py-3">
+            <Link href="/app/subscriptions" className="block hover:underline">
+              <span className="block text-[13px] text-muted">Subscriptions</span>
+              <span className="tabular font-medium">{money(subs.monthlyCents)}</span>
+              <span className="text-[13px] text-muted"> a month</span>
+            </Link>
+          </li>
+          <li className="rounded-lg border border-rule px-4 py-3">
+            <Link href="/app/alerts" className="block hover:underline">
+              <span className="block text-[13px] text-muted">Alerts</span>
+              <span className="font-medium">
+                {openAlerts === 0 ? "None open" : `${openAlerts} open`}
+              </span>
+            </Link>
+          </li>
+          <li className="rounded-lg border border-rule px-4 py-3">
+            <Link href="/app/bills" className="block hover:underline">
+              <span className="block text-[13px] text-muted">Next card payment</span>
+              {nextDue?.dueDate ? (
+                <>
+                  <span className="tabular font-medium">{money(nextDue.totalCents)}</span>
+                  <span className="text-[13px] text-muted">
+                    {" "}
+                    {dueLabel(today, nextDue.dueDate)}
+                  </span>
+                </>
+              ) : (
+                <span className="font-medium">Nothing due</span>
+              )}
+            </Link>
+          </li>
+        </ul>
+      </section>
 
       <section aria-labelledby="by-category" className="mt-12">
         <div className="flex items-baseline justify-between">

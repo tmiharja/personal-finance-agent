@@ -243,3 +243,50 @@ describe("card payments due (DET-7)", () => {
     expect(dueAlerts(paid, "2026-10-03")).toEqual([]);
   });
 });
+
+describe("read model and the user's own decisions", () => {
+  it("totals running subscriptions per month and keeps ignored ones out", async () => {
+    const { listSubscriptions, setSubscriptionIgnored } = await import("@/server/detect/read");
+    const before = await listSubscriptions(db, "alex");
+    const running = before.items.filter((s) => s.status === "active" || s.status === "overdue");
+    expect(before.monthlyCents).toBe(running.reduce((s, x) => s + x.monthlyCents, 0));
+    const spotify = before.items.find((s) => s.merchant === "Spotify")!;
+    expect(await setSubscriptionIgnored(db, "other", spotify.id, true)).toBe(false);
+    expect(await setSubscriptionIgnored(db, "alex", spotify.id, true)).toBe(true);
+    await runDetectors(db, "alex", keys, TODAY);
+    const after = await listSubscriptions(db, "alex");
+    expect(after.items.some((s) => s.merchant === "Spotify")).toBe(false);
+    expect(after.monthlyCents).toBe(before.monthlyCents - spotify.monthlyCents);
+    expect(
+      (await listSubscriptions(db, "alex", { includeIgnored: true })).items.find(
+        (s) => s.merchant === "Spotify",
+      )?.status,
+    ).toBe("ignored");
+  });
+
+  it("shows each card's latest due, paid once a later payment appears", async () => {
+    const { listBills } = await import("@/server/detect/read");
+    const { cards, bills: found } = await listBills(db, "alex");
+    expect(cards).toHaveLength(4);
+    expect(cards.every((c) => c.dueDate && c.statementDate.startsWith("2026-09"))).toBe(true);
+    expect(cards.some((c) => !c.paid)).toBe(true);
+    expect(found.map((b) => b.payee).sort()).toEqual(["SP Group", "Singtel"]);
+    expect((await listBills(db, "other")).cards).toEqual([]);
+  });
+
+  it("lists alerts with their transactions, and only the owner can close them", async () => {
+    const { listAlerts, setAlertStatus, countOpenAlerts } = await import("@/server/detect/read");
+    const open = await listAlerts(db, "alex");
+    const dup = open.find((a) => a.type === "duplicate_charge")!;
+    expect(dup.transactions).toHaveLength(2);
+    expect(dup.transactions.every((t) => t.merchant === "Lazada" && t.amountCents === 8990)).toBe(
+      true,
+    );
+    const n = await countOpenAlerts(db, "alex");
+    expect(await setAlertStatus(db, "other", dup.id, "dismissed")).toBe(false);
+    expect(await setAlertStatus(db, "alex", dup.id, "expected")).toBe(true);
+    expect(await countOpenAlerts(db, "alex")).toBe(n - 1);
+    expect((await listAlerts(db, "alex", { status: "closed" })).map((a) => a.id)).toContain(dup.id);
+    expect(await listAlerts(db, "other")).toEqual([]);
+  });
+});

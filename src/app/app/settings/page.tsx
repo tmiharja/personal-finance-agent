@@ -39,6 +39,7 @@ export default async function SettingsPage() {
         <ul className="mt-4">
           {[
             ["/app/subscriptions", "Subscriptions"],
+            ["/app/bills", "Bills"],
             ["/app/alerts", "Alerts"],
             ["/app/import", "Import statements"],
           ].map(([href, label]) => (
