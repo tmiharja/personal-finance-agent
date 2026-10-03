@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { sqlRows } from "@/db/rows";
 import { accounts, categories, statements, transactions } from "@/db/schema";
 import type { Tx } from "@/db/with-user";
 import type { UserCrypto } from "@/server/crypto/envelope";
@@ -107,25 +108,27 @@ export async function insertCardStatement(
   pii: PiiContext = {},
 ): Promise<{ inserted: number; duplicates: number; reconciled: boolean }> {
   const userId = crypto.userId;
-  const reconciled =
-    input.previousBalanceCents + input.rows.reduce((s, r) => s + r.amountCents, 0) ===
-    input.totalCents;
+  const summary = {
+    dueDate: input.dueDate,
+    minimumPaymentCents: input.minimumPaymentCents,
+    previousBalanceCents: input.previousBalanceCents,
+    totalCents: input.totalCents,
+  };
 
+  // Re-importing the same card statement refreshes every summary field; whether it
+  // reconciles is recomputed below from the rows actually stored.
   const [stmt] = await tx
     .insert(statements)
     .values({
       userId,
       accountId: input.accountId,
       statementDate: input.statementDate,
-      dueDate: input.dueDate,
-      minimumPaymentCents: input.minimumPaymentCents,
-      previousBalanceCents: input.previousBalanceCents,
-      totalCents: input.totalCents,
-      reconciled,
+      ...summary,
+      reconciled: false,
     })
     .onConflictDoUpdate({
       target: [statements.userId, statements.accountId, statements.statementDate],
-      set: { reconciled },
+      set: summary,
     })
     .returning({ id: statements.id });
 
@@ -174,5 +177,16 @@ export async function insertCardStatement(
         .onConflictDoNothing()
         .returning({ id: transactions.id })
     : [];
+
+  // Reconcile what is stored, not what was passed in: a corrected re-import whose
+  // rows no longer add up to the printed total is flagged instead of trusted.
+  // (Replacing superseded rows is the Phase 1 commit_import action's job.)
+  const [sum] = sqlRows<{ cents: number }>(
+    await tx.execute(
+      sql`select coalesce(sum(amount_cents), 0)::bigint as cents from transactions where statement_id = ${stmt!.id}`,
+    ),
+  );
+  const reconciled = input.previousBalanceCents + Number(sum!.cents) === input.totalCents;
+  await tx.update(statements).set({ reconciled }).where(eq(statements.id, stmt!.id));
   return { inserted: inserted.length, duplicates: values.length - inserted.length, reconciled };
 }

@@ -1,3 +1,5 @@
+import "./load-env";
+
 // Applies the SQL migrations in ./drizzle. Uses a direct TCP connection
 // (node-postgres) for both local Postgres and Neon's unpooled URL.
 import { drizzle } from "drizzle-orm/node-postgres";

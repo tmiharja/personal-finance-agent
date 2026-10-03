@@ -33,7 +33,7 @@ The agent can read your data but never changes anything on its own. Every write 
 | Encryption | Per-user data keys wrapped by `MASTER_KEY` (AES-256-GCM). Ciphertexts are bound to user and field. HMAC dedupe keys. Master-key rotation |
 | PII firewall | Sanitises descriptors, masks text for the LLM, and runs a last assertion before every write. The logger only keeps codes and numbers |
 | Demo seed | 12 months of synthetic "Alex Tan" statements loaded through the real write path |
-| Tests | 48 unit/integration tests (two-user isolation, encryption, firewall, no-PII harness over a full DB dump and logs, demo seed). 12 Playwright e2e tests (sign-in with a code, session enforcement, security headers), on desktop and mobile |
+| Tests | 59 unit/integration tests (two-user isolation, cross-user reference checks, encryption, firewall, no-PII harness over a full DB dump and logs, demo seed). 12 Playwright e2e tests (sign-in with a code, session enforcement, security headers), on desktop and mobile |
 
 **Next: Phase 1.** DBS and UOB card PDF parsers, import preview and approval, categorisation, Transactions and Ask (see the PRD §12).
 
@@ -64,6 +64,7 @@ The database role in `DATABASE_URL` should be the database owner with `CREATEROL
 | `npm run test:e2e` | Playwright against a production build. Needs `E2E_DATABASE_URL` pointing at a migrated database |
 | `npm run fixtures` | Regenerates the synthetic statements (deterministic) |
 | `npm run check:pii` | Scans the repo for personal data. Runs in CI on every push |
+| `npm run keys:rewrap` | Finishes a `MASTER_KEY` rotation (see below) |
 
 ## Deploying (Vercel)
 
@@ -72,3 +73,8 @@ The database role in `DATABASE_URL` should be the database owner with `CREATEROL
 3. `vercel.json` pins functions to `sin1`.
 
 **Back up `MASTER_KEY` somewhere safe.** Without it, encrypted data can't be read.
+
+**Rotating `MASTER_KEY`:**
+1. Move the old value to `MASTER_KEY_PREVIOUS`, set a new `MASTER_KEY`, and increment `MASTER_KEY_ID`.
+2. Deploy, then run `npm run keys:rewrap`. It re-wraps every user's key, including users who haven't been back since.
+3. Remove `MASTER_KEY_PREVIOUS` only after it prints `remaining: 0`.

@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { accounts, auditLog, transactions, user, USER_TABLES } from "@/db/schema";
+import {
+  accounts,
+  auditLog,
+  statements,
+  tags,
+  transactions,
+  transactionTags,
+  user,
+  USER_TABLES,
+} from "@/db/schema";
 import { withUser } from "@/db/with-user";
 import type { AppDb } from "@/db/client";
 import { createTestDb, createUser, ownerCount } from "../helpers/test-db";
@@ -176,5 +185,60 @@ describe("audit_log is append-only", () => {
       sql`select count(*)::int as n from audit_log where user_id = ${C}`,
     );
     expect(sqlRows(left)[0]).toEqual({ n: 0 });
+  });
+});
+
+describe("references can't cross users", () => {
+  it("can't tag, file or categorise into another user's rows", async () => {
+    const [bTxn] = await withUser(db, B, (tx) => tx.select().from(transactions));
+    const [bAcct] = await withUser(db, B, (tx) => tx.select().from(accounts));
+    // A's own tag on B's transaction.
+    await expect(
+      withUser(db, A, async (tx) => {
+        const [tag] = await tx.insert(tags).values({ userId: A, name: "mine" }).returning();
+        await tx
+          .insert(transactionTags)
+          .values({ userId: A, transactionId: bTxn!.id, tagId: tag!.id });
+      }),
+    ).rejects.toThrow();
+    // A's statement filed under B's card.
+    await expect(
+      withUser(db, A, (tx) =>
+        tx.insert(statements).values({
+          userId: A,
+          accountId: bAcct!.id,
+          statementDate: "2026-01-14",
+          previousBalanceCents: 0,
+          totalCents: 0,
+          reconciled: true,
+        }),
+      ),
+    ).rejects.toThrow();
+    // A's transaction moved under B's card.
+    await expect(
+      withUser(db, A, (tx) =>
+        tx.update(transactions).set({ accountId: bAcct!.id }).where(eq(transactions.userId, A)),
+      ),
+    ).rejects.toThrow();
+  });
+});
+
+describe("schema guard", () => {
+  it("every foreign key between user tables is ownership-checked in the RLS policy", async () => {
+    const res = await db.execute(sql`
+      select c.conrelid::regclass::text as child, a.attname as col, c.confrelid::regclass::text as parent,
+        (select p.with_check from pg_policies p where p.tablename = c.conrelid::regclass::text) as check_sql
+      from pg_constraint c
+      join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+      where c.contype = 'f' and c.confrelid::regclass::text <> '"user"'`);
+    const fks = sqlRows<{ child: string; col: string; parent: string; check_sql: string | null }>(
+      res,
+    );
+    expect(fks.length).toBeGreaterThan(5);
+    for (const fk of fks) {
+      expect(fk.check_sql ?? "", `${fk.child}.${fk.col} → ${fk.parent}`).toContain(
+        `FROM ${fk.parent} p`,
+      );
+    }
   });
 });

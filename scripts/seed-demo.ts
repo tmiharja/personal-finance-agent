@@ -1,6 +1,7 @@
 // Seeds the fictional demo user ("Alex Tan", synthetic fixtures only) into the
 // database in DATABASE_URL. Phase 1's "Try the demo" button will call
 // seedDemoWorkspace() for an ephemeral per-visitor user instead.
+import "./load-env";
 import { eq } from "drizzle-orm";
 import { createDb } from "../src/db/client";
 import { user } from "../src/db/schema";

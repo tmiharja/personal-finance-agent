@@ -23,8 +23,13 @@ describe("environment validation", () => {
     );
   });
 
-  it("refuses the dev mail outbox in production", () => {
+  it("refuses the dev mail outbox on every deployment, previews included", () => {
     expect(() => parseEnv({ ...prodBase, DEV_MAIL_OUTBOX: "1" })).toThrow(/DEV_MAIL_OUTBOX/);
+    expect(() => parseEnv({ VERCEL_ENV: "preview", DEV_MAIL_OUTBOX: "1" })).toThrow(
+      /DEV_MAIL_OUTBOX/,
+    );
+    expect(() => parseEnv({ VERCEL: "1", DEV_MAIL_OUTBOX: "1" })).toThrow(/DEV_MAIL_OUTBOX/);
+    expect(parseEnv({ DEV_MAIL_OUTBOX: "1" }).DEV_MAIL_OUTBOX).toBe(true); // local only
   });
 
   it("the master keys used by the test configs are valid", () => {

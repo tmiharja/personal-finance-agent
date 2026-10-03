@@ -23,7 +23,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "check-env": "tsx scripts/check-env.ts"
+    "check-env": "tsx scripts/check-env.ts",
+    "keys:rewrap": "tsx scripts/rewrap-keys.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "1.7.7",

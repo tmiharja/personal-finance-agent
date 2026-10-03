@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { emailOTP } from "better-auth/plugins/email-otp";
+import { after } from "next/server";
 import { getDb } from "@/db/client";
 import * as schema from "@/db/schema";
 import { getEnv } from "@/env";
@@ -67,8 +68,16 @@ function createAuth() {
         expiresIn: 5 * 60,
         allowedAttempts: 3,
         storeOTP: "hashed",
-        // Not awaited, so response time doesn't reveal whether the email exists.
-        sendVerificationOTP: async ({ email, otp }) => void sendSignInCode(email, otp),
+        // Sent after the response (Next's after()), so response time doesn't reveal
+        // whether the email exists, while serverless still waits for delivery.
+        sendVerificationOTP: async ({ email, otp }) => {
+          try {
+            after(() => sendSignInCode(email, otp));
+          } catch {
+            // Outside a request scope (scripts, tests): send directly.
+            await sendSignInCode(email, otp);
+          }
+        },
       }),
       passkey({ rpID: hostname, rpName: site.name, origin }),
       nextCookies(), // keep last

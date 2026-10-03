@@ -16,7 +16,7 @@ export async function getOverviewCounts(db: AppDb, userId: string): Promise<Over
   return withUser(db, userId, async (tx) => {
     const res = await tx.execute(sql`
       select
-        (select count(*)::int from accounts) as cards,
+        (select count(*)::int from accounts where kind = 'card') as cards,
         (select count(*)::int from statements) as statements,
         (select count(*)::int from transactions) as transactions,
         (select max(statement_date)::text from statements) as "latestStatement",

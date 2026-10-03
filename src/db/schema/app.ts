@@ -41,14 +41,29 @@ import { user } from "./auth";
 export const appUser = pgRole("app_user").existing();
 
 const ownRows = sql`user_id = current_setting('app.user_id', true)`;
-const rls = (table: string) =>
-  pgPolicy(`${table}_own_rows`, {
+
+/**
+ * A reference column must point at a row the current user can see. Foreign-key
+ * checks ignore RLS, so without this a user could attach their row to another
+ * user's id. The subquery itself runs under the parent table's RLS, so only the
+ * user's own rows can match.
+ */
+type Ref = readonly [column: string, parent: string];
+const refCheck = (table: string, [column, parent]: Ref) =>
+  sql.raw(
+    `(${table}.${column} is null or exists (select 1 from ${parent} p where p.id = ${table}.${column}))`,
+  );
+
+const rls = (table: string, refs: readonly Ref[] = [], extra: string[] = []) => {
+  const checks = [...refs.map((r) => refCheck(table, r)), ...extra.map((e) => sql.raw(e))];
+  return pgPolicy(`${table}_own_rows`, {
     as: "permissive",
     for: "all",
     to: appUser,
     using: ownRows,
-    withCheck: ownRows,
+    withCheck: checks.length ? sql`${ownRows} and ${sql.join(checks, sql` and `)}` : ownRows,
   });
+};
 
 const userId = () =>
   text("user_id")
@@ -221,7 +236,10 @@ export const statements = pgTable(
   },
   (t) => [
     uniqueIndex("statements_period_uq").on(t.userId, t.accountId, t.statementDate),
-    rls("statements"),
+    rls("statements", [
+      ["account_id", "accounts"],
+      ["import_id", "imports"],
+    ]),
   ],
 );
 
@@ -275,7 +293,11 @@ export const transactions = pgTable(
     uniqueIndex("transactions_dedupe_uq").on(t.userId, t.dedupeKey),
     index("transactions_user_date_idx").on(t.userId, t.txnDate),
     index("transactions_user_merchant_idx").on(t.userId, t.merchantName),
-    rls("transactions"),
+    rls("transactions", [
+      ["account_id", "accounts"],
+      ["statement_id", "statements"],
+      ["category_id", "categories"],
+    ]),
   ],
 );
 
@@ -296,7 +318,13 @@ export const transactionTags = pgTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.transactionId, t.tagId] }), rls("transaction_tags")],
+  (t) => [
+    primaryKey({ columns: [t.transactionId, t.tagId] }),
+    rls("transaction_tags", [
+      ["transaction_id", "transactions"],
+      ["tag_id", "tags"],
+    ]),
+  ],
 );
 
 export const rules = pgTable(
@@ -313,7 +341,7 @@ export const rules = pgTable(
     createdViaProposal: uuid("created_via_proposal"),
     createdAt: createdAt(),
   },
-  () => [rls("rules")],
+  () => [rls("rules", [["category_id", "categories"]])],
 );
 
 /** Curated global merchant map (not user data): read-only for app_user, no RLS. */
@@ -361,7 +389,7 @@ export const bills = pgTable(
     status: billStatusEnum("status").notNull().default("upcoming"),
     createdAt: createdAt(),
   },
-  () => [rls("bills")],
+  () => [rls("bills", [["account_id", "accounts"]])],
 );
 
 export const alerts = pgTable(
@@ -381,7 +409,16 @@ export const alerts = pgTable(
     dedupeKey: text("dedupe_key").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("alerts_dedupe_uq").on(t.userId, t.dedupeKey), rls("alerts")],
+  (t) => [
+    uniqueIndex("alerts_dedupe_uq").on(t.userId, t.dedupeKey),
+    rls(
+      "alerts",
+      [],
+      [
+        "not exists (select 1 from unnest(alerts.transaction_ids) x(id) where not exists (select 1 from transactions t where t.id = x.id))",
+      ],
+    ),
+  ],
 );
 
 export const budgets = pgTable(
@@ -395,7 +432,10 @@ export const budgets = pgTable(
     monthlyAmountCents: bigint("monthly_amount_cents", { mode: "number" }).notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("budgets_category_uq").on(t.userId, t.categoryId), rls("budgets")],
+  (t) => [
+    uniqueIndex("budgets_category_uq").on(t.userId, t.categoryId),
+    rls("budgets", [["category_id", "categories"]]),
+  ],
 );
 
 // ------------------------------------------------------------------ approvals
@@ -443,7 +483,10 @@ export const auditLog = pgTable(
     inverse: jsonb("inverse"),
     createdAt: createdAt(),
   },
-  (t) => [index("audit_log_user_created_idx").on(t.userId, t.createdAt), rls("audit_log")],
+  (t) => [
+    index("audit_log_user_created_idx").on(t.userId, t.createdAt),
+    rls("audit_log", [["proposal_id", "proposed_actions"]]),
+  ],
 );
 
 /** LLM usage and cost per call (counts only). */

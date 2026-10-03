@@ -10,6 +10,8 @@ const flag = z
 
 const rawSchema = z.object({
   VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
+  // Set to "1" on every Vercel deployment (production and preview).
+  VERCEL: z.string().optional(),
 
   DATABASE_URL: optionalUrl,
   // Names from connecting Neon with the prefix NEON (see src/db/url.ts).
@@ -52,16 +54,21 @@ const envSchema = rawSchema
     ...rest,
     DATABASE_URL: databaseUrl({ NEON_URL, NEON_DATABASE_URL, DATABASE_URL }),
     isProduction: rest.VERCEL_ENV === "production",
+    /** Any deployed environment (production or preview): dev-only features are off. */
+    isDeployed:
+      rest.VERCEL === "1" || rest.VERCEL_ENV === "production" || rest.VERCEL_ENV === "preview",
   }))
   .superRefine((env, ctx) => {
-    if (!env.isProduction) return;
-    if (env.DEV_MAIL_OUTBOX) {
+    // The outbox exposes sign-in codes, so it is refused on every deployment,
+    // previews included, not only in production.
+    if (env.isDeployed && env.DEV_MAIL_OUTBOX) {
       ctx.addIssue({
         code: "custom",
         path: ["DEV_MAIL_OUTBOX"],
-        message: "DEV_MAIL_OUTBOX must not be enabled in production",
+        message: "DEV_MAIL_OUTBOX must not be enabled on a deployment (production or preview)",
       });
     }
+    if (!env.isProduction) return;
     for (const [key, name] of Object.entries(PRODUCTION_REQUIRED)) {
       if (!env[key as keyof typeof PRODUCTION_REQUIRED]) {
         ctx.addIssue({ code: "custom", path: [], message: `${name} is required in production` });
