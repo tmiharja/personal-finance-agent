@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import BudgetBars from "@/components/charts/budget-bars";
 import CategoryBars from "@/components/charts/category-bars";
 import MonthTrend from "@/components/charts/month-trend";
 import Stat from "@/components/charts/stat";
@@ -9,6 +10,8 @@ import { getDb } from "@/db/client";
 import { money, monthLabel, shortDate } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
 import { getMonthOverview } from "@/server/finance/overview";
+import { weeklyDigest } from "@/server/finance/digest";
+import WeeklyDigestCard from "@/components/charts/weekly-digest";
 import { addMonths, monthRange } from "@/server/finance/spend";
 import { countToReview, filterHref } from "@/server/finance/transactions";
 import { todaySgt } from "@/server/agent/period";
@@ -28,14 +31,15 @@ export default async function OverviewPage({
   const user = await requireUser();
   const requested = (await searchParams).month;
   const db = getDb();
-  const [o, toReview, subs, openAlerts, dues] = await Promise.all([
+  const today = todaySgt();
+  const [o, toReview, subs, openAlerts, dues, digest] = await Promise.all([
     getMonthOverview(db, user.id, Array.isArray(requested) ? requested[0] : requested),
     countToReview(db, user.id),
     listSubscriptions(db, user.id),
     countOpenAlerts(db, user.id),
     listBills(db, user.id),
+    weeklyDigest(db, user.id, today),
   ]);
-  const today = todaySgt();
   // The next card payment still to make (or the latest one, if all are paid).
   const nextDue =
     dues.cards.find((c) => !c.paid && c.dueDate && c.dueDate >= today) ??
@@ -186,6 +190,34 @@ export default async function OverviewPage({
             </Link>
           </li>
         </ul>
+      </section>
+
+      <WeeklyDigestCard digest={digest} />
+
+      <section aria-labelledby="budgets" className="mt-12">
+        <div className="flex items-baseline justify-between">
+          <h2 id="budgets" className="text-[17px] font-semibold">
+            Budgets
+          </h2>
+          <Link href="/app/settings#budgets" className="link text-[13px]">
+            {o.budgets ? "Change budgets" : "Set a budget"}
+          </Link>
+        </div>
+        {o.budgets ? (
+          <div className="mt-2">
+            <BudgetBars
+              progress={o.budgets}
+              hrefFor={(category) =>
+                filterHref({ category, from: range.from, to: range.to, spend: "1" })
+              }
+            />
+          </div>
+        ) : (
+          <p className="mt-2 text-[15px] text-muted">
+            No budgets yet. Set a monthly amount for any spending category in Settings, or ask for
+            one in Ask.
+          </p>
+        )}
       </section>
 
       <section aria-labelledby="by-category" className="mt-12">

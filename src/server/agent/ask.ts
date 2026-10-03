@@ -13,6 +13,7 @@ import { maskForLlm } from "@/server/pii/firewall";
 import { checkNumbers, collectNumbers, extractNumbers, fallbackAnswer } from "./guard";
 import { todaySgt } from "./period";
 import { ASK_SYSTEM, GUARD_NOTE } from "./prompt";
+import type { Draft } from "@/lib/drafts";
 import type { ProposedCard } from "./proposals";
 import { runTool, TOOLS, type Figure, type ToolOutcome, type View } from "./tools";
 
@@ -42,6 +43,8 @@ export type AskEvent =
       period?: string;
       /** Changes Ask proposed this turn, each waiting for the person's approval. */
       proposals?: ProposedCard[];
+      /** Drafts to copy (ACT-2). */
+      drafts?: Draft[];
     }
   | { t: "error"; code: AskErrorCode };
 
@@ -145,6 +148,7 @@ export async function runAsk(opts: {
       excludes: excludesNote(outcomes),
       period,
       proposals: outcomes.flatMap((o) => (o.proposal ? [o.proposal] : [])),
+      drafts: outcomes.flatMap((o) => (o.draft ? [o.draft] : [])),
     });
   };
 
