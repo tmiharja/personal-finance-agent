@@ -7,3 +7,7 @@
 - **Test data is synthetic only.** Use `npm run fixtures` (fictional "Alex Tan", well-known test card numbers, "SYNTHETIC TEST DATA" watermark and PDF metadata).
 - **Run `npm run check:pii` before every commit.** CI runs it on every push and pull request. If it flags something, remove the data. Never weaken the check to make it pass.
 - Logs, error messages, eval reports and PR descriptions follow the same rule: report codes and counts, never values.
+
+## 2. Next.js
+
+@AGENTS.md

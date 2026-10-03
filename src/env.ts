@@ -1,0 +1,102 @@
+import { z } from "zod";
+import { databaseUrl } from "@/db/url";
+
+const optionalUrl = z.url().optional();
+const optionalString = z.string().min(1).optional();
+const flag = z
+  .enum(["0", "1", "true", "false"])
+  .default("0")
+  .transform((v) => v === "1" || v === "true");
+
+const rawSchema = z.object({
+  VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
+
+  DATABASE_URL: optionalUrl,
+  // Names from connecting Neon with the prefix NEON (see src/db/url.ts).
+  NEON_URL: optionalUrl,
+  NEON_DATABASE_URL: optionalUrl,
+
+  // Better Auth
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(32, "BETTER_AUTH_SECRET must be at least 32 characters")
+    .optional(),
+  BETTER_AUTH_URL: optionalUrl,
+
+  // Envelope encryption: base64 of 32 random bytes. MASTER_KEY_PREVIOUS keeps old
+  // user keys readable during a rotation.
+  MASTER_KEY: optionalString,
+  MASTER_KEY_ID: z.coerce.number().int().min(1).max(999).default(1),
+  MASTER_KEY_PREVIOUS: optionalString,
+
+  // Sign-in email (one-time codes)
+  RESEND_API_KEY: optionalString,
+  EMAIL_FROM: optionalString,
+
+  // Dev/e2e only: keep sent one-time codes in memory, readable at /api/dev/outbox.
+  DEV_MAIL_OUTBOX: flag,
+});
+
+/** Required in production only; dev and tests fall back to local defaults. Values are the names to set. */
+const PRODUCTION_REQUIRED = {
+  DATABASE_URL: "DATABASE_URL (or NEON_URL, from connecting Neon with the prefix NEON)",
+  BETTER_AUTH_SECRET: "BETTER_AUTH_SECRET",
+  BETTER_AUTH_URL: "BETTER_AUTH_URL",
+  MASTER_KEY: "MASTER_KEY",
+  RESEND_API_KEY: "RESEND_API_KEY",
+  EMAIL_FROM: "EMAIL_FROM",
+} as const;
+
+const envSchema = rawSchema
+  .transform(({ DATABASE_URL, NEON_URL, NEON_DATABASE_URL, ...rest }) => ({
+    ...rest,
+    DATABASE_URL: databaseUrl({ NEON_URL, NEON_DATABASE_URL, DATABASE_URL }),
+    isProduction: rest.VERCEL_ENV === "production",
+  }))
+  .superRefine((env, ctx) => {
+    if (!env.isProduction) return;
+    if (env.DEV_MAIL_OUTBOX) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["DEV_MAIL_OUTBOX"],
+        message: "DEV_MAIL_OUTBOX must not be enabled in production",
+      });
+    }
+    for (const [key, name] of Object.entries(PRODUCTION_REQUIRED)) {
+      if (!env[key as keyof typeof PRODUCTION_REQUIRED]) {
+        ctx.addIssue({ code: "custom", path: [], message: `${name} is required in production` });
+      }
+    }
+  });
+
+export type Env = z.output<typeof envSchema>;
+
+/**
+ * Validates an environment record. Throws with every problem listed (names only,
+ * never values), so a misconfigured deployment fails fast and legibly.
+ */
+export function parseEnv(source: Record<string, string | undefined>): Env {
+  // Treat empty strings (common in .env files) as unset.
+  const cleaned = Object.fromEntries(
+    Object.entries(source).filter(([, v]) => v !== undefined && v !== ""),
+  );
+  const result = envSchema.safeParse(cleaned);
+  if (!result.success) {
+    const problems = result.error.issues.map(
+      (i) => `  - ${i.path.length ? `${i.path.join(".")}: ` : ""}${i.message}`,
+    );
+    throw new Error(`Invalid environment configuration:\n${problems.join("\n")}`);
+  }
+  return result.data;
+}
+
+let cached: Env | undefined;
+
+/** Server-only accessor. Parsed lazily so `next build` doesn't need runtime secrets. */
+export function getEnv(): Env {
+  if (typeof window !== "undefined") {
+    throw new Error("getEnv() must only be called on the server");
+  }
+  cached ??= parseEnv(process.env);
+  return cached;
+}

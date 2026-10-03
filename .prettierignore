@@ -1,0 +1,10 @@
+# Docs and generated artefacts are not formatted by Prettier
+*.md
+docs/
+evals/fixtures/synthetic/
+package-lock.json
+.next/
+coverage/
+playwright-report/
+test-results/
+drizzle/
