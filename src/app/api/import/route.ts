@@ -1,5 +1,5 @@
 import { getDb } from "@/db/client";
-import { isSameOrigin, jsonError, masterKeys, sessionUserId } from "@/server/http";
+import { isSameOrigin, jsonError, masterKeys, sessionUser } from "@/server/http";
 import { ImportError, previewImport } from "@/server/import/service";
 import { PdfError } from "@/server/ingest/pdf";
 import { ParseError } from "@/server/ingest/parsers";
@@ -16,7 +16,9 @@ const MAX_BYTES = 4 * 1024 * 1024; // under Vercel's 4.5 MB request limit
  */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
-  const userId = await sessionUserId(request);
+  const me = await sessionUser(request);
+  if (me?.isDemo) return jsonError("demo_read_only", 403);
+  const userId = me?.id;
   if (!userId) return jsonError("unauthenticated", 401);
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BYTES + 64 * 1024)
     return jsonError("too_large", 413);

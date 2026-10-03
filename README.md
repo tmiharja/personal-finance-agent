@@ -46,7 +46,19 @@ The agent can read your data but never changes anything on its own. Every write 
 | UI | Import page (drop zone, password prompt, preview card with per-card reconciliation and rows, Approve / Discard). Activity lists pending approvals and history. Screenshots: [`docs/screenshots/phase-1a/`](docs/screenshots/phase-1a/) |
 | Tests | 34 parser golden tests (24 fixtures + 2 encrypted variants + rejections), 11 import-service tests (lifecycle, isolation, expiry, tampering, no PII in DB or logs), 8 new e2e tests. The real samples reconcile in a local-only, git-ignored test |
 
-**Next: Phase 1b.** Categorisation (rules → merchant map → Claude Haiku), the Transactions table, Overview charts, and Ask (see the PRD §12).
+**Phase 1b: categorise → overview → ask, and the demo (done).**
+
+| Area | What's in place |
+|---|---|
+| Categorisation | At import preview, before anything is saved: the row kind → your rules → a curated merchant map and keywords → the classifier's earlier decision for that merchant → **Claude Haiku 4.5** in batches of 50 merchants (masked input, output limited to your category names, with a confidence) → Uncategorised. Below 0.7 confidence is flagged for review. Without an API key it degrades to rules + map |
+| Transactions | Server-paginated table with merchant search and category, card, date and "to review" filters. Descriptors are decrypted for the visible page only. Correct one row directly, or choose "all from this merchant": a `create_rule` **proposal** with a server-built preview ("56 × Dining → Health"), version-checked and audited on approval |
+| Overview | Month at a glance: spend (charges + fees, refunds netted), refunds, cashback and card payments shown separately, spend by category (each bar links to its transactions), and a 12-month trend. Plain HTML/CSS, one navy hue, validated contrast in light and dark |
+| Ask | A read-only Q&A agent on **Claude Sonnet 5.5** (adaptive thinking, low effort, cached prompt and tools, server-side refusal fallback). Eight typed tools over the same spend queries as Overview; periods resolved deterministically ("Q3" = last complete Q3). A **numbers guard** checks every figure in the answer against tool results (one retry, then the tool's own figures). Answers stream with a mini chart and a "View N transactions" link. Chat is kept in the tab only |
+| Guardrails | Per-route models and prices in `src/server/llm/pricing.ts`; one usage row per call or question; a global monthly breaker (US$40), a per-user soft cap (US$3/month) and 60 questions/day |
+| Demo | "Try the demo" opens a no-signup workspace with the fictional Alex Tan's 12 months. Imports are off, corrections and approvals work, and it's deleted after 24 hours by the daily cron. Limits per visitor per day are keyed by a daily-rotating HMAC of the IP, so no IP is stored |
+| Tests | 173 unit/integration tests and 28 e2e tests (desktop + mobile) with an offline model (`LLM_MOCK=1`): categoriser, golden categories, transactions and rule proposals, spend definitions against fixture ground truth, period resolution, the numbers guard, the Ask loop, demo lifecycle, and the no-PII harness over every model request body. Screenshots: [`docs/screenshots/phase-1b/`](docs/screenshots/phase-1b/) |
+
+**Next: Phase 2.** OCBC cards, bank-account statements with transfer pairing, and the detectors (subscriptions, price rises, unusual charges, fees, bills). See the PRD §12.
 
 ## Local development
 
@@ -64,6 +76,8 @@ DEV_MAIL_OUTBOX=1               # sign-in codes readable at /api/dev/outbox?emai
 
 npm run db:migrate              # roles, schema + RLS, grants
 npm run seed:demo               # optional: fictional demo user (sign in as demo@example.com)
+                                # or click "Try the demo" on the landing page
+# Optional: ANTHROPIC_API_KEY=… for Haiku categorisation and Ask (or LLM_MOCK=1 to run offline)
 npm run dev
 ```
 

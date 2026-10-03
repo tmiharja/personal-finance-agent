@@ -41,6 +41,7 @@
   --color-popover-foreground: var(--foreground);
 
   --color-accent-track: var(--accent-track);
+  --color-chart-context: var(--chart-context);
 }
 
 :root {
@@ -57,6 +58,9 @@
   --danger-soft: #fbeeee;
   /* Unfilled part of the bars and charts: a light step of the accent hue. */
   --accent-track: color-mix(in srgb, var(--accent) 16%, var(--background));
+  /* Context marks in charts (e.g. other months): a muted step of the accent,
+     ≥ 3:1 against the background and clearly apart from --accent (validated). */
+  --chart-context: #738ba3;
   --radius: 0.5rem;
   color-scheme: light;
 }
@@ -74,6 +78,7 @@
   --danger: #e38b8b;
   --danger-soft: #2c1c1c;
   --accent-track: color-mix(in srgb, var(--accent) 22%, var(--background));
+  --chart-context: #536a81;
   color-scheme: dark;
 }
 

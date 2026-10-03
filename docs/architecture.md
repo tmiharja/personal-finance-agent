@@ -1,6 +1,6 @@
 # Architecture: Personal Finance Agent (SG)
 
-This is the high-level target architecture for the app described in [`PRD.md`](PRD.md). It follows the same conventions as the Resume Optimiser: one Next.js App Router app on Vercel, the Vercel AI SDK with `@ai-sdk/anthropic`, Neon Postgres + Drizzle, and Upstash Redis.
+This is the high-level target architecture for the app described in [`PRD.md`](PRD.md). It follows the same conventions as the Resume Optimiser: one Next.js App Router app on Vercel, the official Anthropic TypeScript SDK (`@anthropic-ai/sdk`; the plan said the Vercel AI SDK, but the SDK exposes Sonnet 5.5's effort, thinking and refusal-fallback settings directly), Neon Postgres + Drizzle, and Upstash Redis.
 
 Two invariants drive the design:
 
@@ -19,7 +19,7 @@ Two invariants drive the design:
 | **Vercel** (`sin1`, Fluid Compute, Node runtime) | A single Next.js app. It has route handlers for import (SSE), ask (streaming), proposals (approve/reject/undo), export and auth, plus **Vercel Cron** for daily detectors, the digest and demo cleanup. |
 | **Neon Postgres** (`aws-ap-southeast-1`, Singapore) | All user data, with **Row-Level Security** per `user_id`; Drizzle ORM + drizzle-kit migrations. Sensitive columns are envelope-encrypted with per-user data keys. |
 | **Upstash Redis** (`ap-southeast-1`) | Rate limits (auth, upload, ask, demo per IP), per-user and global monthly LLM cost counters, and short-lived import-preview state. |
-| **Anthropic Claude API** | Haiku 4.5 for fallback parsing, categorisation and explanations; Sonnet 5.5 for the Q&A agent. Called through the AI SDK. Data is masked before it leaves. |
+| **Anthropic Claude API** | Haiku 4.5 for fallback parsing, categorisation and explanations; Sonnet 5.5 for the Q&A agent. Called through the Anthropic SDK. Data is masked before it leaves. |
 | **Email provider** (e.g. Resend) | Auth OTP / magic links only in v1. An optional digest email is P2. |
 
 Every data store is in Singapore. The only cross-border flow is the masked, minimised payload sent to the Claude API, and the privacy notice discloses it.
@@ -130,7 +130,7 @@ sequenceDiagram
 sequenceDiagram
   autonumber
   participant U as Browser (Ask)
-  participant A as /api/ask (AI SDK tool loop)
+  participant A as /api/ask (SDK tool loop)
   participant T as Read tools (SQL)
   participant P as Policy + preview
   participant DB as Neon (RLS)
@@ -202,7 +202,7 @@ The detectors are SQL/TS only and make no LLM calls, so the daily run costs no t
 | ⑪ | **Normalise, dedupe, transfers** | Converts to minor units and dates in SGT, applies the FX fields, builds the exact fingerprint, scores fuzzy near-duplicates, and pairs transfers / card payments across accounts. |
 | ⑫ | **Categorise** | User rules → curated merchant map → batched Haiku classifier (enum of your categories + confidence) → Uncategorised. Masking runs before the LLM. |
 | ⑬ | **Import preview** | Holds the parsed result in Redis (TTL 24 h) and creates a `commit_import` proposal. |
-| ⑭ | **Ask tool loop** | AI SDK `streamText` with tools on Sonnet 5.5. The system prompt and tool schemas are cached. A step limit (e.g. 8) and per-user cost checks apply. |
+| ⑭ | **Ask tool loop** | A streamed manual tool loop (`client.beta.messages.stream`) on Sonnet 5.5: adaptive thinking at low effort, strict tool schemas, server-side refusal fallback. The system prompt and tool schemas are cached. A step limit of 8, a 60 s timeout and per-user cost checks apply. Built in Phase 1b (`src/server/agent/`). |
 | ⑮ | **Read tools** | `resolve_period`, `spend_summary`, `compare_periods`, `top_merchants`, `list_transactions`, `get_subscriptions`, `get_bills`, `get_alerts`, `get_budgets`, `list_categories`. Parameterised SQL only, with `user_id` taken from the session. Results are masked and capped in size, and each carries a `queryRef` for the "View N" link. |
 | ⑯ | **propose_action** | The agent's **only** write-adjacent tool. It creates a pending proposal, never executes one. |
 | ⑰ | **Numbers guard** | Extracts the numbers from the final answer and checks each against the tool outputs (with tolerance for rounding and formatting). On failure it regenerates once, then falls back to rendering the tool table. |

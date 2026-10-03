@@ -22,10 +22,10 @@ test("upload a statement, review the preview, approve it", async ({ page, isMobi
   await card.getByRole("button", { name: "Approve import (27)" }).click();
   await expect(card.getByText("Imported 27 transactions.")).toBeVisible();
 
+  // Overview opens on the imported month, with spend by category.
   await page.goto("/app");
-  const stats = page.getByRole("main").locator("dl");
-  await expect(stats).toContainText("Cards2");
-  await expect(stats).toContainText("Transactions27");
+  await expect(page.getByRole("heading", { name: "March 2026" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Spend by category" })).toBeVisible();
 
   // The same file again is refused.
   await page.goto("/app/import");

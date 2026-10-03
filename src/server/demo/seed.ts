@@ -3,8 +3,12 @@ import { join } from "node:path";
 import type { AppDb } from "@/db/client";
 import { withUser } from "@/db/with-user";
 import type { MasterKeys } from "@/server/crypto/envelope";
+import { createHash } from "node:crypto";
+import { resolveDeterministic } from "@/server/categorise/categorise";
 import { getUserCrypto } from "@/server/crypto/user-keys";
 import {
+  DEFAULT_CATEGORIES,
+  describeRow,
   ensureDefaultCategories,
   insertCardStatement,
   upsertCardAccount,
@@ -42,6 +46,40 @@ export function loadFixtureStatements(dir = FIXTURES_DIR): ExpectedStatement[] {
     }
   }
   return out;
+}
+
+const ALL_CATEGORIES = new Set(DEFAULT_CATEGORIES.map((c) => c.name));
+
+/**
+ * The demo stands in for the classifier: rows the rules/map decide get those
+ * categories; the rest take the fixture's label as a "classifier" decision with
+ * a stable pseudo-confidence, so some show up for review like a real import.
+ */
+function demoCategory(row: {
+  rawDescriptor: string;
+  kind: LedgerRow["kind"];
+  amountCents: number;
+  fx: LedgerRow["fx"];
+  expectedCategory: string;
+}) {
+  const described = describeRow(row.rawDescriptor);
+  const known = resolveDeterministic(
+    { ...described, kind: row.kind, amountCents: row.amountCents, fx: row.fx },
+    [],
+    ALL_CATEGORIES,
+  );
+  if (known)
+    return {
+      categoryName: known.categoryName,
+      categorySource: known.source,
+      confidence: known.confidence,
+    };
+  const h = createHash("sha256").update(described.merchantName).digest()[0]!;
+  return {
+    categoryName: row.expectedCategory,
+    categorySource: "llm" as const,
+    confidence: 0.6 + (h % 38) / 100,
+  };
 }
 
 export type SeedResult = {
@@ -94,7 +132,7 @@ export async function seedDemoWorkspace(
             minimumPaymentCents: st.minimumPaymentCents,
             previousBalanceCents: card.previousBalanceCents,
             totalCents: card.totalCents,
-            rows: card.rows.map((row) => ({ ...row, categoryName: row.expectedCategory })),
+            rows: card.rows.map((row) => ({ ...row, ...demoCategory(row) })),
           },
           categoryIds,
         );

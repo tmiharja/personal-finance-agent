@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import EmptyState from "@/components/empty-state";
 import PageTitle from "@/components/app/page-title";
+import RuleProposalCard from "@/components/proposals/rule-proposal-card";
 import { getDb } from "@/db/client";
-import { longDate } from "@/lib/format";
+import { longDate, shortDate } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
 import { listPendingProposals, listRecentActivity } from "@/server/import/service";
 
@@ -19,14 +20,11 @@ const EVENT_LABEL: Record<string, string> = {
   undone: "Undone",
 };
 
-const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Singapore",
-  });
+/** "14 Mar, 09:05" in Singapore time. */
+const when = (iso: string) => {
+  const sgt = new Date(Date.parse(iso) + 8 * 3600_000).toISOString();
+  return `${shortDate(sgt.slice(0, 10))}, ${sgt.slice(11, 16)}`;
+};
 
 export default async function ActivityPage() {
   const user = await requireUser();
@@ -53,20 +51,26 @@ export default async function ActivityPage() {
             Waiting for approval
           </h2>
           <ul className="mt-3">
-            {pending.map((p) => (
-              <li
-                key={p.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 border-t border-rule py-4"
-              >
-                <span className="text-[15px]">
-                  Import {p.summary.bank} statement · {longDate(p.summary.statementDate)} ·{" "}
-                  {p.summary.cards.reduce((s, c) => s + c.counts.newRows, 0)} new transactions
-                </span>
-                <Link href={`/app/import?id=${p.importId}`} className="link text-[15px]">
-                  Review
-                </Link>
-              </li>
-            ))}
+            {pending.map((p) =>
+              p.type === "create_rule" ? (
+                <li key={p.id} className="border-t border-rule py-4">
+                  <RuleProposalCard proposalId={p.id} preview={p.preview} />
+                </li>
+              ) : (
+                <li
+                  key={p.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 border-t border-rule py-4"
+                >
+                  <span className="text-[15px]">
+                    Import {p.summary.bank} statement · {longDate(p.summary.statementDate)} ·{" "}
+                    {p.summary.cards.reduce((s, c) => s + c.counts.newRows, 0)} new transactions
+                  </span>
+                  <Link href={`/app/import?id=${p.importId}`} className="link text-[15px]">
+                    Review
+                  </Link>
+                </li>
+              ),
+            )}
           </ul>
         </section>
       )}

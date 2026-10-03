@@ -2,6 +2,7 @@ import Link from "next/link";
 import HeaderShell from "@/components/header-shell";
 import ThemeToggle from "@/components/theme-toggle";
 import { site } from "@/lib/site";
+import AskButton from "@/components/ask/ask-button";
 import { AppNav } from "./app-nav";
 
 export default function AppHeader({ pendingApprovals }: { pendingApprovals: number }) {
@@ -22,6 +23,7 @@ export default function AppHeader({ pendingApprovals }: { pendingApprovals: numb
             <AppNav />
           </div>
           <div className="flex items-center gap-4">
+            <AskButton className="hidden rounded-full border border-rule px-3 py-1 text-[13px] hover:bg-accent-soft md:inline-block" />
             <Link href="/app/import" className="link">
               Import
             </Link>

@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "./auth";
 
-export type SessionUser = { id: string; email: string; name: string };
+export type SessionUser = { id: string; email: string; name: string; isDemo: boolean };
 
 /** The signed-in user, validated against the database (not just the cookie). */
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -10,7 +10,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const requestHeaders = await headers();
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) return null;
-  return { id: session.user.id, email: session.user.email, name: session.user.name };
+  return {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    isDemo: (session.user as { isAnonymous?: boolean | null }).isAnonymous === true,
+  };
 }
 
 /** For server components and actions under /app. */

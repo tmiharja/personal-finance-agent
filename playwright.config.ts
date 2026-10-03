@@ -33,6 +33,11 @@ export default defineConfig({
       BETTER_AUTH_SECRET: "e2e-secret-e2e-secret-e2e-secret-123456",
       MASTER_KEY: "ZTJlLW1hc3Rlci1rZXktbm90LWZvci1wcm9kLTAwMDE=",
       DEV_MAIL_OUTBOX: "1",
+      LLM_MOCK: "1",
+      // Every e2e visitor is 127.0.0.1: lift the per-visitor demo limits.
+      DEMO_WORKSPACES_PER_DAY: "10000",
+      DEMO_QUESTIONS_PER_DAY: "10000",
+      ANTHROPIC_API_KEY: "",
     },
   },
 });

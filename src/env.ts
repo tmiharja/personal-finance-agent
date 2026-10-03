@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { databaseUrl } from "@/db/url";
+import { MODEL_IDS } from "@/server/llm/pricing";
 
 const optionalUrl = z.url().optional();
 const optionalString = z.string().min(1).optional();
@@ -40,6 +41,22 @@ const rawSchema = z.object({
 
   // Dev/e2e only: keep sent one-time codes in memory, readable at /api/dev/outbox.
   DEV_MAIL_OUTBOX: flag,
+
+  // Claude. Without a key, categorisation falls back to rules + the merchant map
+  // and Ask is unavailable (PRD OPS-2: degrade, don't fail).
+  ANTHROPIC_API_KEY: optionalString,
+  // Per-route models; only priced models are accepted (src/server/llm/pricing.ts).
+  MODEL_CATEGORISE: z.enum(MODEL_IDS).default("claude-haiku-4-5"),
+  MODEL_ASK: z.enum(MODEL_IDS).default("claude-sonnet-5-5"),
+  // Guardrails (PRD §7.3), in USD and questions.
+  LLM_GLOBAL_MONTHLY_USD: z.coerce.number().positive().default(40),
+  LLM_USER_MONTHLY_USD: z.coerce.number().positive().default(3),
+  ASK_DAILY_LIMIT: z.coerce.number().int().positive().default(60),
+  // "Try the demo", per visitor per day (PRD AUTH-6).
+  DEMO_WORKSPACES_PER_DAY: z.coerce.number().int().positive().default(5),
+  DEMO_QUESTIONS_PER_DAY: z.coerce.number().int().positive().default(10),
+  // Tests/e2e only: deterministic offline responses instead of the API.
+  LLM_MOCK: flag,
 });
 
 /** Required in production only; dev and tests fall back to local defaults. Values are the names to set. */
@@ -70,6 +87,14 @@ const envSchema = rawSchema
         code: "custom",
         path: ["DEV_MAIL_OUTBOX"],
         message: "DEV_MAIL_OUTBOX must not be enabled on a deployment (production or preview)",
+      });
+    }
+    // Mock answers on a deployment would look like real figures.
+    if (env.isDeployed && env.LLM_MOCK) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LLM_MOCK"],
+        message: "LLM_MOCK must not be enabled on a deployment (production or preview)",
       });
     }
     if (!env.isProduction) return;

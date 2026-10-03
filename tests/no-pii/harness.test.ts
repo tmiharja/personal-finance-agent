@@ -124,3 +124,61 @@ describe("no PII reaches storage or logs", () => {
     expect(leaks(logs.join("\n"))).toEqual([]);
   });
 });
+
+describe("no PII reaches the categoriser", () => {
+  it("masks names, card numbers and contact details in every request body", async () => {
+    const { categoriseRows } = await import("@/server/categorise/categorise");
+    const { describeRow } = await import("@/server/finance/ledger");
+    const { mockLlm } = await import("@/server/llm/mock");
+    const bodies: string[] = [];
+    const classify: typeof mockLlm.classify = (req) => {
+      bodies.push(req.system, req.prompt, JSON.stringify(req.items));
+      return mockLlm.classify(req);
+    };
+    const llm = { ...mockLlm, classify };
+    const rows = hostileRows.map((r) => ({
+      ...describeRow(r.rawDescriptor, persona),
+      kind: r.kind,
+      amountCents: r.amountCents,
+      fx: null,
+    }));
+    const res = await categoriseRows(rows, {
+      rules: [],
+      history: new Map(),
+      categories: ["Shopping", "Dining", "Uncategorised"],
+      llm,
+      model: "claude-haiku-4-5",
+      pii: persona,
+    });
+    expect(bodies.length).toBeGreaterThan(0);
+    expect(leaks(bodies.join("\n"), persona.names)).toEqual([]);
+    expect(res.warnings).toEqual([]);
+  });
+});
+
+describe("no PII reaches the Ask model", () => {
+  it("masks the question and tool results in every request body", async () => {
+    const { runAsk } = await import("@/server/agent/ask");
+    const { mockLlm } = await import("@/server/llm/mock");
+    const bodies: string[] = [];
+    const turn = vi.spyOn(mockLlm, "turn").mockImplementation(async (params, onText) => {
+      bodies.push(JSON.stringify(params));
+      const { mockTurn } = await import("@/server/llm/mock-agent");
+      return mockTurn(params, onText);
+    });
+    const events: unknown[] = [];
+    await runAsk({
+      db,
+      userId: "alex",
+      question:
+        "What did I spend last 3 months? My card is 4111 1111 1111 1111, email alex.tan@example.com",
+      history: [{ role: "assistant", content: "Earlier answer mentioning 5555 5555 5555 4444" }],
+      emit: (e) => events.push(e),
+      today: "2026-10-03",
+    });
+    turn.mockRestore();
+    expect(bodies.length).toBeGreaterThan(1);
+    expect(leaks(bodies.join("\n"))).toEqual([]);
+    expect(leaks(JSON.stringify(events))).toEqual([]);
+  });
+});

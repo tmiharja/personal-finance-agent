@@ -516,6 +516,30 @@ export const usage = pgTable(
   (t) => [index("usage_user_created_idx").on(t.userId, t.createdAt), rls("usage")],
 );
 
+// ------------------------------------------------------------------ system (owner only)
+
+/**
+ * Demo limits per visitor per day (PRD AUTH-6, §7.3). The key is an HMAC of the
+ * client IP under a key that changes daily, so no IP address is stored and keys
+ * can't be linked across days. No RLS and no grants: app_user can't read it.
+ */
+export const demoQuota = pgTable(
+  "demo_quota",
+  {
+    key: char("key", { length: 64 }).notNull(),
+    day: date("day").notNull(),
+    workspaces: integer("workspaces").notNull().default(0),
+    questions: integer("questions").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.day] })],
+);
+
+/** Monthly LLM cost of deleted users (demo workspaces), so the global breaker still counts it. */
+export const llmSpendArchive = pgTable("llm_spend_archive", {
+  month: date("month").primaryKey(),
+  costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull(),
+});
+
 /** Tables app_user may touch. Used by the grants migration test and the no-PII dump. */
 export const USER_TABLES = [
   "user_keys",
