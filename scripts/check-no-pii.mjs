@@ -24,7 +24,12 @@ const TEST_PANS = new Set([
   "5105105105105100",
   "378282246310005",
 ]);
-const EMAIL_ALLOW = [/^noreply@anthropic\.com$/i, /@example\.(com|org|net)$/i, /^git@github\.com$/i];
+const EMAIL_ALLOW = [
+  /^noreply@anthropic\.com$/i,
+  // example.com/.org/.net and their subdomains are reserved (RFC 2606).
+  /@([\w-]+\.)*example\.(com|org|net)$/i,
+  /^git@github\.com$/i,
+];
 const IMAGE_DIRS = [/^docs\//, /^public\//];
 const SYNTHETIC_PDF_DIR = /^evals\/fixtures\/synthetic\//;
 const SYNTHETIC_MARK = "SYNTHETIC TEST DATA";
@@ -36,7 +41,10 @@ const luhn = (num) => {
   let sum = 0;
   for (let i = 0; i < num.length; i++) {
     let n = Number(num[num.length - 1 - i]);
-    if (i % 2 === 1) (n *= 2), n > 9 && (n -= 9);
+    if (i % 2 === 1) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
     sum += n;
   }
   return sum % 10 === 0;
@@ -51,8 +59,9 @@ const nricValid = (id) => {
   const st = "JZIHGFEDCBA";
   const fg = "XWUTRQPNMLK";
   const m = "KLJNPQRTUWX";
-  const table = p === "S" || p === "T" ? st : p === "F" || p === "G" ? fg : m;
-  return table[s % 11] === id[8];
+  const r = s % 11;
+  const expected = p === "S" || p === "T" ? st[r] : p === "F" || p === "G" ? fg[r] : m[10 - r];
+  return expected === id[8];
 };
 
 const denylist = existsSync(".pii-denylist")
@@ -62,7 +71,11 @@ const denylist = existsSync(".pii-denylist")
       .filter((l) => l && !l.startsWith("#"))
   : [];
 
-const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "utf8" })
+const files = execFileSync(
+  "git",
+  ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+  { encoding: "utf8" },
+)
   .split("\0")
   .filter((f) => f && existsSync(f) && !SKIP.some((r) => r.test(f)));
 
@@ -74,22 +87,43 @@ function scanText(file, text) {
     const ln = i + 1;
     for (const m of line.matchAll(/(?<![\d-])(?:\d[ -]?){12,18}\d(?![\d-])/g)) {
       const num = m[0].replace(/[ -]/g, "");
-      if (num.length >= 13 && num.length <= 19 && luhn(num) && !TEST_PANS.has(num) && !/^0+$/.test(num)) flag(file, ln, "card-number");
+      // A plain 13-digit epoch-millisecond timestamp (2015–2040, e.g. in drizzle/meta)
+      // isn't a card number: no card network issues 13-digit numbers starting 1 or 2.
+      const epochMs = /^\d{13}$/.test(m[0]) && Number(num) > 1.42e12 && Number(num) < 2.21e12;
+      if (
+        !epochMs &&
+        num.length >= 13 &&
+        num.length <= 19 &&
+        luhn(num) &&
+        !TEST_PANS.has(num) &&
+        !/^0+$/.test(num)
+      )
+        flag(file, ln, "card-number");
     }
-    for (const m of line.matchAll(/\b[STFGM]\d{7}[A-Z]\b/g)) if (nricValid(m[0])) flag(file, ln, "nric-fin");
+    for (const m of line.matchAll(/\b[STFGM]\d{7}[A-Z]\b/g))
+      if (nricValid(m[0])) flag(file, ln, "nric-fin");
     for (const m of line.matchAll(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g)) {
-      if (!EMAIL_ALLOW.some((r) => r.test(m[0])) && !/@\d/.test(m[0]) && !/\.(png|svg|js|ts|mjs|json)$/i.test(m[0])) flag(file, ln, "email");
+      if (
+        !EMAIL_ALLOW.some((r) => r.test(m[0])) &&
+        !/@\d/.test(m[0]) &&
+        !/\.(png|svg|js|ts|mjs|json)$/i.test(m[0])
+      )
+        flag(file, ln, "email");
     }
     if (/\+65[\s-]?[689]\d{3}[\s-]?\d{4}\b/.test(line)) flag(file, ln, "sg-phone");
-    for (const m of line.matchAll(/SINGAPORE\s*\(?S?\)?\s*(\d{6})\b/gi)) if (m[1] !== "000000") flag(file, ln, "sg-postal-code");
+    for (const m of line.matchAll(/SINGAPORE\s*\(?S?\)?\s*(\d{6})\b/gi))
+      if (m[1] !== "000000") flag(file, ln, "sg-postal-code");
     const lower = line.toLowerCase();
-    denylist.forEach((term, k) => lower.includes(term) && flag(file, ln, `denylist entry #${k + 1}`));
+    denylist.forEach(
+      (term, k) => lower.includes(term) && flag(file, ln, `denylist entry #${k + 1}`),
+    );
   });
 }
 
 for (const file of files) {
   if (IMAGE.test(file)) {
-    if (!IMAGE_DIRS.some((r) => r.test(file))) flag(file, 0, "image outside docs/ or public/ (could be a screenshot of real data)");
+    if (!IMAGE_DIRS.some((r) => r.test(file)))
+      flag(file, 0, "image outside docs/ or public/ (could be a screenshot of real data)");
     continue;
   }
   if (/\.pdf$/i.test(file)) {
@@ -98,8 +132,12 @@ for (const file of files) {
       continue;
     }
     try {
-      const pdf = await PDFDocument.load(readFileSync(file), { ignoreEncryption: true, updateMetadata: false });
-      if (!(pdf.getSubject() ?? "").includes(SYNTHETIC_MARK)) flag(file, 0, "PDF is not marked as synthetic");
+      const pdf = await PDFDocument.load(readFileSync(file), {
+        ignoreEncryption: true,
+        updateMetadata: false,
+      });
+      if (!(pdf.getSubject() ?? "").includes(SYNTHETIC_MARK))
+        flag(file, 0, "PDF is not marked as synthetic");
     } catch {
       flag(file, 0, "PDF could not be verified as synthetic");
     }
@@ -110,8 +148,12 @@ for (const file of files) {
 }
 
 if (findings.length) {
-  console.error(`check:pii found ${findings.length} problem(s). Remove the data; do not weaken this check.\n`);
+  console.error(
+    `check:pii found ${findings.length} problem(s). Remove the data; do not weaken this check.\n`,
+  );
   for (const f of findings) console.error("  " + f);
   process.exit(1);
 }
-console.log(`check:pii OK (${files.length} files${denylist.length ? `, ${denylist.length} local denylist entries` : ""})`);
+console.log(
+  `check:pii OK (${files.length} files${denylist.length ? `, ${denylist.length} local denylist entries` : ""})`,
+);

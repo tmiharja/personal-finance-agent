@@ -21,3 +21,9 @@ tests/private/
 
 .DS_Store
 *.log
+
+# Next / test artefacts
+next-env.d.ts
+*.tsbuildinfo
+test-results/
+playwright-report/
