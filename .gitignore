@@ -1,0 +1,23 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+coverage/
+
+# env and secrets
+.env*
+!.env.example
+
+# NEVER commit real statements or personal data.
+# Only synthetic fixtures (watermarked, fictional person, test card numbers) are allowed.
+*.pdf
+*.csv
+*.xls
+*.xlsx
+!evals/fixtures/synthetic/**/*.pdf
+private/
+tests/private/
+.pii-denylist
+
+.DS_Store
+*.log
