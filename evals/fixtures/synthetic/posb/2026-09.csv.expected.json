@@ -1,0 +1,120 @@
+{
+  "synthetic": true,
+  "bank": "DBS",
+  "kind": "deposit",
+  "statementDate": "2026-09-30",
+  "cards": [
+    {
+      "productName": "POSB SAMPLE SAVINGS ACCOUNT",
+      "ordinal": 1,
+      "previousBalanceCents": null,
+      "totalCents": -2624454,
+      "reconciled": null,
+      "rows": [
+        {
+          "txnDate": "2026-09-07",
+          "postDate": null,
+          "amountCents": 31780,
+          "rawDescriptor": "CARD PAYMENT DBS CARD",
+          "descriptor": "CARD PAYMENT DBS CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "dbs-visa"
+        },
+        {
+          "txnDate": "2026-09-07",
+          "postDate": null,
+          "amountCents": 40712,
+          "rawDescriptor": "CARD PAYMENT DBS CARD",
+          "descriptor": "CARD PAYMENT DBS CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "dbs-mc"
+        },
+        {
+          "txnDate": "2026-09-09",
+          "postDate": null,
+          "amountCents": -4890,
+          "rawDescriptor": "PAYNOW TRANSFER IN",
+          "descriptor": "PAYNOW TRANSFER IN",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-09-14",
+          "postDate": null,
+          "amountCents": 2656,
+          "rawDescriptor": "PAYNOW TRANSFER OUT",
+          "descriptor": "PAYNOW TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-09-17",
+          "postDate": null,
+          "amountCents": 2201,
+          "rawDescriptor": "PAYNOW TRANSFER OUT",
+          "descriptor": "PAYNOW TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-09-21",
+          "postDate": null,
+          "amountCents": 3683,
+          "rawDescriptor": "PAYNOW TRANSFER OUT",
+          "descriptor": "PAYNOW TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-09-21",
+          "postDate": null,
+          "amountCents": 5694,
+          "rawDescriptor": "PAYNOW TRANSFER OUT",
+          "descriptor": "PAYNOW TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Uncategorised"
+        },
+        {
+          "txnDate": "2026-09-24",
+          "postDate": null,
+          "amountCents": 6801,
+          "rawDescriptor": "SHENG SIONG - SAMPLE",
+          "descriptor": "SHENG SIONG - SAMPLE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Groceries"
+        },
+        {
+          "txnDate": "2026-09-26",
+          "postDate": null,
+          "amountCents": -300000,
+          "rawDescriptor": "FAST TRANSFER IN",
+          "descriptor": "FAST TRANSFER IN",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Transfers",
+          "transferLeg": "2026-09-26"
+        },
+        {
+          "txnDate": "2026-09-30",
+          "postDate": null,
+          "amountCents": -59,
+          "rawDescriptor": "INTEREST CREDIT",
+          "descriptor": "INTEREST CREDIT",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Income"
+        }
+      ]
+    }
+  ]
+}

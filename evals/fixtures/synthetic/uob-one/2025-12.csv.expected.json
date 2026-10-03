@@ -1,0 +1,410 @@
+{
+  "synthetic": true,
+  "bank": "UOB",
+  "kind": "deposit",
+  "statementDate": "2025-12-31",
+  "cards": [
+    {
+      "productName": "UOB SAMPLE ONE ACCOUNT",
+      "ordinal": 1,
+      "previousBalanceCents": -1922378,
+      "totalCents": -3535308,
+      "reconciled": true,
+      "rows": [
+        {
+          "txnDate": "2025-12-02",
+          "postDate": null,
+          "amountCents": 44409,
+          "rawDescriptor": "CARD PAYMENT UOB CARD",
+          "descriptor": "CARD PAYMENT UOB CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "uob-cb"
+        },
+        {
+          "txnDate": "2025-12-02",
+          "postDate": null,
+          "amountCents": 20071,
+          "rawDescriptor": "CARD PAYMENT UOB CARD",
+          "descriptor": "CARD PAYMENT UOB CARD",
+          "fx": null,
+          "kind": "card_payment",
+          "expectedCategory": "Transfers",
+          "pays": "uob-miles"
+        },
+        {
+          "txnDate": "2025-12-02",
+          "postDate": null,
+          "amountCents": 826,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-03",
+          "postDate": null,
+          "amountCents": 972,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-03",
+          "postDate": null,
+          "amountCents": 834,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-03",
+          "postDate": null,
+          "amountCents": 747,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-03",
+          "postDate": null,
+          "amountCents": 1094,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-06",
+          "postDate": null,
+          "amountCents": 20000,
+          "rawDescriptor": "CASH WITHDRAWAL ATM",
+          "descriptor": "CASH WITHDRAWAL ATM",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Cash"
+        },
+        {
+          "txnDate": "2025-12-06",
+          "postDate": null,
+          "amountCents": 1171,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-07",
+          "postDate": null,
+          "amountCents": 1096,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-08",
+          "postDate": null,
+          "amountCents": 1199,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-10",
+          "postDate": null,
+          "amountCents": 943,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-10",
+          "postDate": null,
+          "amountCents": 997,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-11",
+          "postDate": null,
+          "amountCents": 1157,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-12",
+          "postDate": null,
+          "amountCents": 959,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-12",
+          "postDate": null,
+          "amountCents": 710,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-12",
+          "postDate": null,
+          "amountCents": 583,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-13",
+          "postDate": null,
+          "amountCents": 827,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-13",
+          "postDate": null,
+          "amountCents": 402,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-13",
+          "postDate": null,
+          "amountCents": 466,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-14",
+          "postDate": null,
+          "amountCents": 422,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-14",
+          "postDate": null,
+          "amountCents": 939,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-15",
+          "postDate": null,
+          "amountCents": 8240,
+          "rawDescriptor": "SAMPLE TOWN COUNCIL",
+          "descriptor": "SAMPLE TOWN COUNCIL",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Bills & Utilities"
+        },
+        {
+          "txnDate": "2025-12-16",
+          "postDate": null,
+          "amountCents": 816,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-17",
+          "postDate": null,
+          "amountCents": 614,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-18",
+          "postDate": null,
+          "amountCents": 1176,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-19",
+          "postDate": null,
+          "amountCents": -1360000,
+          "rawDescriptor": "SALARY SAMPLE EMPLOYER PTE LTD",
+          "descriptor": "SALARY SAMPLE EMPLOYER PTE LTD",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Income"
+        },
+        {
+          "txnDate": "2025-12-19",
+          "postDate": null,
+          "amountCents": 924,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-20",
+          "postDate": null,
+          "amountCents": 648,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-20",
+          "postDate": null,
+          "amountCents": 824,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-21",
+          "postDate": null,
+          "amountCents": 10000,
+          "rawDescriptor": "CASH WITHDRAWAL ATM",
+          "descriptor": "CASH WITHDRAWAL ATM",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Cash"
+        },
+        {
+          "txnDate": "2025-12-23",
+          "postDate": null,
+          "amountCents": 1098,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-23",
+          "postDate": null,
+          "amountCents": 1156,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-25",
+          "postDate": null,
+          "amountCents": -680000,
+          "rawDescriptor": "SALARY SAMPLE EMPLOYER PTE LTD",
+          "descriptor": "SALARY SAMPLE EMPLOYER PTE LTD",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Income"
+        },
+        {
+          "txnDate": "2025-12-25",
+          "postDate": null,
+          "amountCents": 829,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-26",
+          "postDate": null,
+          "amountCents": 300000,
+          "rawDescriptor": "FAST TRANSFER OUT",
+          "descriptor": "FAST TRANSFER OUT",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Transfers",
+          "transferLeg": "2025-12-26"
+        },
+        {
+          "txnDate": "2025-12-26",
+          "postDate": null,
+          "amountCents": 1172,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-27",
+          "postDate": null,
+          "amountCents": 667,
+          "rawDescriptor": "SAMPLE HAWKER CENTRE",
+          "descriptor": "SAMPLE HAWKER CENTRE",
+          "fx": null,
+          "kind": "charge",
+          "expectedCategory": "Dining"
+        },
+        {
+          "txnDate": "2025-12-31",
+          "postDate": null,
+          "amountCents": -1918,
+          "rawDescriptor": "INTEREST CREDIT",
+          "descriptor": "INTEREST CREDIT",
+          "fx": null,
+          "kind": "income",
+          "expectedCategory": "Income"
+        }
+      ]
+    }
+  ]
+}

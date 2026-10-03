@@ -23,6 +23,7 @@ export type CategoryName =
   | "Home"
   | "Fees & Charges"
   | "Gifts & Donations"
+  | "Cash"
   | "Cashback & Rewards"
   | "Income"
   | "Transfers"
@@ -40,6 +41,15 @@ export const MERCHANTS: readonly Entry[] = [
     null,
   ],
   [/\bCASHBACK$/i, "Card cashback", null],
+  // Bank-account system rows (descriptors written by the bank-row parser)
+  [/^CARD PAYMENT\b/i, "Card payment", null],
+  [/^SALARY\b/i, "Salary", null],
+  [/^INTEREST CREDIT$/i, "Interest", null],
+  [/^TRANSFER (TO|FROM) OWN ACCOUNT$/i, "Own account transfer", null],
+  [/^PAYNOW TRANSFER (OUT|IN)$/i, "PayNow transfer", null],
+  [/^FAST TRANSFER (OUT|IN)$/i, "FAST transfer", null],
+  [/^FUNDS TRANSFER (OUT|IN)$/i, "Funds transfer", null],
+  [/^CASH WITHDRAWAL ATM$/i, "Cash withdrawal", "Cash"],
   // Transport
   [/^GRAB\s*FOOD\b/i, "GrabFood", "Dining"],
   [/^GRAB(\*|\s|$)/i, "Grab", "Transport"],

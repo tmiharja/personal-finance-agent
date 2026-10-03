@@ -18,6 +18,12 @@ const titleCase = (s: string) =>
 export function normaliseMerchant(descriptor: string): string {
   const known = lookupMerchant(descriptor)?.merchant;
   if (known) return known;
-  const base = descriptor.replace(/#/g, "").replace(TRAILING, "").replace(/\s+/g, " ").trim();
+  const base = descriptor
+    // "PAYNOW TO SAMPLE PROPERTY PTE LTD": the payee is the merchant.
+    .replace(/^(PAYNOW|FAST|FUNDS) (TO|FROM) /i, "")
+    .replace(/#/g, "")
+    .replace(TRAILING, "")
+    .replace(/\s+/g, " ")
+    .trim();
   return titleCase(base || descriptor).slice(0, 60);
 }

@@ -1,0 +1,15 @@
+"SYNTHETIC TEST DATA - fictional person, not a real bank export"
+Account Details For:,POSB Sample Savings Account 000-00000-0
+Statement as at:,30 Nov 2025
+Available Balance:,"9,735.39"
+Ledger Balance:,"9,735.39"
+
+Transaction Date,Reference,Debit Amount,Credit Amount,Transaction Ref1,Transaction Ref2,Transaction Ref3
+01 Nov 2025,PayNow Transfer,23.50,,TO JORDAN TAN,OTHR,
+07 Nov 2025,BILL,346.53,,DBS CARD CENTRE,4111111111111111,
+07 Nov 2025,BILL,312.84,,DBS CARD CENTRE,5555555555554444,
+10 Nov 2025,POS,33.79,,SHENG SIONG - SAMPLE,,
+20 Nov 2025,PayNow Transfer,,48.73,FROM JORDAN TAN,,
+22 Nov 2025,PayNow Transfer,57.24,,TO JORDAN TAN,OTHR,
+26 Nov 2025,ICT,,"3,000.00",FROM ALEX TAN,OTHR,
+30 Nov 2025,INT,,0.40,,,

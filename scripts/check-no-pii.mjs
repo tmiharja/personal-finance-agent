@@ -4,7 +4,8 @@
 //   - NRIC/FIN numbers (checksum-validated)
 //   - email addresses outside an allowlist
 //   - +65 phone numbers and SG postal codes other than the fictional 000000
-//   - PDFs that are not synthetic fixtures, and images outside docs/ or public/
+//   - PDFs and CSV/XLS(X) statement exports that are not synthetic fixtures, and images
+//     outside docs/ or public/
 //   - any entry in the local, git-ignored .pii-denylist (one string per line, e.g. your
 //     name, street, card last-4 + product). Keep it local; never commit it.
 // Findings print file:line and the rule only, never the matched value, so CI logs stay clean.
@@ -149,6 +150,19 @@ for (const file of files) {
     } catch {
       flag(file, 0, "PDF could not be verified as synthetic");
     }
+    continue;
+  }
+  // Bank exports (CSV, XLS/XLSX) are statements too: only marked synthetic fixtures.
+  if (/\.(xlsx?|ods)$/i.test(file)) {
+    flag(file, 0, "spreadsheet file (could be a real bank export)");
+    continue;
+  }
+  if (/\.csv$/i.test(file)) {
+    const text = readFileSync(file, "utf8");
+    if (!SYNTHETIC_PDF_DIR.test(file)) flag(file, 0, "CSV outside evals/fixtures/synthetic/");
+    else if (!text.split("\n", 1)[0].includes(SYNTHETIC_MARK))
+      flag(file, 1, "CSV is not marked as synthetic on its first line");
+    scanText(file, text);
     continue;
   }
   if (BINARY.test(file)) continue;

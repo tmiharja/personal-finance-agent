@@ -28,6 +28,7 @@ export const DEFAULT_CATEGORIES: readonly { name: string; kind: CategoryKind }[]
   { name: "Home", kind: "expense" },
   { name: "Fees & Charges", kind: "expense" },
   { name: "Gifts & Donations", kind: "expense" },
+  { name: "Cash", kind: "expense" },
   { name: "Cashback & Rewards", kind: "income" },
   { name: "Income", kind: "income" },
   { name: "Transfers", kind: "transfer" },
