@@ -18,7 +18,7 @@ const body = z.object({
     .default([]),
 });
 
-/** Ask: streams newline-delimited JSON events (see AskEvent). Read-only. */
+/** Ask: streams newline-delimited JSON events (see AskEvent). It can propose, never apply. */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
   const me = await sessionUser(request);
