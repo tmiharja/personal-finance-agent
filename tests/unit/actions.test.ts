@@ -84,7 +84,11 @@ async function ledgerFingerprint(user: string): Promise<string> {
 
 describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
   it("refuses anything off the allowlist, and imports outside the import flow", async () => {
+    // An export happens only when you ask for the file, never as a pending proposal.
     await expect(propose(db, "alex", "agent", "export_csv", {})).rejects.toMatchObject({
+      code: "action_not_allowed",
+    });
+    await expect(propose(db, "alex", "user", "export_csv", {})).rejects.toMatchObject({
       code: "action_not_allowed",
     });
     await expect(propose(db, "alex", "agent", "commit_import", {})).rejects.toMatchObject({
@@ -240,7 +244,7 @@ describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
   it("approves a batch, each on its own (ACT-5)", async () => {
     const a = await propose(db, "alex", "agent", "set_budget", {
       category: "Transport",
-      monthlyAmountCents: 20_000,
+      monthlyAmountCents: 22_000,
     });
     const b = await propose(db, "alex", "agent", "set_budget", {
       category: "Groceries",
@@ -253,7 +257,7 @@ describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
       { id: b.proposalId, ok: false, code: "proposal_not_pending" },
     ]);
     const set = await as((tx) => tx.select().from(budgets));
-    expect(set.map((x) => x.monthlyAmountCents)).toContain(20_000);
+    expect(set.map((x) => x.monthlyAmountCents)).toContain(22_000);
     expect(set.map((x) => x.monthlyAmountCents)).not.toContain(60_000);
   });
 

@@ -10,6 +10,8 @@ import * as schema from "@/db/schema";
 import { getEnv } from "@/env";
 import { site } from "@/lib/site";
 import { logEvent } from "@/server/log";
+import { sql } from "drizzle-orm";
+import { archiveSpend } from "@/server/llm/usage";
 import { sendSignInCode } from "./mailer";
 
 function createAuth() {
@@ -56,7 +58,17 @@ function createAuth() {
       // Sensitive actions (export, delete, large approvals) require a session this fresh.
       freshAge: 60 * 10,
     },
-    user: { deleteUser: { enabled: true } },
+    // "Delete my account and all data" (Settings): needs a sign-in in the last
+    // 10 minutes (freshAge); every row the user owns cascades from the user row.
+    user: {
+      deleteUser: {
+        enabled: true,
+        beforeDelete: async (u) => {
+          await getDb().transaction((tx) => archiveSpend(tx, sql`u.user_id = ${u.id}`));
+        },
+        afterDelete: async () => logEvent("account.deleted", {}),
+      },
+    },
     rateLimit: { enabled: true, storage: "database", window: 60, max: 30 },
     advanced: {
       // Don't store sign-in IP addresses (PRD §7.1 data minimisation).

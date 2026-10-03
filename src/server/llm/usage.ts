@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
 import { usage } from "@/db/schema";
@@ -73,4 +73,17 @@ export async function budgetBlock(
   if (Number(mine!.usd) >= env.LLM_USER_MONTHLY_USD) return "user_budget";
   if (route === "ask" && mine!.asked >= (dailyLimit ?? env.ASK_DAILY_LIMIT)) return "daily_limit";
   return null;
+}
+
+/**
+ * Keeps deleted users' LLM spend as monthly totals (no user id), so the global
+ * budget breaker still counts it after their usage rows cascade away.
+ */
+export async function archiveSpend(tx: Tx, who: SQL) {
+  await tx.execute(sql`
+    insert into llm_spend_archive (month, cost_usd)
+    select date_trunc('month', u.created_at at time zone 'Asia/Singapore')::date, sum(u.cost_usd)
+    from usage u where ${who}
+    group by 1
+    on conflict (month) do update set cost_usd = llm_spend_archive.cost_usd + excluded.cost_usd`);
 }

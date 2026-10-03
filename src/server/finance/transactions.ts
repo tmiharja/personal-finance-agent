@@ -64,7 +64,7 @@ const REVIEW_KINDS = ["charge", "refund", "income"] as const;
 
 export const REVIEW_SQL = sql`(${categories.name} = 'Uncategorised' or ${transactions.categoryId} is null or (${transactions.categorySource} = 'llm' and coalesce(${transactions.confidence}, 0) < ${LOW_CONFIDENCE}))`;
 
-function conditions(f: TxnFilter): SQL[] {
+export function conditions(f: TxnFilter): SQL[] {
   const where: SQL[] = [];
   if (f.from) where.push(gte(transactions.txnDate, f.from));
   if (f.to) where.push(lte(transactions.txnDate, f.to));

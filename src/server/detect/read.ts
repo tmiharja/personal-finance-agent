@@ -77,6 +77,8 @@ export type BillView = {
   lastAmountCents: number | null;
   lastPaidOn: string | null;
   status: "upcoming" | "paid" | "overdue";
+  /** "manual": one you added, which you can change. */
+  source: "detected" | "manual" | "statement";
 };
 
 /** DET-6 and DET-7: each card's latest statement due, plus detected recurring bills. */
@@ -116,6 +118,7 @@ export async function listBills(
         last: bills.lastAmountCents,
         lastPaidOn: bills.lastPaidOn,
         status: bills.status,
+        source: bills.source,
       })
       .from(bills)
       .orderBy(bills.dueDate);
@@ -142,6 +145,7 @@ export async function listBills(
         lastAmountCents: b.last,
         lastPaidOn: b.lastPaidOn,
         status: b.status,
+        source: b.source,
       })),
     };
   });

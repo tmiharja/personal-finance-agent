@@ -7,6 +7,7 @@ import { getEnv } from "@/env";
 import type { MasterKeys } from "@/server/crypto/envelope";
 import { logEvent } from "@/server/log";
 import { runDetectors } from "@/server/detect/run";
+import { archiveSpend } from "@/server/llm/usage";
 import { seedDemoWorkspace } from "./seed";
 
 /**
@@ -76,13 +77,10 @@ export async function prepareDemoWorkspace(db: AppDb, userId: string, keys: Mast
 export async function deleteExpiredDemos(db: AppDb, now = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - DEMO_TTL_MS);
   return db.transaction(async (tx) => {
-    await tx.execute(sql`
-      insert into llm_spend_archive (month, cost_usd)
-      select date_trunc('month', u.created_at at time zone 'Asia/Singapore')::date, sum(u.cost_usd)
-      from usage u join "user" x on x.id = u.user_id
-      where x.is_anonymous and x.created_at < ${cutoff}
-      group by 1
-      on conflict (month) do update set cost_usd = llm_spend_archive.cost_usd + excluded.cost_usd`);
+    await archiveSpend(
+      tx,
+      sql`u.user_id in (select id from "user" where is_anonymous and created_at < ${cutoff})`,
+    );
     const gone = await tx
       .delete(user)
       .where(and(eq(user.isAnonymous, true), lt(user.createdAt, cutoff)))

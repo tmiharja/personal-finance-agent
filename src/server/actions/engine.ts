@@ -57,6 +57,8 @@ export type ActionDef<I = unknown, P = unknown> = {
   undoable: boolean;
   /** Re-run the detectors after it executes (it changed transactions or rules). */
   ledger: boolean;
+  /** Only as your own direct action, never a pending proposal (an export needs you there for the file). */
+  directOnly?: boolean;
   /** Validates against your data (RLS: anything not yours doesn't exist) and builds the preview. */
   prepare(tx: Tx, userId: string, input: I): Promise<{ payload: P; preview: ActionPreview }>;
   /** Current versions of everything the payload touches; `lock` locks the rows (FOR UPDATE). */
@@ -92,9 +94,11 @@ async function proposeTx(
   proposer: Proposer,
   type: ActionType,
   rawInput: unknown,
+  direct = false,
 ): Promise<{ proposal: Proposal; preview: ActionPreview }> {
   const def = REGISTRY.get(type);
   if (!def) throw new ProposalError("action_not_allowed"); // ACT-1: not on the allowlist
+  if (def.directOnly && !direct) throw new ProposalError("action_not_allowed");
   const input = def.input.safeParse(rawInput);
   if (!input.success) throw new ProposalError("invalid_input");
   const { payload, preview } = await def.prepare(tx, userId, input.data);
@@ -241,7 +245,7 @@ export async function applyDirect(
   input: unknown,
 ): Promise<Decided & { proposalId: string }> {
   const outcome = await withUser(db, userId, async (tx) => {
-    const { proposal } = await proposeTx(tx, userId, "user", type, input);
+    const { proposal } = await proposeTx(tx, userId, "user", type, input, true);
     const done = await executeTx(tx, userId, proposal);
     return typeof done === "string" ? done : { ...done, proposalId: proposal.id };
   });
