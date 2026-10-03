@@ -42,11 +42,13 @@
     "react-dom": "19.3.0",
     "resend": "6.32.0",
     "tailwind-merge": "3.7.0",
+    "unpdf": "1.8.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
     "@electric-sql/pglite-socket": "0.2.11",
+    "@pdfsmaller/pdf-encrypt-lite": "1.2.0",
     "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.20.4",

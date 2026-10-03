@@ -13,7 +13,12 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { PDFDocument } from "pdf-lib";
+import { getDocumentProxy } from "unpdf";
+
+const VARIANTS_DIR = "evals/fixtures/synthetic/variants";
+const VARIANTS = existsSync(`${VARIANTS_DIR}/manifest.json`)
+  ? JSON.parse(readFileSync(`${VARIANTS_DIR}/manifest.json`, "utf8")).variants
+  : [];
 
 const TEST_PANS = new Set([
   "4111111111111111",
@@ -132,11 +137,14 @@ for (const file of files) {
       continue;
     }
     try {
-      const pdf = await PDFDocument.load(readFileSync(file), {
-        ignoreEncryption: true,
-        updateMetadata: false,
+      // pdf.js decrypts metadata; encrypted fixtures list their fictional password in the manifest.
+      const variant = VARIANTS.find((v) => `${VARIANTS_DIR}/${v.file}` === file);
+      const pdf = await getDocumentProxy(new Uint8Array(readFileSync(file)), {
+        ...(variant?.password ? { password: variant.password } : {}),
       });
-      if (!(pdf.getSubject() ?? "").includes(SYNTHETIC_MARK))
+      const { info } = await pdf.getMetadata();
+      await pdf.cleanup?.();
+      if (!String(info?.Subject ?? "").includes(SYNTHETIC_MARK))
         flag(file, 0, "PDF is not marked as synthetic");
     } catch {
       flag(file, 0, "PDF could not be verified as synthetic");

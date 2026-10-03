@@ -20,6 +20,7 @@ The layouts follow [`docs/statement-formats.md`](../../docs/statement-formats.md
 - `uob/2025-10.pdf … 2026-09.pdf`: 12 monthly UOB statements, each with 2 cards (one card name wraps in the summary table)
 - `*.expected.json`: the exact parse result per PDF, following the output contract in `statement-formats.md` §3, plus `rawDescriptor`, `expectedCategory` and `supplementary` for evals
 - `ledger.json`: the events planted in the data, which detector evals should find
+- `variants/`: encrypted copies (RC4-128). `dbs-2026-03-owner-only.pdf` is copy-restricted with no open password, like real DBS e-statements. `uob-2026-01-password.pdf` needs the fictional password `alex0000`. `manifest.json` lists both, and `npm run check:pii` uses it to verify their synthetic marker.
 
 In total there are 24 statements and 885 rows. Every card section reconciles: previous balance + Σ rows = total.
 

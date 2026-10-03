@@ -9,8 +9,10 @@
 // Output: evals/fixtures/synthetic/{dbs,uob}/<yyyy-mm>.pdf + .expected.json, and ledger.json
 // Deterministic: the same seed gives byte-identical files.
 
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { encryptPDF } from "@pdfsmaller/pdf-encrypt-lite";
+import { PDFDocument, PDFHexString, StandardFonts, rgb } from "pdf-lib";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -919,6 +921,50 @@ writeFileSync(
   join(OUT, "ledger.json"),
   JSON.stringify(
     { synthetic: true, persona: "Alex Tan (fictional)", period: "2025-09-15..2026-09-14", planted },
+    null,
+    2,
+  ) + "\n",
+);
+// Encrypted variants (RC4-128), same content as their base statement. A fixed
+// trailer ID keeps the output byte-identical between runs.
+//  - owner-only: opens without a prompt but restricts copying (like real DBS e-statements)
+//  - open password: the app must ask for it (the password is fictional and public)
+const VARIANTS = [
+  {
+    file: "dbs-2026-03-owner-only.pdf",
+    base: "dbs/2026-03",
+    userPassword: "",
+    options: { ownerPassword: "synthetic-owner", allowCopying: false },
+  },
+  {
+    file: "uob-2026-01-password.pdf",
+    base: "uob/2026-01",
+    userPassword: "alex0000",
+    options: { ownerPassword: "synthetic-owner" },
+  },
+];
+mkdirSync(join(OUT, "variants"), { recursive: true });
+for (const v of VARIANTS) {
+  const doc = await PDFDocument.load(readFileSync(join(OUT, `${v.base}.pdf`)), {
+    updateMetadata: false,
+  });
+  const id = createHash("md5").update(v.file).digest("hex");
+  doc.context.trailerInfo.ID = doc.context.obj([PDFHexString.of(id), PDFHexString.of(id)]);
+  const plain = await doc.save({ useObjectStreams: false });
+  writeFileSync(join(OUT, "variants", v.file), await encryptPDF(plain, v.userPassword, v.options));
+}
+writeFileSync(
+  join(OUT, "variants", "manifest.json"),
+  JSON.stringify(
+    {
+      synthetic: true,
+      note: "Fictional passwords for synthetic test PDFs only.",
+      variants: VARIANTS.map((v) => ({
+        file: v.file,
+        base: v.base,
+        password: v.userPassword || null,
+      })),
+    },
     null,
     2,
   ) + "\n",
