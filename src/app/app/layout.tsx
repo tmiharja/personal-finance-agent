@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import AppHeader from "@/components/app/app-header";
+import AskPanel from "@/components/ask/ask-panel";
 import { TabBar } from "@/components/app/app-nav";
 import SiteFooter from "@/components/site-footer";
 import { getDb } from "@/db/client";
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </main>
       <SiteFooter />
       <TabBar />
+      <AskPanel />
     </div>
   );
 }
