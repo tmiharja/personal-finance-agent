@@ -1,0 +1,86 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#fbfbf9;color:#1a1a1a;font-family:Helvetica,"Helvetica Neue",Arial,"Liberation Sans",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{width:1500px;padding:44px 52px 40px}
+h1{font-size:30px;font-weight:500;letter-spacing:-.02em}
+.sub{font-size:15px;color:#5f5f5f;margin:8px 0 28px;line-height:1.5;max-width:1150px}
+.band{border:1px solid #e6e4df;border-radius:10px;padding:16px 18px 18px;margin-bottom:10px;position:relative}
+.band.v{background:#eef3f8;border-color:#c9d6e4}
+.bl{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#5f5f5f;margin-bottom:12px;display:flex;justify-content:space-between}
+.bl span:last-child{font-weight:400;letter-spacing:.02em;text-transform:none}
+.grid{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:18px}
+.col{display:flex;flex-direction:column;gap:6px}
+.ct{font-size:13px;font-weight:600;color:#1f4e79;margin-bottom:4px}
+.box{background:#fff;border:1px solid #1f4e79;border-radius:7px;padding:8px 11px;font-size:13.5px;line-height:1.35}
+.box small{display:block;color:#5f5f5f;font-size:12px;margin-top:2px}
+.box.soft{border-color:#c9d6e4}
+.box.db{border-radius:14px}
+.box.hl{background:#1f4e79;color:#fff;border-color:#1f4e79}
+.box.hl small{color:#dbe6f2}
+.box.warn{background:#faf3e3;border-color:#8a5a00}
+.box.warn small{color:#8a5a00}
+.ar{font-size:12px;color:#5f5f5f;text-align:center;line-height:1}
+.ar b{color:#1f4e79;font-weight:600}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.down{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:18px;margin:-2px 0 8px}
+.down div{font-size:12px;color:#5f5f5f;text-align:center}
+.down b{color:#1f4e79}
+.tag{display:inline-block;font-size:11px;border:1px solid #1f4e79;color:#1f4e79;border-radius:999px;padding:1px 8px;margin-top:6px;background:#fff}
+.funnel{margin-top:12px;font-size:13px;background:#fff;border:1px dashed #1f4e79;border-radius:7px;padding:8px 12px;color:#1a1a1a}
+.funnel b{color:#1f4e79}
+.legend{margin-top:18px;border-top:1px solid #e6e4df;padding-top:12px;font-size:12.5px;color:#5f5f5f;display:flex;gap:26px;flex-wrap:wrap}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px;border:1px solid #1f4e79}
+</style></head><body><div class="wrap">
+<h1>Personal Finance Agent · solution architecture</h1>
+<p class="sub">Deterministic first, LLM as fallback. The agent reads through user-scoped tools and never writes: every change, including committing an import, becomes a <b>proposal</b> that the server executes only after you approve it. All data stores are in Singapore. Numbers match the component tables in <code>architecture.md</code> §4.</p>
+
+<div class="band"><div class="bl"><span>User's browser</span><span>Next.js client · tokens shared with Resume Optimiser + portfolio · light / dark</span></div>
+<div class="grid">
+ <div class="col"><div class="box">① Import + preview<small>multi-file drop · PDF password prompt · SSE progress</small></div></div>
+ <div class="col"><div class="row2"><div class="box">③ Ask chat<small>answers · mini charts · "View N txns"</small></div><div class="box">② Data screens<small>Overview · Transactions · Subs · Bills · Alerts</small></div></div></div>
+ <div class="col"><div class="box hl">④ Approval cards + Activity<small>Approve / Reject / Edit · batch · audit · Undo</small></div></div>
+</div></div>
+<div class="down"><div>↓ <b>file + password</b> · ↑ preview</div><div>↓ <b>question</b> · ↑ streamed answer + proposal cards</div><div>↑ <b>pending proposals</b> · ↓ approve / reject (CSRF + step-up)</div></div>
+
+<div class="band v"><div class="bl"><span>Vercel · sin1 · one Next.js app (Node, Fluid Compute)</span><span>⑤ Auth + session: passkey / email OTP · session sets <code>app.user_id</code> for RLS · demo = ephemeral workspace</span></div>
+<div class="grid">
+ <div class="col"><div class="ct">Ingest pipeline · SSE</div>
+  <div class="box">⑥ Guards<small>same-origin · ≤4 MB · magic bytes · rate limit</small></div><div class="ar">↓</div>
+  <div class="box">⑦ Unlock PDF in memory<small>password never stored · raw file discarded</small></div><div class="ar">↓</div>
+  <div class="box">⑧ Detect bank + format</div><div class="ar">↓</div>
+  <div class="row2"><div class="box">⑨ Deterministic parser<small>MVP: DBS · UOB credit cards</small></div><div class="box soft">⑨b LLM fallback<small>unknown layouts · Haiku</small></div></div><div class="ar">↓</div>
+  <div class="box warn">⑨c PII firewall<small>card nos · names · addresses · account nos dropped · 6+ digit runs → # · before storage, LLM and logs</small></div><div class="ar">↓</div>
+  <div class="box">⑩ Reconcile totals<small>mismatch → flag + block commit</small></div><div class="ar">↓</div>
+  <div class="box">⑪ Normalise · dedupe · transfers</div><div class="ar">↓</div>
+  <div class="box">⑫ Categorise<small>your rules → merchant map → LLM (masked, enum)</small></div><div class="ar">↓</div>
+  <div class="box">⑬ Import preview<small>held in Redis 24 h</small><span class="tag">→ commit_import proposal to ⑱</span></div>
+ </div>
+ <div class="col"><div class="ct">Ask agent · streaming</div>
+  <div class="box">⑭ Tool loop<small>AI SDK · Sonnet 5.5 · cached system + tools · step + cost caps</small></div><div class="ar">↓ calls</div>
+  <div class="box">⑮ Read tools<small>resolve_period · spend_summary · compare_periods · top_merchants · list_transactions · subs / bills / alerts / budgets — parameterised SQL, <b>user_id from session, never from the model</b></small></div><div class="ar">↓</div>
+  <div class="box">⑯ propose_action<small>the only write-adjacent tool: creates a pending proposal, never executes</small><span class="tag">→ to ⑱</span></div><div class="ar">↓</div>
+  <div class="box">⑰ Numbers guard<small>every figure in the answer must appear in a tool result</small></div>
+  <div class="ct" style="margin-top:14px">Background</div>
+  <div class="box">㉓ Vercel Cron · daily<small>detectors · weekly digest · demo cleanup · retention</small></div><div class="ar">↓</div>
+  <div class="box">㉒ Detectors (no LLM)<small>subscriptions · price rise · trials · unusual · duplicates · card fees · bills / due dates</small><span class="tag">→ alerts + suggested actions to ⑱</span></div>
+ </div>
+ <div class="col"><div class="ct">Approval engine · human in the loop</div>
+  <div class="box">⑱ Policy + preview builder<small>action allowlist · Zod · ownership of every id · bounds · deterministic diff · payload hash + row versions</small></div><div class="ar">↓</div>
+  <div class="box db">⑲ proposed_actions<small>pending → approved → executed · rejected · stale · expired (24 h)</small></div><div class="ar">↓ <b>only after you approve in ④</b></div>
+  <div class="box hl">⑳ Executor<small>re-check versions · run exactly the previewed payload · one DB transaction · idempotent · stores inverse for Undo</small></div><div class="ar">↓</div>
+  <div class="box db">㉑ audit_log (append-only)<small>who proposed · preview · decision · result · undo</small></div>
+  <div class="box warn" style="margin-top:12px">Never allowed<small>moving money · contacting anyone · bank logins · deleting accounts on the user's behalf · changing auth</small></div>
+  <div class="funnel"><b>Every write funnels through ⑱ → ⑲ → you → ⑳</b>: imports (⑬), agent proposals (⑯) and detector suggestions (㉒).</div>
+ </div>
+</div></div>
+<div class="down"><div>⑥ ⑬ ↔ <b>Redis</b> · ⑨b ⑫ ↔ <b>Claude</b> (masked)</div><div>⑭ ↔ <b>Claude</b> · ⑮ ㉒ → <b>Neon</b> (read / alerts)</div><div>⑳ ㉑ → <b>Neon</b> (the only ledger writes)</div></div>
+
+<div class="band"><div class="bl"><span>Data stores + external services</span><span>Singapore-hosted data · only masked, minimised payloads leave SG (disclosed under PDPA)</span></div>
+<div class="grid">
+ <div class="col"><div class="box db">Ⓒ Upstash Redis · ap-southeast-1<small>rate limits · per-user + global LLM cost counters · import previews (TTL)</small></div></div>
+ <div class="col"><div class="box soft">Ⓑ Anthropic Claude API<small>Haiku 4.5: fallback parsing, categorising, explanations · Sonnet 5.5: Q&A agent · usage + cost logged · global budget breaker</small></div></div>
+ <div class="col"><div class="box db">Ⓐ Neon Postgres · ap-southeast-1<small>RLS on every table · no card/account numbers or names stored · encrypted descriptors · integer minor units</small></div></div>
+</div></div>
+
+<div class="legend"><span><i class="sw" style="background:#fff"></i>component</span><span><i class="sw" style="background:#1f4e79"></i>human-approval path</span><span><i class="sw" style="background:#fff;border-color:#c9d6e4"></i>LLM-assisted / external</span><span><i class="sw" style="background:#faf3e3;border-color:#8a5a00"></i>hard limits / PII controls</span></div>
+</div></body></html>

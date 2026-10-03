@@ -1,0 +1,198 @@
+# Statement formats: DBS and UOB credit cards (parser spec)
+
+These rules were derived from real DBS and UOB credit-card statements. **The real files are not in this repository and must never be committed** (see [`../CLAUDE.md`](../CLAUDE.md)).
+
+Every example below is **fictional** and matches the synthetic fixtures in [`../evals/fixtures/synthetic/`](../evals/fixtures/synthetic/): the person is "Alex Tan", the card numbers are public test numbers, and the product names, merchants, amounts and dates are made up.
+
+A prototype parser built from these rules reconciled every card section of the real samples exactly. It also parses all 24 synthetic fixtures (885 rows) back to their `.expected.json`.
+
+The code blocks below show the **shape** of each line. They combine lines from several fixture statements, so their numbers don't add up.
+
+The production parser should work from **pdf.js text items with x/y positions** (via `unpdf`), not from `pdftotext -layout` lines. The rules below are written as logical lines; amounts are **right-aligned in the amount column** and should be found by x-position.
+
+---
+
+## 0. Shared rules (both banks)
+
+| Topic | Rule |
+|---|---|
+| Amount | `1,234.56` means a debit or charge (positive). `1,234.56 CR` means a credit (negative): payment, refund or cashback. Store integer cents. |
+| Dates | `DD MON` with no year. Year = the statement year, unless the month is after the statement month, in which case it's the previous year (this handles Dec → Jan). |
+| Currency | Billing currency is SGD. A foreign charge has an extra line under it with the original amount (format differs per bank, below). |
+| Reconciliation, per card | `PREVIOUS BALANCE + Σ signed rows == card total` must hold exactly, in cents. |
+| Reconciliation, per statement | `Σ card totals == statement grand total` (DBS) or `== summary "Amount to Pay" total` (UOB). |
+| Stop zones | Stop reading transactions at the end-of-transactions marker. The pages after it repeat card numbers and totals (rewards tables, payment slip), so **don't parse them**. |
+| PII | Card numbers, cardholder names, addresses and bank account numbers are consumed and dropped. See PRD §7.1a. The card's **product name** is the only card identifier kept. |
+| Card payments | Payment rows (`AUTOPAY …`, `GIRO PAYMENT`) are marked as `card_payment` transfers, so they're excluded from spend. |
+| Encryption | Try to open the PDF with no password first. Prompt for one only on pdf.js `PasswordException`. DBS statements seen so far are copy-restricted with an owner password but have no open password; UOB statements seen so far are unencrypted. |
+
+---
+
+## 1. DBS credit card statement
+
+**Fingerprint:**
+- first page contains `Credit Cards` + `Statement of Account`;
+- `DBS Cards P.O. Box`;
+- column header `DATE  DESCRIPTION  AMOUNT (S$)`.
+
+**Fixture:** [`synthetic/dbs/`](../evals/fixtures/synthetic/dbs/)
+
+### Header (page 1)
+
+```
+STATEMENT DATE        CREDIT LIMIT        MINIMUM PAYMENT        PAYMENT DUE DATE
+  14 Mar 2026         $20,000.00              $50.00                08 Apr 2026
+```
+
+| Field | Keep? |
+|---|---|
+| Statement date | ✓, gives the year for all rows |
+| Minimum payment | ✓, the statement-level total minimum |
+| Payment due date | ✓ |
+| Credit limit | ✗, not stored |
+| Name and address block (top left) | ✗, never read |
+
+### Card section (repeats per card)
+
+```
+DBS SAMPLE VISA SIGNATURE CARD NO.: 4111 1111 1111 1111         ← section start: product name + number
+
+           PREVIOUS BALANCE                                    227.22
+10 MAR     AUTOPAY AC#0000000000000000                         227.22 CR   ← card payment (strip AC#…)
+           REF NO: 00000000000000000000000                                 ← ref line (transient, dedupe only)
+
+NEW TRANSACTIONS ALEX TAN                                                  ← sub-header; drop the name
+16 FEB     GRAB* A-Y5WPJ7LPZTBL                                 23.62
+06 MAR     OPENCOURSE ONLINE SAN FRANCISCO CA                   27.20
+           U. S. DOLLAR 20.00                                              ← FX line (currency NAME + amount, no thousands separator)
+11 MAR     ANNUAL FEE                                          196.20
+11 MAR     GST @ 9%                                             17.66      ← fee GST, group with ANNUAL FEE
+09 FEB     SHOPEE SG MP                                         45.90 CR   ← refund
+NEW TRANSACTIONS JORDAN TAN                                                ← supplementary cardholder; drop the name
+                                               SUB-TOTAL:      573.23
+                                                   TOTAL:      573.23      ← card total (reconcile against this)
+Any Full Amount due will be deducted from bank account 0000000000. GIRO deduction date: …   ← drop (account no.)
+```
+
+| Element | Rule |
+|---|---|
+| Section start | Regex `^(?<product>.+?) CARD NO\.:\s*[\d ]{13,23}$`. `product` (e.g. `DBS SAMPLE VISA SIGNATURE`) is the card name. **The number is discarded.** |
+| Previous balance | `PREVIOUS BALANCE` + amount |
+| Transaction row | `DD MON` + description + amount [`CR`]. DBS shows **one date**, stored as `txn_date`, with `post_date` left null. |
+| Continuation lines | `REF NO: <digits>` is used for the dedupe hash, then dropped. An FX line matching `^(?<ccyName>[A-Z][A-Z .]+?) (?<amt>\d+\.\d{2})$` is attached to the previous row. |
+| FX currency names | DBS prints currency **names** with irregular spacing (e.g. `U. S. DOLLAR`, `RUPIAH`, `HONG KONG DOLLAR`). Map names to ISO 4217 with a lookup table (normalise spaces and dots). An unknown name keeps the row and sets `fx_currency = null` with a warning. |
+| Cardholder sub-header | `NEW TRANSACTIONS <NAME>`. Drop it. Supplementary cardholders appear as further sub-headers within the same card section. |
+| Card total | `TOTAL:` (not `SUB-TOTAL:`) |
+| Statement total | `GRAND TOTAL FOR ALL CARD ACCOUNTS:` |
+| Page furniture to ignore | `Credit Cards`, `Statement of Account`, `n of m` (counts transaction pages only), the `PDS_…` footer, GST/Co. Reg. lines, and the column header |
+| Stop zones | `DBS VISA/MASTERCARD/AMEX CARD - DBS POINTS SUMMARY` (repeats card numbers), and everything from `USEFUL INFORMATION` onwards |
+| Notable rows | `ANNUAL FEE` + `GST @ 9%` → Fees & Charges and the DET-5 alert; `AUTOPAY` → card payment |
+
+---
+
+## 2. UOB credit card statement
+
+**Fingerprint:**
+- `United Overseas Bank Limited`;
+- `Credit Card(s) Statement`;
+- column headers `Post Date | Trans Date | Description of Transaction | Transaction Amount SGD`.
+
+**Fixture:** [`synthetic/uob/`](../evals/fixtures/synthetic/uob/)
+
+### Header and summary (page 1)
+
+```
+Statement Summary
+Statement Date            13 JAN 2026
+Total Credit Limit        SGD 15,000          ← not stored
+Payment Summary
+Amount to Pay             SGD 1,274.42        ← statement total (reconcile)
+Minimum Payment           SGD 100.00
+Due Date                  01 FEB 2026
+
+Summary
+Card Name              Card Number            Name on Card     Amount to Pay SGD   Minimum Payment SGD
+UOB SAMPLE CASHBACK    4012-8888-8888-1881    ALEX TAN               357.30             50.00
+UOB SAMPLE MILES VISA  4000-0566-5566-5556    ALEX TAN               917.12             50.00
+CARD                                                                                   ← card name wraps onto a second line
+```
+
+The summary table gives each card's product name, amount to pay and minimum payment. **Card Number and Name on Card are discarded.** A wrapped name (`UOB SAMPLE MILES VISA` + `CARD`) is joined by y-proximity within the Card Name column.
+
+### Card section (repeats per card, can span many pages)
+
+```
+UOB SAMPLE CASHBACK                                                           ← product name (section title)
+4012-8888-8888-1881 ALEX TAN                                                  ← number + name: drop both
+Post Date   Trans Date   Description of Transaction              Transaction Amount SGD
+                         PREVIOUS BALANCE                                    421.02
+01 JAN      01 JAN       GIRO PAYMENT                                        421.02 CR   ← card payment
+12 JAN      11 JAN       UOB SAMPLE CASHBACK Card Cashback                     3.38 CR   ← Cashback & Rewards
+19 DEC      16 DEC       FAIRPRICE XTRA - SAMPLE SINGAPORE                    21.42
+                         Ref No. : 00000000000000000000000                               ← dedupe only
+17 DEC      13 DEC       BUS/MRT 770826567 SINGAPORE                           4.83      ← digits → "#"
+20 DEC      18 DEC       ICHIRAN SHIBUYA TOKYO JPN                            15.13
+                         JPY 1,700.00                                                    ← FX line (ISO code + amount)
+                         SUB TOTAL                                           357.30
+                         TOTAL BALANCE FOR UOB SAMPLE CASHBACK               357.30      ← card total
+```
+
+On the next page the section continues after a repeated header: `UOB SAMPLE MILES VISA CARD` / `4000-… ALEX TAN (continued)` / column header.
+
+| Element | Rule |
+|---|---|
+| Section start | A product-name title line followed by a `\d{4}-\d{4}-\d{4}-\d{4} <NAME>` line **without** `(continued)`. The product name comes from the title line, cross-checked against the summary table. |
+| Continuation | The same two lines with `(continued)` mean the current card carries on. Don't open a new card. |
+| Transaction row | Two dates (`post_date`, `txn_date`) + description + amount [`CR`]. **Rows are not in strict date order**: credits come first, then charges by transaction date, with out-of-order post dates. Don't assume sorting. |
+| Continuation lines | `Ref No. : <digits>` is used for the dedupe hash, then dropped. An FX line matching `^(?<ccy>[A-Z]{3}) (?<amt>[\d,]+\.\d{2})$` (e.g. `JPY 1,700.00`, `USD 20.00`) is attached to the previous row. |
+| Card total | `TOTAL BALANCE FOR <product>`; `SUB TOTAL` is informational |
+| Statement total | `Amount to Pay` in the Payment Summary, which equals the summary table total |
+| Page furniture to ignore | The "check the entries" disclaimer (the real one also has a Chinese translation), the bank address footer, `Page n of m`, and dashed separators |
+| Stop zones | Stop at `End of Transaction Details`. After it come `Rewards Summary` (repeats a card number), general information, and the **payment slip** (repeats every card number and amount). |
+| Descriptor quirks | The merchant and city are often run together (`…MALLSINGAPORE`, `…CBDSINGAPORE`). The merchant normaliser should strip a trailing `SINGAPORE`/`Singapore`/`N/A`, with or without a space. |
+| Notable rows | `GIRO PAYMENT` → card payment; `<PRODUCT> Card Cashback` CR → Cashback & Rewards; `BUS/MRT #` → SimplyGo / Transit |
+
+---
+
+## 3. Output contract (both parsers)
+
+```ts
+type ParsedCardStatement = {
+  bank: "DBS" | "UOB";
+  parserVersion: string;              // e.g. "dbs-card-pdf@1"
+  statementDate: string;              // ISO date
+  dueDate: string;
+  minimumPaymentCents: number;
+  statementTotalCents: number;        // DBS grand total / UOB amount to pay
+  cards: Array<{
+    productName: string;              // the ONLY card identifier, as printed, e.g. "UOB SAMPLE CASHBACK"
+    ordinal: number;                  // 1, 2… only if the same product name repeats
+    previousBalanceCents: number;
+    totalCents: number;
+    rows: Array<{
+      txnDate: string;                // ISO
+      postDate: string | null;        // UOB only
+      amountCents: number;            // + charge, − credit
+      descriptor: string;             // already sanitised (PRD §7.1a): no account numbers, 6+ digit runs → "#"
+      fx: { currency: string | null; amount: string } | null;
+      kind: "charge" | "refund" | "card_payment" | "fee" | "cashback";
+      dedupeKey: string;              // HMAC(userKey, bank|product|dates|amount|descriptor|refNo)
+    }>;
+  }>;
+  warnings: string[];                 // codes only, never values
+};
+```
+
+The parser has **no field** for a card number, cardholder name, address, credit limit or bank account. The types make it impossible to pass them on. A Zod `.strict()` schema enforces the same at runtime.
+
+The fixtures' `.expected.json` files follow this contract. They add a few fields for evals: `rawDescriptor` (fictional, as printed), `expectedCategory` and `supplementary`. They leave out `dedupeKey`, which depends on a per-user key.
+
+---
+
+## 4. Fixtures and tests
+
+- `npm run fixtures` regenerates [`evals/fixtures/synthetic/`](../evals/fixtures/synthetic/) deterministically. See [`../evals/fixtures/README.md`](../evals/fixtures/README.md) for what's planted in it.
+- **Golden tests**: exact rows, totals and reconciliation per fixture.
+- **No-PII tests**: after an import, assert that none of the fixture's test card numbers (in any format), "Alex Tan"/"Jordan Tan" or the fixture address appear in the DB, logs, LLM request bodies or API responses.
+- **Local-only real-sample test**: `tests/private/` is git-ignored and skipped in CI. It runs both parsers on your real PDFs and asserts only that reconciliation passes and that no Luhn-valid number or name reaches the output.
+- **To do**: add encrypted fixture variants (owner-password and open-password). `pdf-lib` can't encrypt, so this needs `qpdf` or an equivalent at generation time.
