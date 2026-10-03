@@ -93,7 +93,19 @@ The agent can read your data but never changes anything on its own. Every write 
 
 Not yet: a stale proposal isn't re-previewed automatically (you make the change again), cards have no Edit button, and a bulk change can't drop single rows before approval. Imports can't be undone yet.
 
-**Next: Phase 3b.** Budgets on Overview and "am I on track?" in Ask, a Settings page for rules, budgets and bills, drafts (cancellation and fee-waiver text, ACT-2), `export_csv` and the weekly digest. Real DBS/POSB and UOB bank-account samples, when you have them, turn the provisional parsers into verified ones. See the PRD §12.
+**Phase 3b: budgets, Settings, drafts, export and the weekly digest (done).**
+
+| Area | What's in place |
+|---|---|
+| Budgets | A monthly budget per spending category (PRD ASK-10), measured with the same spend definition as everything else. Overview shows each one as a bar with its status written out: over, likely to go over (the pace so far would pass it by month end), on track, or within. A month that isn't fully imported is judged on the days it covers, and says so. Ask's `get_budgets` answers "am I on track?" from the same figures. The demo household has four budgets |
+| Settings | Cards and bank accounts (product names only), monthly budgets, rules (change the category, which moves the rows the rule categorised, or delete), export and "Delete my account and all data". Every edit goes through the action engine, so it's audited and undoable from Activity |
+| Bills | Add a bill the statements don't show (payee, due day, usual amount), and change the ones you added |
+| Export | `export_csv` downloads the Transactions filter (or everything) as CSV: sanitised descriptors, no card or account numbers, formula-injection safe. Recorded in Activity, never a pending proposal, and it needs a sign-in in the last 10 minutes (AUTH-3), like account deletion |
+| Drafts | Text you copy and send yourself (ACT-2): an annual-fee waiver request from a card-fee alert, a dispute message from a possible duplicate, and how to cancel each subscription. Fixed templates over your data, with blanks for your name and card digits; nothing is ever sent. Ask's `get_draft` shows the same drafts under its answer |
+| Weekly digest | "Last week" on Overview (DET-10): spend Monday to Sunday against the week before, where it went, new alerts, and what's due in the next 7 days. It says when that week isn't imported yet instead of showing S$0 |
+| Tests | 317 unit/integration tests and 54 e2e tests (desktop + mobile): budget progress and pace, `get_budgets`, CSV contents and injection, export audit, Settings, drafts, the digest week and coverage, and e2e for budgets, export, drafts and manual bills. Screenshots: [`docs/screenshots/phase-3b/`](docs/screenshots/phase-3b/) |
+
+**Next: Phase 4 (polish and publish).** An LLM-fallback parser for layouts the deterministic parsers don't know, more banks (OCBC first), an admin page, and the portfolio write-up with eval results. Real DBS/POSB and UOB bank-account samples, when you have them, turn the provisional parsers into verified ones. See the PRD §12.
 
 ## Local development
 
