@@ -23,7 +23,10 @@ test("the demo opens on a month with spend by category and a 12-month trend", as
   await page.getByRole("link", { name: /^Mar 2026: S\$/ }).click();
   await expect(page.getByRole("heading", { name: "March 2026" })).toBeVisible();
   // A category bar leads to exactly those transactions.
-  await page.getByRole("link", { name: /^Dining: S\$/ }).click();
+  await page
+    .getByRole("region", { name: "Spend by category" })
+    .getByRole("link", { name: /^Dining: S\$/ })
+    .click();
   await expect(page).toHaveURL(/category=Dining/);
   await expect(page).toHaveURL(/from=2026-03-01/);
   await expect(page.getByText(/transactions · 1 Mar 2026 – 31 Mar 2026 · Dining/)).toBeVisible();

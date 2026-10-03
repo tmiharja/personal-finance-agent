@@ -8,6 +8,8 @@ import type { AskEvent, AskTurn } from "@/server/agent/ask";
 import type { ProposedCard } from "@/server/agent/proposals";
 import type { Figure, View } from "@/server/agent/tools";
 import ProposalCard from "@/components/proposals/proposal-card";
+import DraftPanel from "@/components/draft-panel";
+import type { Draft } from "@/lib/drafts";
 import AskFigure from "./ask-figure";
 import { OPEN_ASK } from "./ask-button";
 
@@ -24,6 +26,7 @@ type Answer = {
   error?: string;
   /** Changes Ask suggested: each waits for approval here or in Activity. */
   proposals?: ProposedCard[];
+  drafts?: Draft[];
 };
 
 /** The API accepts at most 24 earlier turns; the agent itself uses fewer. */
@@ -49,6 +52,8 @@ const TOOL_STATUS: Record<string, string> = {
   get_bills: "Checking bills…",
   get_alerts: "Checking alerts…",
   list_categories: "Checking your categories…",
+  get_budgets: "Checking your budgets…",
+  get_draft: "Writing a draft…",
   propose_recategorise: "Preparing a suggestion…",
   propose_rule: "Preparing a suggestion…",
   propose_mark_transfer: "Preparing a suggestion…",
@@ -168,6 +173,7 @@ export default function AskPanel() {
                   period: e.period,
                   guard: e.guard,
                   proposals: e.proposals,
+                  drafts: e.drafts,
                 };
               case "error":
                 return {
@@ -255,6 +261,12 @@ export default function AskPanel() {
                           </p>
                         )}
                         {a.done && a.figure && <AskFigure figure={a.figure} />}
+                        {a.done &&
+                          a.drafts?.map((d) => (
+                            <div key={d.title} className="mt-3">
+                              <DraftPanel draft={d} label={d.title} startOpen />
+                            </div>
+                          ))}
                         {a.done &&
                           a.proposals?.map((p) => (
                             <div key={p.id} className="mt-3">

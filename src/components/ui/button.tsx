@@ -15,6 +15,7 @@ const buttonVariants = cva(
         secondary: "border border-rule text-foreground hover:bg-accent-soft",
         ghost: "text-muted hover:bg-accent-soft hover:text-foreground",
         link: "link h-auto px-0",
+        danger: "border border-danger text-danger hover:bg-danger-soft",
       },
       size: {
         default: "h-11 px-5",

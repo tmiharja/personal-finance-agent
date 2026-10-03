@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ExportButton from "@/components/settings/export-button";
 import EmptyState from "@/components/empty-state";
 import PageTitle from "@/components/app/page-title";
 import TxnRow from "@/components/transactions/txn-row";
@@ -139,11 +140,27 @@ export default async function TransactionsPage({
           )}
           {page.total > 0 && <span className="text-muted"> · net {money(page.totalCents)}</span>}
         </p>
-        {toReview > 0 && !filter.review && (
-          <Link href={filterHref({ review: "1" })} className="text-[13px] text-warn">
-            {toReview} to review
-          </Link>
-        )}
+        <span className="flex items-baseline gap-4">
+          {toReview > 0 && !filter.review && (
+            <Link href={filterHref({ review: "1" })} className="text-[13px] text-warn">
+              {toReview} to review
+            </Link>
+          )}
+          {page.total > 0 && (
+            <ExportButton
+              filter={{
+                from: filter.from,
+                to: filter.to,
+                account: filter.account,
+                category: filter.category,
+                merchant: filter.merchant,
+                q: filter.q,
+                review: filter.review,
+                spend: filter.spend,
+              }}
+            />
+          )}
+        </span>
       </div>
 
       {page.total === 0 ? (

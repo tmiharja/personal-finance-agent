@@ -8,6 +8,23 @@ import { todaySgt } from "@/server/agent/period";
 import { requireUser } from "@/server/auth/session";
 import { listBills } from "@/server/detect/read";
 import { filterHref } from "@/server/finance/transactions";
+import BillForm from "@/components/settings/bill-form";
+import ManualBillEdit from "@/components/settings/manual-bill";
+
+function AddBill() {
+  return (
+    <section aria-labelledby="add-bill-heading" className="mt-12">
+      <h2 id="add-bill-heading" className="text-[17px] font-semibold">
+        Add a bill
+      </h2>
+      <p className="mt-1 mb-3 text-[13px] text-muted">
+        For a bill your statements don&rsquo;t show, like one paid in cash or from another bank. You
+        can undo it from Activity.
+      </p>
+      <BillForm />
+    </section>
+  );
+}
 
 export const metadata: Metadata = { title: "Bills" };
 
@@ -30,6 +47,7 @@ export default async function BillsPage() {
           Card due dates come from your statements. Recurring bills (telco, utilities, insurance)
           are found once three months are imported.
         </EmptyState>
+        <AddBill />
       </>
     );
   }
@@ -107,6 +125,7 @@ export default async function BillsPage() {
                     {b.payee}
                   </Link>
                   <span className="block text-[13px] text-muted">
+                    {b.source === "manual" && <>Added by you · </>}
                     {b.dueDay && <>Around the {ordinal(b.dueDay)} each month</>}
                     {b.card && <> · on {titleCase(b.card)}</>}
                     {b.lastPaidOn && (
@@ -118,7 +137,11 @@ export default async function BillsPage() {
                   </span>
                 </span>
                 <span className="tabular text-right">
-                  <span className="block text-[15px]">~{money(b.expectedAmountCents ?? 0)}</span>
+                  <span className="block text-[15px]">
+                    {b.expectedAmountCents === null
+                      ? "Amount varies"
+                      : `~${money(b.expectedAmountCents)}`}
+                  </span>
                   <span
                     className={`block text-[13px] ${b.status === "overdue" ? "text-warn" : "text-muted"}`}
                   >
@@ -129,11 +152,13 @@ export default async function BillsPage() {
                         : ""}
                   </span>
                 </span>
+                {b.source === "manual" && <ManualBillEdit bill={b} />}
               </li>
             ))}
           </ul>
         )}
       </section>
+      <AddBill />
     </>
   );
 }

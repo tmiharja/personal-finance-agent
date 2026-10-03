@@ -147,6 +147,8 @@ describe("tools (ASK-2)", () => {
       "get_subscriptions",
       "get_bills",
       "get_alerts",
+      "get_budgets",
+      "get_draft",
       "propose_recategorise",
       "propose_rule",
       "propose_mark_transfer",
@@ -495,5 +497,38 @@ describe("the Ask loop (offline mock model)", () => {
     spy.mockRestore();
     expect(error).toEqual({ t: "error", code: "ask_unavailable" });
     expect(mockLlm.mock).toBe(true);
+  });
+});
+
+describe("Ask: budgets and drafts (offline mock model)", () => {
+  async function ask(question: string) {
+    const events: AskEvent[] = [];
+    await runAsk({
+      db,
+      userId: "alex",
+      question,
+      history: [],
+      emit: (e) => events.push(e),
+      today: TODAY,
+    });
+    const text = events.reduce((s, e) => (e.t === "reset" ? "" : e.t === "text" ? s + e.d : s), "");
+    return { text, done: events.find((e) => e.t === "done") };
+  }
+
+  it("answers 'am I on track?' from get_budgets", async () => {
+    const { text, done } = await ask("Am I on track with my budgets?");
+    expect(text).toMatch(/Groceries: S\$[\d,.]+ of S\$150\.00 \((over|within|on track|at risk)\)/);
+    expect(done).toMatchObject({ guard: "pass", view: { label: "Open Overview" } });
+  });
+
+  it("drafts a fee waiver request it never sends", async () => {
+    const { text, done } = await ask("Can you help me ask the bank to waive my annual fee?");
+    expect(text).toMatch(/draft waiver request below/);
+    expect(done).toMatchObject({
+      guard: "pass",
+      drafts: [
+        { title: "Ask to waive the annual fee", text: expect.stringContaining("[Your name]") },
+      ],
+    });
   });
 });

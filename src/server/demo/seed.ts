@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AppDb } from "@/db/client";
+import { budgets } from "@/db/schema";
 import { withUser } from "@/db/with-user";
 import type { MasterKeys } from "@/server/crypto/envelope";
 import { createHash } from "node:crypto";
@@ -90,6 +91,14 @@ function demoCategory(row: {
   };
 }
 
+/** Alex's monthly budgets: one runs over in the latest month, the rest stay within. */
+const DEMO_BUDGETS: Record<string, number> = {
+  Dining: 30_000,
+  Groceries: 15_000,
+  Transport: 20_000,
+  Shopping: 25_000,
+};
+
 export type SeedResult = {
   statements: number;
   cards: number;
@@ -159,6 +168,16 @@ export async function seedDemoWorkspace(
     result.cards = cardIds.size;
     result.bankAccounts = bankIds.size;
     result.paired = (await pairTransfers(tx)).pairs;
+    await tx
+      .insert(budgets)
+      .values(
+        Object.entries(DEMO_BUDGETS).map(([name, monthlyAmountCents]) => ({
+          userId,
+          categoryId: categoryIds.get(name)!,
+          monthlyAmountCents,
+        })),
+      )
+      .onConflictDoNothing();
     return result;
   });
 }

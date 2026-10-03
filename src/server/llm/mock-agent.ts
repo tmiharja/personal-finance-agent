@@ -128,6 +128,56 @@ export async function mockTurn(
     }
     return say(`I've suggested it: ${String(proposed.title)}. Check the card below to approve it.`);
   }
+  if (/waive|waiver/i.test(question)) {
+    const alerts = results.find((r) => r.name === "get_alerts")?.data;
+    if (!alerts)
+      return message(
+        [toolUse("get_alerts", { include_closed: false })] as BetaMessage["content"],
+        "tool_use",
+        model,
+      );
+    const draft = results.find((r) => r.name === "get_draft")?.data;
+    if (!draft) {
+      const fee = (alerts.alerts as { id: string; type: string }[]).find(
+        (a) => a.type === "card_fee",
+      );
+      if (!fee) return say("You have no open card fee alerts.");
+      return message(
+        [
+          toolUse("get_draft", { kind: "fee_waiver", alert_id: fee.id, merchant: null }),
+        ] as BetaMessage["content"],
+        "tool_use",
+        model,
+      );
+    }
+    return say(
+      "I've put a draft waiver request below. Fill in the blanks and send it to your bank.",
+    );
+  }
+  if (/on track|my budgets?\b/i.test(question)) {
+    const b = results.find((r) => r.name === "get_budgets")?.data;
+    if (!b)
+      return message(
+        [toolUse("get_budgets", { month: null })] as BetaMessage["content"],
+        "tool_use",
+        model,
+      );
+    const lines = (b.budgets ?? []) as {
+      category: string;
+      spent_sgd: string;
+      budget_sgd: string;
+      status: string;
+    }[];
+    if (!lines.length) return say("You haven't set any budgets yet.");
+    return say(
+      lines
+        .map(
+          (l) =>
+            `${l.category}: ${sgd(l.spent_sgd)} of ${sgd(l.budget_sgd)} (${l.status.replace("_", " ")})`,
+        )
+        .join("; ") + ".",
+    );
+  }
   if (/subscription/i.test(question)) {
     const subs = results.find((r) => r.name === "get_subscriptions")?.data;
     if (!subs)

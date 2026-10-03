@@ -16,6 +16,8 @@ import { filterHref } from "@/server/finance/transactions";
 import type { BetaTool } from "@/server/llm/types";
 import { maskForLlm } from "@/server/pii/firewall";
 import { PER_MONTH, type Cadence } from "@/server/detect/recurring";
+import { budgetProgress } from "@/server/finance/budgets";
+import { cancellationDraft, duplicateDisputeDraft, feeWaiverDraft, type Draft } from "@/lib/drafts";
 import { resolvePeriod } from "./period";
 import {
   PROPOSE_DESCRIPTIONS,
@@ -47,6 +49,8 @@ export type ToolOutcome = {
   excluded?: SpendTotals["excluded"];
   /** A change Ask proposed: shown as an approval card, never applied by Ask. */
   proposal?: ProposedCard;
+  /** A draft to copy (ACT-2), shown under the answer. */
+  draft?: Draft;
 };
 
 export type ToolContext = {
@@ -113,6 +117,20 @@ const SCHEMAS = {
   get_subscriptions: z.object({}),
   get_bills: z.object({}),
   get_alerts: z.object({ include_closed: z.boolean() }),
+  get_budgets: z.object({
+    month: nullable(z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "use YYYY-MM")).describe(
+      "The month, or null for the latest month with data.",
+    ),
+  }),
+  get_draft: z.object({
+    kind: z.enum(["fee_waiver", "duplicate_dispute", "cancellation"]),
+    alert_id: nullable(z.uuid()).describe(
+      "For fee_waiver and duplicate_dispute: the id from get_alerts.",
+    ),
+    merchant: nullable(z.string().max(80)).describe(
+      "For cancellation: the subscription's merchant.",
+    ),
+  }),
   ...PROPOSE_SCHEMAS,
 } as const;
 
@@ -138,6 +156,10 @@ const DESCRIPTIONS: Record<ToolName, string> = {
     "Card payments due (each card's latest statement: due date, total, minimum, paid or not) and detected recurring bills (payee, usual day, usual amount, next date).",
   get_alerts:
     "Alerts raised by the detectors (price rises, trials that became paid, unusual or duplicate charges, foreign spending, card fees, payments due), each with its id and reason. Open ones only unless include_closed is true.",
+  get_budgets:
+    'Monthly budgets against spend for a month: per category the budget, spent so far, remaining, percent used, the projected month-end spend at the current pace and a status (over, at_risk, on_track, within), plus totals and how many days of the month the data covers. Use it for "am I on track?".',
+  get_draft:
+    "A draft the person can copy and send themselves (never sent by the app): a fee waiver request for a card_fee alert, a dispute message for a duplicate_charge alert, or steps to cancel a subscription. The app shows the draft under your answer; don't repeat it, just say it's there.",
   ...PROPOSE_DESCRIPTIONS,
 };
 
@@ -617,6 +639,50 @@ async function run(
         view: viewFor(range, s.scope, count!.n),
       };
     }
+    case "get_budgets": {
+      const latest = ctx.coverage?.to.slice(0, 7);
+      const month = (args.month as string | null) ?? latest;
+      if (!month || !ctx.coverage) return { result: { error: "no_data" } };
+      const p = await budgetProgress(ctx.tx, month, ctx.coverage.to);
+      if (!p) return { result: { budgets: [], note: "No budgets are set." } };
+      return {
+        result: {
+          month,
+          data_up_to: p.asOf,
+          days_covered: p.daysCovered,
+          days_in_month: p.daysInMonth,
+          budgets: p.lines.map((l) => ({
+            category: l.category,
+            budget_sgd: sgd(l.budgetCents),
+            spent_sgd: sgd(l.spentCents),
+            remaining_sgd: sgd(l.remainingCents),
+            percent_used: l.percent,
+            projected_month_end_sgd: l.projectedCents === null ? null : sgd(l.projectedCents),
+            status: l.status,
+          })),
+          total: {
+            budget_sgd: sgd(p.total.budgetCents),
+            spent_sgd: sgd(p.total.spentCents),
+            remaining_sgd: sgd(p.total.remainingCents),
+            percent_used: p.total.percent,
+          },
+        },
+        view: { href: `/app?month=${month}`, count: p.lines.length, label: "Open Overview" },
+        figure: {
+          kind: "bars",
+          title: "Spent of budget",
+          points: p.lines.map((l) => ({ label: l.category, cents: l.spentCents })),
+        },
+      };
+    }
+    case "get_draft": {
+      const draft = await draftFor(ctx, args);
+      if ("error" in draft) return { result: draft };
+      return {
+        result: { title: draft.title, shown_below_answer: true },
+        draft,
+      };
+    }
     default:
       return propose(ctx, name, args);
   }
@@ -646,4 +712,61 @@ async function propose(
         view: { href: "/app/activity", count: 1, label: "Open Activity" },
       }
     : { result: out.result };
+}
+
+/** ACT-2 drafts from the alert or subscription the model names (RLS-scoped lookups). */
+async function draftFor(
+  ctx: ToolContext,
+  args: Record<string, unknown>,
+): Promise<Draft | { error: string }> {
+  if (args.kind === "cancellation") {
+    const [s] = sqlRows<{ merchant: string; cadence: string; cents: string; next: string | null }>(
+      await ctx.tx.execute(sql`
+        select merchant_name as merchant, cadence, amount_cents::text as cents, next_expected_date::text as next
+        from subscriptions where lower(merchant_name) = lower(${String(args.merchant ?? "")}) limit 1`),
+    );
+    if (!s) return { error: "unknown_subscription" };
+    return cancellationDraft({
+      merchant: s.merchant,
+      cadence: s.cadence,
+      amountCents: Number(s.cents),
+      nextExpectedDate: s.next,
+    });
+  }
+  if (typeof args.alert_id !== "string") return { error: "alert_id_required" };
+  const [a] = sqlRows<{
+    type: string;
+    subject: string | null;
+    on: string | null;
+    details: Record<string, unknown>;
+    ids: string[];
+  }>(
+    await ctx.tx.execute(sql`
+      select type, subject, occurred_on::text as on, details, transaction_ids as ids
+      from alerts where id = ${args.alert_id}`),
+  );
+  if (!a) return { error: "unknown_alert" };
+  if (args.kind === "fee_waiver" && a.type === "card_fee" && a.subject && a.on) {
+    return feeWaiverDraft({
+      card: a.subject,
+      feeCents: Number(a.details.feeCents ?? 0),
+      gstCents: Number(a.details.gstCents ?? 0),
+      kind: String(a.details.kind ?? ""),
+      date: a.on,
+    });
+  }
+  if (args.kind === "duplicate_dispute" && a.type === "duplicate_charge" && a.subject) {
+    const rows = sqlRows<{ date: string; cents: string }>(
+      await ctx.tx.execute(sql`
+        select txn_date::text as date, amount_cents::text as cents from transactions
+        where id = any(${a.ids}::uuid[]) order by txn_date`),
+    );
+    if (!rows.length) return { error: "unknown_alert" };
+    return duplicateDisputeDraft({
+      merchant: a.subject,
+      amountCents: Number(rows[0]!.cents),
+      dates: rows.map((r) => r.date),
+    });
+  }
+  return { error: "no_draft_for_this_alert" };
 }

@@ -3,6 +3,8 @@ import Link from "next/link";
 import EmptyState from "@/components/empty-state";
 import PageTitle from "@/components/app/page-title";
 import PatchButton from "@/components/detect/patch-button";
+import DraftPanel from "@/components/draft-panel";
+import { duplicateDisputeDraft, feeWaiverDraft, type Draft } from "@/lib/drafts";
 import { getDb } from "@/db/client";
 import { longDate, money, shortDate } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
@@ -26,6 +28,32 @@ const STATUS_LABEL = {
   dismissed: "Dismissed",
   expected: "Marked as expected",
 } as const;
+
+/** ACT-2: a draft to send yourself, for the alerts where one helps. */
+function draftFor(a: AlertView): { draft: Draft; label: string } | null {
+  const d = a.details;
+  if (a.type === "card_fee" && a.subject && a.occurredOn && typeof d.feeCents === "number")
+    return {
+      label: "Draft a waiver request",
+      draft: feeWaiverDraft({
+        card: a.subject,
+        feeCents: d.feeCents,
+        gstCents: typeof d.gstCents === "number" ? d.gstCents : 0,
+        kind: typeof d.kind === "string" ? d.kind : "",
+        date: a.occurredOn,
+      }),
+    };
+  if (a.type === "duplicate_charge" && a.subject && a.transactions.length)
+    return {
+      label: "Draft a dispute message",
+      draft: duplicateDisputeDraft({
+        merchant: a.subject,
+        amountCents: a.transactions[0]!.amountCents,
+        dates: a.transactions.map((t) => t.date).sort(),
+      }),
+    };
+  return null;
+}
 
 export default async function AlertsPage({
   searchParams,
@@ -94,6 +122,10 @@ export default async function AlertsPage({
                 </ul>
               )}
               <div className="mt-3 flex flex-wrap gap-4">
+                {(() => {
+                  const d = draftFor(a);
+                  return d ? <DraftPanel draft={d.draft} label={d.label} /> : null;
+                })()}
                 {a.status === "open" ? (
                   <>
                     <PatchButton

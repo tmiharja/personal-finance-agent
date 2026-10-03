@@ -15,7 +15,7 @@ import {
   undoAction,
 } from "@/server/actions";
 import { reopenAlert } from "@/server/actions/reopen";
-import { nextDueDate } from "@/server/actions/defs/plans";
+import { nextDueDate } from "@/server/detect/ledger";
 import type { MasterKeys } from "@/server/crypto/envelope";
 import { seedDemoWorkspace } from "@/server/demo/seed";
 import { createTestDb, createUser } from "../helpers/test-db";
@@ -23,6 +23,8 @@ import { createTestDb, createUser } from "../helpers/test-db";
 let db: AppDb;
 let close: () => Promise<void>;
 const keys: MasterKeys = { current: { id: 1, key: randomBytes(32) } };
+/** A recent sign-in (AUTH-3). */
+const FRESH = { fresh: true };
 
 beforeAll(async () => {
   ({ db, close } = await createTestDb());
@@ -84,7 +86,11 @@ async function ledgerFingerprint(user: string): Promise<string> {
 
 describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
   it("refuses anything off the allowlist, and imports outside the import flow", async () => {
+    // An export happens only when you ask for the file, never as a pending proposal.
     await expect(propose(db, "alex", "agent", "export_csv", {})).rejects.toMatchObject({
+      code: "action_not_allowed",
+    });
+    await expect(propose(db, "alex", "user", "export_csv", {})).rejects.toMatchObject({
       code: "action_not_allowed",
     });
     await expect(propose(db, "alex", "agent", "commit_import", {})).rejects.toMatchObject({
@@ -130,14 +136,14 @@ describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
     expect(p.preview.changes!.reduce((s, c) => s + c.count, 0)).toBe(before.length);
     expect(await merchantRows("Shopee")).toEqual(before);
 
-    await expect(approveAny(db, "other", keys, p.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "other", keys, p.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_not_found",
     });
-    const result = await approveAny(db, "alex", keys, p.proposalId);
+    const result = await approveAny(db, "alex", keys, p.proposalId, FRESH);
     expect(result).toEqual({ changed: before.length });
     const home = await categoryId("Home");
     expect((await merchantRows("Shopee")).every((r) => r.categoryId === home)).toBe(true);
-    await expect(approveAny(db, "alex", keys, p.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "alex", keys, p.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_not_pending",
     });
     expect(await events(p.proposalId)).toEqual([
@@ -205,7 +211,7 @@ describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
       transactionIds: [rows[0]!.id],
       category: "Groceries",
     });
-    await expect(approveAny(db, "alex", keys, p.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "alex", keys, p.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_stale",
     });
     const health = await categoryId("Health");
@@ -221,7 +227,7 @@ describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
     await db.execute(
       sql`update proposed_actions set expires_at = now() - interval '1 minute' where id = ${p.proposalId}`,
     );
-    await expect(approveAny(db, "alex", keys, p.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "alex", keys, p.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_expired",
     });
 
@@ -232,7 +238,7 @@ describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
     await db.execute(
       sql`update proposed_actions set payload = jsonb_set(payload, '{monthlyAmountCents}', '99999999') where id = ${q.proposalId}`,
     );
-    await expect(approveAny(db, "alex", keys, q.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "alex", keys, q.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_not_found",
     });
   });
@@ -240,20 +246,20 @@ describe("the action engine (ACT-1, ACT-4, ACT-6, ACT-8)", () => {
   it("approves a batch, each on its own (ACT-5)", async () => {
     const a = await propose(db, "alex", "agent", "set_budget", {
       category: "Transport",
-      monthlyAmountCents: 20_000,
+      monthlyAmountCents: 22_000,
     });
     const b = await propose(db, "alex", "agent", "set_budget", {
       category: "Groceries",
       monthlyAmountCents: 60_000,
     });
     await rejectAny(db, "alex", b.proposalId);
-    const results = await approveMany(db, "alex", keys, [a.proposalId, b.proposalId]);
+    const results = await approveMany(db, "alex", keys, [a.proposalId, b.proposalId], FRESH);
     expect(results).toEqual([
       { id: a.proposalId, ok: true },
       { id: b.proposalId, ok: false, code: "proposal_not_pending" },
     ]);
     const set = await as((tx) => tx.select().from(budgets));
-    expect(set.map((x) => x.monthlyAmountCents)).toContain(20_000);
+    expect(set.map((x) => x.monthlyAmountCents)).toContain(22_000);
     expect(set.map((x) => x.monthlyAmountCents)).not.toContain(60_000);
   });
 
@@ -336,7 +342,7 @@ describe("action types", () => {
       category: "Travel",
     });
     expect(p.preview.lines.join(" ")).toMatch(/Replaces the rule/);
-    await approveAny(db, "alex", keys, p.proposalId);
+    await approveAny(db, "alex", keys, p.proposalId, FRESH);
     const grabRules = () =>
       as((tx) =>
         tx
@@ -378,7 +384,7 @@ describe("action types", () => {
       applyDirect(db, "alex", "mark_transfer", { transactionIds: [shop!.id] }),
     ).rejects.toMatchObject({ code: "not_categorisable" });
     const p = await propose(db, "alex", "agent", "mark_transfer", { merchant: "PayNow transfer" });
-    await approveAny(db, "alex", keys, p.proposalId);
+    await approveAny(db, "alex", keys, p.proposalId, FRESH);
     expect((await merchantRows("PayNow transfer")).every((r) => r.isTransfer)).toBe(true);
     await undoAction(db, "alex", keys, p.proposalId);
     expect((await merchantRows("PayNow transfer")).some((r) => !r.isTransfer)).toBe(true);
@@ -435,7 +441,7 @@ describe("action types", () => {
       monthlyAmountCents: 45_000,
     });
     expect(p.preview.title).toBe("Budget S$450.00 a month for Dining");
-    await approveAny(db, "alex", keys, p.proposalId);
+    await approveAny(db, "alex", keys, p.proposalId, FRESH);
     expect(await amount()).toBe(45_000);
     await undoAction(db, "alex", keys, p.proposalId);
     expect(await amount()).toBe(was);
@@ -541,8 +547,8 @@ describe("review fixes: undo and staleness never overwrite a newer decision", ()
       category: "Insurance",
       monthlyAmountCents: 50_000,
     });
-    await approveAny(db, "alex", keys, p1.proposalId);
-    await expect(approveAny(db, "alex", keys, p2.proposalId)).rejects.toMatchObject({
+    await approveAny(db, "alex", keys, p1.proposalId, FRESH);
+    await expect(approveAny(db, "alex", keys, p2.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_stale",
     });
   });
@@ -568,9 +574,30 @@ describe("review fixes: undo and staleness never overwrite a newer decision", ()
     await db.execute(
       sql`update transactions set merchant_name = 'Starbucks' where id = ${shop!.id}`,
     );
-    await expect(approveAny(db, "alex", keys, p.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "alex", keys, p.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_stale",
     });
+  });
+
+  it("a change to more than 100 rows needs a recent sign-in (AUTH-3)", async () => {
+    const ids = sqlRows<{ id: string }>(
+      await as((tx) =>
+        tx.execute(sql`select id from transactions where kind = 'charge' and not is_transfer
+          and transfer_pair_id is null order by id limit 120`),
+      ),
+    ).map((r) => r.id);
+    const p = await propose(db, "alex", "agent", "recategorise_transactions", {
+      category: "Education",
+      transactionIds: ids,
+    });
+    expect(p.preview.affected).toBeGreaterThan(100);
+    await expect(
+      approveAny(db, "alex", keys, p.proposalId, { fresh: false }),
+    ).rejects.toMatchObject({
+      code: "reauth_required",
+    });
+    // Still pending: sign in again and approve.
+    await approveAny(db, "alex", keys, p.proposalId, FRESH);
   });
 
   it("refuses personal data in anything it would store", async () => {

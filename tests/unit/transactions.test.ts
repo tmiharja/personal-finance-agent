@@ -23,6 +23,8 @@ import { createTestDb, createUser } from "../helpers/test-db";
 let db: AppDb;
 let close: () => Promise<void>;
 const keys: MasterKeys = { current: { id: 1, key: randomBytes(32) } };
+/** A recent sign-in (AUTH-3). */
+const FRESH = { fresh: true };
 
 beforeAll(async () => {
   ({ db, close } = await createTestDb());
@@ -156,13 +158,13 @@ describe("all from this merchant: a create_rule proposal", () => {
     const grab = await list({ merchant: "Grab" });
     const travel = await categoryId("Travel");
     const p = await proposeMerchantRule(db, "alex", grab.rows[0]!.id, travel);
-    await expect(approveAny(db, "other", keys, p.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "other", keys, p.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_not_found",
     });
-    const result = await approveAny(db, "alex", keys, p.proposalId);
+    const result = await approveAny(db, "alex", keys, p.proposalId, FRESH);
     expect(result).toMatchObject({ recategorised: grab.total });
     expect((await list({ merchant: "Grab", category: "Travel" })).total).toBe(grab.total);
-    await expect(approveAny(db, "alex", keys, p.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "alex", keys, p.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_not_pending",
     });
     // Future imports: the rule is in the categoriser's context.
@@ -184,7 +186,7 @@ describe("all from this merchant: a create_rule proposal", () => {
     const lazada = await list({ merchant: "Lazada" });
     const p = await proposeMerchantRule(db, "alex", lazada.rows[0]!.id, await categoryId("Home"));
     await setTransactionCategory(db, "alex", lazada.rows[1]!.id, await categoryId("Groceries"));
-    await expect(approveAny(db, "alex", keys, p.proposalId)).rejects.toMatchObject({
+    await expect(approveAny(db, "alex", keys, p.proposalId, FRESH)).rejects.toMatchObject({
       code: "proposal_stale",
     });
     expect((await list({ merchant: "Lazada", category: "Home" })).total).toBe(0);

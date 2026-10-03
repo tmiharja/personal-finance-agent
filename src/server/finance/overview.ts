@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { withUser } from "@/db/with-user";
 import { sqlRows } from "@/db/rows";
+import { budgetProgress, type BudgetProgress } from "./budgets";
 import {
   addMonths,
   dataSpan,
@@ -49,6 +50,8 @@ export type MonthOverview = {
   bankAccounts: number;
   /** Σ closing balances of each bank account's latest statement in or before the month. */
   balances: { cents: number; asOf: string; accounts: number } | null;
+  /** Monthly budgets against the month's spend, or null when none are set. */
+  budgets: BudgetProgress | null;
 };
 
 /** Overview for a month (YYYY-MM); defaults to the latest month with transactions. */
@@ -99,6 +102,7 @@ export async function getMonthOverview(
       trend,
       bankAccounts,
       balances,
+      budgets: await budgetProgress(tx, month, span.to),
     };
   });
 }

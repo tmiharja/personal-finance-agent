@@ -16,7 +16,7 @@ import {
   trialAlerts,
   type DetectedAlert,
 } from "./alerts";
-import { loadLedger } from "./ledger";
+import { loadLedger, nextDueDate } from "./ledger";
 import { detectBills, detectSubscriptions } from "./recurring";
 
 /**
@@ -124,6 +124,19 @@ export async function runDetectorsTx(
         : sql`true`,
     ),
   );
+
+  // Bills you added roll on to their next due date once one passes.
+  const manual = await tx
+    .select({ id: bills.id, dueDay: bills.dueDay })
+    .from(bills)
+    .where(and(eq(bills.source, "manual"), sql`${bills.dueDate} < ${today}`));
+  for (const m of manual) {
+    if (m.dueDay)
+      await tx
+        .update(bills)
+        .set({ dueDate: nextDueDate(m.dueDay, today) })
+        .where(eq(bills.id, m.id));
+  }
 
   let newAlerts = 0;
   for (const a of detected) {

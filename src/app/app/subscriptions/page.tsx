@@ -3,6 +3,8 @@ import Link from "next/link";
 import EmptyState from "@/components/empty-state";
 import PageTitle from "@/components/app/page-title";
 import PatchButton from "@/components/detect/patch-button";
+import DraftPanel from "@/components/draft-panel";
+import { cancellationDraft } from "@/lib/drafts";
 import { getDb } from "@/db/client";
 import { longDate, money, monthLabel } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
@@ -104,7 +106,8 @@ export default async function SubscriptionsPage() {
                 {longDate(s.priceChangedOn)}.
               </p>
             )}
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap gap-4">
+              <DraftPanel draft={cancellationDraft(s)} label="How to cancel" />
               <PatchButton
                 url={`/api/subscriptions/${s.id}`}
                 body={{ ignored: true }}

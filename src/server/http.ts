@@ -29,17 +29,26 @@ export async function sessionUserId(request: Request): Promise<string | null> {
   return (await sessionUser(request))?.id ?? null;
 }
 
-/** The signed-in user and whether it's a demo workspace. */
+/** Sensitive actions (export, account deletion) need a sign-in this recent (AUTH-3). */
+export const FRESH_SESSION_MS = 10 * 60 * 1000;
+
+/** The signed-in user, whether it's a demo workspace, and whether the sign-in is recent. */
 export async function sessionUser(
   request: Request,
-): Promise<{ id: string; isDemo: boolean } | null> {
+): Promise<{ id: string; isDemo: boolean; fresh: boolean } | null> {
   const session = await getAuth().api.getSession({ headers: request.headers });
   if (!session) return null;
   return {
     id: session.user.id,
     isDemo: (session.user as { isAnonymous?: boolean | null }).isAnonymous === true,
+    fresh: Date.now() - new Date(session.session.createdAt).getTime() < FRESH_SESSION_MS,
   };
 }
+
+/** AUTH-3: may this user approve a large change now? Demo data is fictional, so always. */
+export const deciderOf = (u: { fresh: boolean; isDemo: boolean }) => ({
+  fresh: u.fresh || u.isDemo,
+});
 
 export function masterKeys(): MasterKeys {
   return masterKeysFromEnv(getEnv());
