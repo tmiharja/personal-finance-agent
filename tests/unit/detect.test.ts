@@ -355,13 +355,16 @@ describe("card payments due (DET-7)", () => {
 
 describe("read model and the user's own decisions", () => {
   it("totals running subscriptions per month and keeps ignored ones out", async () => {
-    const { listSubscriptions, setSubscriptionIgnored } = await import("@/server/detect/read");
+    const { listSubscriptions } = await import("@/server/detect/read");
+    const { applyDirect } = await import("@/server/actions");
+    const ignore = (user: string, subscriptionId: string) =>
+      applyDirect(db, user, "set_subscription_status", { subscriptionId, ignored: true });
     const before = await listSubscriptions(db, "alex");
     const running = before.items.filter((s) => s.status === "active" || s.status === "overdue");
     expect(before.monthlyCents).toBe(running.reduce((s, x) => s + x.monthlyCents, 0));
     const spotify = before.items.find((s) => s.merchant === "Spotify")!;
-    expect(await setSubscriptionIgnored(db, "other", spotify.id, true)).toBe(false);
-    expect(await setSubscriptionIgnored(db, "alex", spotify.id, true)).toBe(true);
+    await expect(ignore("other", spotify.id)).rejects.toMatchObject({ code: "invalid_reference" });
+    await ignore("alex", spotify.id);
     await runDetectors(db, "alex", keys, TODAY);
     const after = await listSubscriptions(db, "alex");
     expect(after.items.some((s) => s.merchant === "Spotify")).toBe(false);
@@ -388,7 +391,10 @@ describe("read model and the user's own decisions", () => {
   });
 
   it("lists alerts with their transactions, and only the owner can close them", async () => {
-    const { listAlerts, setAlertStatus, countOpenAlerts } = await import("@/server/detect/read");
+    const { listAlerts, countOpenAlerts } = await import("@/server/detect/read");
+    const { applyDirect } = await import("@/server/actions");
+    const expected = (user: string, id: string) =>
+      applyDirect(db, user, "mark_alert_expected", { alertIds: [id] });
     const open = await listAlerts(db, "alex");
     const dup = open.find((a) => a.type === "duplicate_charge")!;
     expect(dup.transactions).toHaveLength(2);
@@ -396,8 +402,8 @@ describe("read model and the user's own decisions", () => {
       true,
     );
     const n = await countOpenAlerts(db, "alex");
-    expect(await setAlertStatus(db, "other", dup.id, "dismissed")).toBe(false);
-    expect(await setAlertStatus(db, "alex", dup.id, "expected")).toBe(true);
+    await expect(expected("other", dup.id)).rejects.toMatchObject({ code: "invalid_reference" });
+    await expected("alex", dup.id);
     expect(await countOpenAlerts(db, "alex")).toBe(n - 1);
     expect((await listAlerts(db, "alex", { status: "closed" })).map((a) => a.id)).toContain(dup.id);
     expect(await listAlerts(db, "other")).toEqual([]);

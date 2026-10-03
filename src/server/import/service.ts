@@ -17,7 +17,7 @@ import {
 import { needsReview, type Categorised } from "@/server/categorise/categorise";
 import { categoriseStatement } from "@/server/categorise/context";
 import { audit, canonical, expireIfDue, sha256 } from "@/server/actions/common";
-import type { RulePreview } from "@/server/actions/rules";
+import type { ActionPreview, ActionType, Proposer } from "@/server/actions/engine";
 import { parseStatementFile, type ParsedStatement } from "@/server/ingest/parsers";
 import {
   countNewPairs,
@@ -717,8 +717,9 @@ export type PendingProposal =
     }
   | {
       id: string;
-      type: "create_rule";
-      preview: RulePreview;
+      type: Exclude<ActionType, "commit_import">;
+      proposer: Proposer;
+      preview: ActionPreview;
       createdAt: string;
       expiresAt: string;
     };
@@ -744,10 +745,15 @@ export async function listPendingProposals(db: AppDb, userId: string): Promise<P
           },
         ];
       }
-      if (p.type === "create_rule") {
-        return [{ id: p.id, type: "create_rule", preview: p.preview as RulePreview, ...times }];
-      }
-      return [];
+      return [
+        {
+          id: p.id,
+          type: p.type,
+          proposer: p.proposer,
+          preview: p.preview as ActionPreview,
+          ...times,
+        },
+      ];
     });
   });
 }
@@ -769,11 +775,8 @@ function proposalSubject(type: string | null, preview: unknown): string | null {
       ? `Import ${p.bank} ${p.kind === "deposit" ? "account " : ""}statement ${longDate(p.statementDate)}`
       : "Import";
   }
-  if (type === "create_rule") {
-    const p = preview as Partial<RulePreview> | null;
-    return p?.merchant && p.toCategory ? `Rule: ${p.merchant} → ${p.toCategory}` : "Rule";
-  }
-  return null;
+  // Every other action carries a server-built title (ACT-4).
+  return (preview as Partial<ActionPreview> | null)?.title ?? null;
 }
 
 export async function listRecentActivity(

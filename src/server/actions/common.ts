@@ -13,8 +13,16 @@ export type ProposalErrorCode =
   | "proposal_expired"
   | "proposal_stale"
   | "invalid_category"
+  | "not_categorisable"
   | "too_many_rows"
-  | "nothing_to_change";
+  | "nothing_to_change"
+  | "action_not_allowed"
+  | "invalid_input"
+  | "invalid_reference"
+  | "not_undoable"
+  | "undo_expired"
+  | "undo_stale"
+  | "already_undone";
 
 export class ProposalError extends Error {
   constructor(readonly code: ProposalErrorCode) {
@@ -35,13 +43,14 @@ export function canonical(value: unknown): string {
   );
 }
 
-export type AuditEvent = "proposed" | "approved" | "rejected" | "executed" | "expired" | "failed";
+export type AuditEvent =
+  "proposed" | "approved" | "rejected" | "executed" | "expired" | "failed" | "undone";
 
 export async function audit(
   tx: Tx,
   userId: string,
   proposalId: string,
-  actor: "user" | "system",
+  actor: "agent" | "detector" | "user" | "system",
   event: AuditEvent,
   detail: Record<string, unknown> = {},
   inverse: Record<string, unknown> | null = null,

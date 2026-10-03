@@ -88,7 +88,7 @@ describe("spend definitions (shared by Overview and Ask)", () => {
   });
 
   it("keeps a category whose refunds exceed its charges, so categories add up to spend", async () => {
-    const { setTransactionCategory } = await import("@/server/finance/transactions");
+    const { applyDirect } = await import("@/server/actions");
     const { categories, transactions } = await import("@/db/schema");
     const { and, eq } = await import("drizzle-orm");
     const [refund] = await withUser(db, "alex", (tx) =>
@@ -103,7 +103,10 @@ describe("spend definitions (shared by Overview and Ask)", () => {
         .from(categories)
         .where(eq(categories.name, "Gifts & Donations")),
     );
-    await setTransactionCategory(db, "alex", refund!.id, gifts!.id);
+    await applyDirect(db, "alex", "recategorise_transactions", {
+      transactionIds: [refund!.id],
+      categoryId: gifts!.id,
+    });
     const range = monthRange("2026-02");
     const [cats, total] = await withUser(db, "alex", (tx) =>
       Promise.all([spendByCategory(tx, range), spendTotals(tx, range)]),
