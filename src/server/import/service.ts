@@ -258,7 +258,7 @@ async function buildPreview(
 /**
  * Expires every overdue pending import of the signed-in user (RLS-scoped):
  * proposals become "expired", encrypted previews are deleted. The daily cron
- * (/api/cron/expire-imports) does the same for users who never come back.
+ * (/api/cron/daily) does the same for users who never come back.
  */
 export async function expireOverdueImports(tx: Tx, userId: string): Promise<number> {
   const now = new Date();
@@ -276,7 +276,7 @@ export async function expireOverdueImports(tx: Tx, userId: string): Promise<numb
 }
 
 /**
- * The daily cron sweep (api/cron/expire-imports): the same expiry for every user,
+ * The daily cron sweep (api/cron/daily): the same expiry for every user,
  * including users who never come back. Runs as the owner role, outside RLS, and
  * touches only overdue pending proposals and their uncommitted previews.
  */

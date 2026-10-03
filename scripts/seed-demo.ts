@@ -1,6 +1,6 @@
 // Seeds the fictional demo user ("Alex Tan", synthetic fixtures only) into the
-// database in DATABASE_URL. Phase 1's "Try the demo" button will call
-// seedDemoWorkspace() for an ephemeral per-visitor user instead.
+// database in DATABASE_URL, then runs the detectors. "Try the demo" does the
+// same for an ephemeral per-visitor user (src/server/demo/workspace.ts).
 import "./load-env";
 import { eq } from "drizzle-orm";
 import { createDb } from "../src/db/client";
@@ -8,6 +8,7 @@ import { user } from "../src/db/schema";
 import { databaseUrl } from "../src/db/url";
 import { masterKeysFromEnv } from "../src/server/crypto/envelope";
 import { seedDemoWorkspace } from "../src/server/demo/seed";
+import { runDetectors } from "../src/server/detect/run";
 
 const DEMO_USER = { id: "demo-alex-tan", name: "Alex Tan (demo)", email: "demo@example.com" };
 
@@ -25,5 +26,6 @@ const keys = masterKeysFromEnv({
 const [existing] = await db.select().from(user).where(eq(user.id, DEMO_USER.id));
 if (!existing) await db.insert(user).values({ ...DEMO_USER, emailVerified: true });
 const result = await seedDemoWorkspace(db, DEMO_USER.id, keys);
-console.log(JSON.stringify({ event: "demo.seeded", ...result }));
+const detected = await runDetectors(db, DEMO_USER.id, keys);
+console.log(JSON.stringify({ event: "demo.seeded", ...result, ...detected }));
 process.exit(0);

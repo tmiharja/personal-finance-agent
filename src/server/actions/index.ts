@@ -7,6 +7,8 @@ import {
   approveProposal as approveImport,
   rejectProposal as rejectImport,
 } from "@/server/import/service";
+import { runDetectors } from "@/server/detect/run";
+import { logError } from "@/server/log";
 import { ProposalError } from "./common";
 import { approveRuleProposal, rejectSimpleProposal } from "./rules";
 
@@ -24,9 +26,17 @@ async function typeOf(db: AppDb, userId: string, id: string) {
 
 export async function approveAny(db: AppDb, userId: string, keys: MasterKeys, id: string) {
   const type = await typeOf(db, userId, id);
-  if (type === "commit_import") return approveImport(db, userId, keys, id);
-  if (type === "create_rule") return approveRuleProposal(db, userId, id);
-  throw new ProposalError("proposal_not_found");
+  const result =
+    type === "commit_import"
+      ? await approveImport(db, userId, keys, id)
+      : type === "create_rule"
+        ? await approveRuleProposal(db, userId, id)
+        : null;
+  if (!result) throw new ProposalError("proposal_not_found");
+  // DET-9: the ledger changed, so re-run the detectors. Best effort: a detector
+  // failure is logged and never undoes the approval.
+  await runDetectors(db, userId, keys).catch((e) => logError("detect.after_approval", e));
+  return result;
 }
 
 export async function rejectAny(db: AppDb, userId: string, id: string): Promise<void> {

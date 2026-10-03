@@ -6,6 +6,7 @@ import { demoQuota, user } from "@/db/schema";
 import { getEnv } from "@/env";
 import type { MasterKeys } from "@/server/crypto/envelope";
 import { logEvent } from "@/server/log";
+import { runDetectors } from "@/server/detect/run";
 import { seedDemoWorkspace } from "./seed";
 
 /**
@@ -62,6 +63,7 @@ export async function isDemoUser(db: AppDb, userId: string): Promise<boolean> {
 /** Seeds a new anonymous user's workspace (same write path as a real import). */
 export async function prepareDemoWorkspace(db: AppDb, userId: string, keys: MasterKeys) {
   const result = await seedDemoWorkspace(db, userId, keys);
+  await runDetectors(db, userId, keys);
   logEvent("demo.created", { transactions: result.transactions });
   return result;
 }

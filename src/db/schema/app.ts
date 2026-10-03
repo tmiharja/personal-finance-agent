@@ -375,6 +375,14 @@ export const subscriptions = pgTable(
     lastChargeDate: date("last_charge_date"),
     nextExpectedDate: date("next_expected_date"),
     status: subscriptionStatusEnum("status").notNull().default("active"),
+    /** Charges in the detected series. */
+    charges: integer("charges").notNull().default(0),
+    firstChargeDate: date("first_charge_date"),
+    /** The price before the latest change, and when the new price started (DET-2). */
+    previousAmountCents: bigint("previous_amount_cents", { mode: "number" }),
+    priceChangedOn: date("price_changed_on"),
+    /** The user chose to ignore it: detectors keep it, the screens hide it. */
+    ignored: boolean("ignored").notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -396,9 +404,14 @@ export const bills = pgTable(
     expectedAmountCents: bigint("expected_amount_cents", { mode: "number" }),
     source: billSourceEnum("source").notNull(),
     status: billStatusEnum("status").notNull().default("upcoming"),
+    lastPaidOn: date("last_paid_on"),
+    lastAmountCents: bigint("last_amount_cents", { mode: "number" }),
     createdAt: createdAt(),
   },
-  () => [rls("bills", [["account_id", "accounts"]])],
+  (t) => [
+    uniqueIndex("bills_payee_uq").on(t.userId, t.payee, t.source),
+    rls("bills", [["account_id", "accounts"]]),
+  ],
 );
 
 export const alerts = pgTable(
@@ -416,6 +429,13 @@ export const alerts = pgTable(
     status: alertStatusEnum("status").notNull().default("open"),
     /** (type, subject, period): keeps the daily detector run idempotent. */
     dedupeKey: text("dedupe_key").notNull(),
+    /** The merchant or card the alert is about, and the date it refers to. */
+    subject: text("subject"),
+    occurredOn: date("occurred_on"),
+    /** Structured figures behind the reason (amounts in cents, counts): for the UI and Ask. */
+    details: jsonb("details")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     createdAt: createdAt(),
   },
   (t) => [

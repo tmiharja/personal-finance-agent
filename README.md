@@ -94,7 +94,7 @@ The database role in `DATABASE_URL` should be the database owner with `CREATEROL
 ## Deploying (Vercel)
 
 1. Connect Neon (Singapore, `aws-ap-southeast-1`) through the Vercel Marketplace, then run `npm run db:migrate` against it.
-2. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `MASTER_KEY`, `RESEND_API_KEY` and `EMAIL_FROM`. The app refuses to start in production without them. Also set `CRON_SECRET` (`openssl rand -hex 32`): the daily cron in `vercel.json` (`/api/cron/expire-imports`) uses it to expire overdue previews and delete their encrypted data, and refuses to run without it.
+2. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `MASTER_KEY`, `RESEND_API_KEY` and `EMAIL_FROM`. The app refuses to start in production without them. Also set `CRON_SECRET` (`openssl rand -hex 32`): the daily cron in `vercel.json` (`/api/cron/daily`) uses it to expire overdue previews and delete their encrypted data, and refuses to run without it.
 3. `vercel.json` pins functions to `sin1`.
 
 **Back up `MASTER_KEY` somewhere safe.** Without it, encrypted data can't be read.
