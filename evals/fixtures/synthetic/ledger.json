@@ -81,6 +81,23 @@
       "amount": "1,299.00"
     },
     {
+      "type": "unusual_first_time_merchant",
+      "merchant": "SAMPLE RYOKAN KYOTO JPN",
+      "card": "uob-miles",
+      "date": "2025-12-19",
+      "amount": "JPY 48,000 (over S$200)",
+      "note": "part of the Japan trip"
+    },
+    {
+      "type": "foreign_charge",
+      "currency": "IDR",
+      "card": "dbs-visa",
+      "dates": [
+        "2026-01-03",
+        "2026-06-27"
+      ]
+    },
+    {
       "type": "duplicate",
       "merchant": "LAZADA SG",
       "card": "dbs-mc",

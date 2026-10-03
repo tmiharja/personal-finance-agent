@@ -43,6 +43,13 @@
       "when": 1791009668088,
       "tag": "0005_demo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791013469583,
+      "tag": "0006_detectors",
+      "breakpoints": true
     }
   ]
 }

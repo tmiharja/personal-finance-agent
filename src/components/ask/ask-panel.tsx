@@ -30,6 +30,7 @@ const STARTERS = [
   "Where did I spend the most in the last 3 months?",
   "Show my spending by category for Q1",
   "How did last month compare with the month before?",
+  "What do my subscriptions cost each month?",
 ];
 
 const TOOL_STATUS: Record<string, string> = {
@@ -40,6 +41,9 @@ const TOOL_STATUS: Record<string, string> = {
   top_merchants: "Finding top merchants…",
   monthly_spend: "Looking month by month…",
   find_transactions: "Finding transactions…",
+  get_subscriptions: "Checking subscriptions…",
+  get_bills: "Checking bills…",
+  get_alerts: "Checking alerts…",
   list_categories: "Checking your categories…",
 };
 
@@ -250,8 +254,8 @@ export default function AskPanel() {
                             onClick={close}
                             className="link mt-2 inline-block text-[13px]"
                           >
-                            View {a.view.count}{" "}
-                            {a.view.count === 1 ? "transaction" : "transactions"}
+                            {a.view.label ??
+                              `View ${a.view.count} ${a.view.count === 1 ? "transaction" : "transactions"}`}
                           </Link>
                         )}
                       </>

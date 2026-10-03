@@ -11,12 +11,14 @@ import { dataSpan, spendTotals } from "@/server/finance/spend";
 import { sql } from "drizzle-orm";
 import { sqlRows } from "@/db/rows";
 import { mockLlm } from "@/server/llm/mock";
+import { runDetectors } from "@/server/detect/run";
 import { budgetBlock } from "@/server/llm/usage";
 import { createTestDb, createUser } from "../helpers/test-db";
 
 let db: AppDb;
 let close: () => Promise<void>;
 const TODAY = "2026-10-03";
+const keys = { current: { id: 1, key: randomBytes(32) } };
 // What the demo statements cover (resolve_period tests); the tool tests use the real span.
 const coverage = { from: "2025-08-15", to: "2026-08-14" };
 let realCoverage: { from: string; to: string } | null = null;
@@ -25,8 +27,9 @@ beforeAll(async () => {
   ({ db, close } = await createTestDb());
   await createUser(db, "alex");
   await createUser(db, "other");
-  await seedDemoWorkspace(db, "alex", { current: { id: 1, key: randomBytes(32) } });
+  await seedDemoWorkspace(db, "alex", keys);
   realCoverage = await withUser(db, "alex", (tx) => dataSpan(tx));
+  await runDetectors(db, "alex", keys, TODAY);
   vi.spyOn(console, "info").mockImplementation(() => undefined);
 });
 afterAll(async () => {
@@ -140,6 +143,9 @@ describe("tools (ASK-2)", () => {
       "monthly_spend",
       "find_transactions",
       "list_categories",
+      "get_subscriptions",
+      "get_bills",
+      "get_alerts",
     ]);
     expect(TOOLS.every((t) => t.strict && t.input_schema.additionalProperties === false)).toBe(
       true,
@@ -248,6 +254,30 @@ describe("tools (ASK-2)", () => {
     expect(fuzzy.result).toMatchObject({ total_matching: 12, shown: 3 });
   });
 
+  it("reads subscriptions, bills and alerts from the detectors", async () => {
+    const run = (name: string, input: unknown) =>
+      withUser(db, "alex", (tx) => runTool(ctx(tx), name, input));
+    const subs = await run("get_subscriptions", {});
+    expect(subs.result).toMatchObject({ running: expect.any(Number) });
+    expect((subs.result.subscriptions as { merchant: string }[]).map((x) => x.merchant)).toContain(
+      "Netflix",
+    );
+    expect(subs.result.subscriptions).toContainEqual(
+      expect.objectContaining({
+        merchant: "Netflix",
+        previous_price_sgd: "17.98",
+        price_sgd: "19.98",
+      }),
+    );
+    expect(subs.view).toMatchObject({ href: "/app/subscriptions", label: "Open Subscriptions" });
+    const bills = await run("get_bills", {});
+    expect((bills.result.card_payments as unknown[]).length).toBe(4);
+    const alerts = await run("get_alerts", { include_closed: false });
+    expect((alerts.result.alerts as { type: string }[]).map((a) => a.type)).toContain(
+      "duplicate_charge",
+    );
+  });
+
   it("reads only the signed-in user's rows", async () => {
     const out = await withUser(db, "other", (tx) =>
       runTool(ctx(tx), "spend_summary", {
@@ -303,6 +333,12 @@ describe("the Ask loop (offline mock model)", () => {
     expect(done).toMatchObject({ guard: "retried" });
   });
 
+  it("answers subscription questions from the detectors", async () => {
+    const { text, done } = await ask("What do my subscriptions cost each month?");
+    expect(text).toMatch(/running subscriptions cost S\$[\d,]+\.\d\d a month/);
+    expect(done).toMatchObject({ guard: "pass", view: { href: "/app/subscriptions" } });
+  });
+
   it("declines advice without calling tools", async () => {
     const { events, done } = await ask("Should I buy stocks with my cashback?");
     expect(events.some((e) => e.t === "status")).toBe(false);
@@ -317,8 +353,8 @@ describe("the Ask loop (offline mock model)", () => {
         ),
       ),
     )[0]!;
-    expect(asked).toEqual({ n: 3, model: "claude-sonnet-5-5" });
-    expect(await budgetBlock(db, "alex", "ask", 3)).toBe("daily_limit");
+    expect(asked).toEqual({ n: 4, model: "claude-sonnet-5-5" });
+    expect(await budgetBlock(db, "alex", "ask", 4)).toBe("daily_limit");
     const { error } = await (async () => {
       const events: AskEvent[] = [];
       await runAsk({
@@ -331,7 +367,7 @@ describe("the Ask loop (offline mock model)", () => {
       });
       return { error: events.find((e) => e.t === "error") };
     })();
-    // The configured limit (60) isn't reached by 3 questions.
+    // The configured limit (60) isn't reached by 4 questions.
     expect(error).toBeUndefined();
   });
 

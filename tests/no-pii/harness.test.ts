@@ -106,6 +106,10 @@ describe("no PII reaches storage or logs", () => {
     expect(r.transactions).toBe(885);
     logEvent("demo.seeded", { ...r });
     logError("import", new Error(`failed on ${FORBIDDEN[0]} for ALEX TAN`));
+    // Detector output (alerts, subscriptions, bills) is part of the dump below.
+    const { runDetectors } = await import("@/server/detect/run");
+    const d = await runDetectors(db, "alex", keys, "2026-10-03");
+    expect(d.newAlerts).toBeGreaterThan(0);
   });
 
   it("the database dump contains none of the identifiers", async () => {

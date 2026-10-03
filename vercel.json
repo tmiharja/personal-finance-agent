@@ -3,7 +3,7 @@
   "regions": ["sin1"],
   "crons": [
     {
-      "path": "/api/cron/expire-imports",
+      "path": "/api/cron/daily",
       "schedule": "7 18 * * *"
     }
   ]

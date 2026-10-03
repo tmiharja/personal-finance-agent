@@ -15,6 +15,7 @@ import {
 import { filterHref } from "@/server/finance/transactions";
 import type { BetaTool } from "@/server/llm/types";
 import { maskForLlm } from "@/server/pii/firewall";
+import { PER_MONTH, type Cadence } from "@/server/detect/recurring";
 import { resolvePeriod } from "./period";
 
 /**
@@ -28,7 +29,8 @@ export type Figure =
   | { kind: "bars"; title: string; points: { label: string; cents: number }[] }
   | { kind: "columns"; title: string; points: { label: string; cents: number }[] };
 
-export type View = { href: string; count: number };
+/** A link under the answer; `label` replaces "View N transactions" for other screens. */
+export type View = { href: string; count: number; label?: string };
 
 export type ToolOutcome = {
   /** JSON sent back to the model. */
@@ -97,6 +99,9 @@ const SCHEMAS = {
     limit: nullable(z.number().int().min(1).max(20)),
   }),
   list_categories: z.object({}),
+  get_subscriptions: z.object({}),
+  get_bills: z.object({}),
+  get_alerts: z.object({ include_closed: z.boolean() }),
 } as const;
 
 export type ToolName = keyof typeof SCHEMAS;
@@ -115,6 +120,12 @@ const DESCRIPTIONS: Record<ToolName, string> = {
   find_transactions:
     "Individual transactions (date, merchant, amount, category), newest or largest first, at most 20, with the total number that match.",
   list_categories: "The user's category names, to use exactly in other tools.",
+  get_subscriptions:
+    "Detected subscriptions: merchant, cadence, price, monthly equivalent, status (active, overdue, possibly cancelled), next expected date and any price change, plus the monthly total.",
+  get_bills:
+    "Card payments due (each card's latest statement: due date, total, minimum, paid or not) and detected recurring bills (payee, usual day, usual amount, next date).",
+  get_alerts:
+    "Alerts raised by the detectors (price rises, trials that became paid, unusual or duplicate charges, foreign spending, card fees, payments due), each with its reason. Open ones only unless include_closed is true.",
 };
 
 /** Tool definitions in a fixed order (a changing tools list breaks prompt caching). */
@@ -234,6 +245,127 @@ async function run(
     }
     case "list_categories":
       return { result: { categories: ctx.categories } };
+    case "get_subscriptions": {
+      const rows = sqlRows<{
+        merchant: string;
+        cadence: Cadence;
+        cents: string;
+        status: string;
+        next: string | null;
+        last: string | null;
+        prev: string | null;
+        changed: string | null;
+        charges: number;
+      }>(
+        await ctx.tx.execute(sql`
+          select merchant_name as merchant, cadence, amount_cents::text as cents, status, next_expected_date::text as next,
+                 last_charge_date::text as last, previous_amount_cents::text as prev, price_changed_on::text as changed, charges
+          from subscriptions where not ignored`),
+      );
+      const items = rows
+        .map((r) => ({ ...r, monthly: Math.round(Number(r.cents) * PER_MONTH[r.cadence]) }))
+        .sort((a, b) => b.monthly - a.monthly);
+      const running = items.filter((r) => r.status === "active" || r.status === "overdue");
+      return {
+        result: {
+          monthly_total_sgd: sgd(running.reduce((s, r) => s + r.monthly, 0)),
+          running: running.length,
+          subscriptions: items.map((r) => ({
+            merchant: maskForLlm(r.merchant),
+            cadence: r.cadence,
+            price_sgd: sgd(Number(r.cents)),
+            monthly_equivalent_sgd: sgd(r.monthly),
+            status: r.status,
+            next_expected: r.next,
+            last_charged: r.last,
+            charges: r.charges,
+            ...(r.prev && r.changed
+              ? { previous_price_sgd: sgd(Number(r.prev)), price_changed_on: r.changed }
+              : {}),
+          })),
+        },
+        view: { href: "/app/subscriptions", count: items.length, label: "Open Subscriptions" },
+        figure: {
+          kind: "bars",
+          title: "Monthly cost",
+          points: items
+            .slice(0, 8)
+            .map((r) => ({ label: maskForLlm(r.merchant), cents: r.monthly })),
+        },
+      };
+    }
+    case "get_bills": {
+      const cards = sqlRows<{
+        card: string;
+        statement: string;
+        due: string | null;
+        total: string;
+        min: string | null;
+        paid: boolean;
+      }>(
+        await ctx.tx.execute(sql`
+          select distinct on (s.account_id)
+                 case when a.ordinal > 1 then a.product_name || ' (' || a.ordinal || ')' else a.product_name end as card,
+                 s.statement_date::text as statement, s.due_date::text as due, s.total_cents::text as total,
+                 s.minimum_payment_cents::text as min,
+                 exists (select 1 from transactions t where t.account_id = s.account_id
+                         and t.kind = 'card_payment' and t.txn_date > s.statement_date) as paid
+          from statements s join accounts a on a.id = s.account_id
+          order by s.account_id, s.statement_date desc`),
+      );
+      const recurring = sqlRows<{
+        payee: string;
+        day: number | null;
+        expected: string | null;
+        next: string | null;
+        last: string | null;
+      }>(
+        await ctx.tx.execute(sql`
+          select payee, due_day as day, expected_amount_cents::text as expected, due_date::text as next, last_paid_on::text as last
+          from bills order by due_date`),
+      );
+      return {
+        result: {
+          today: ctx.today,
+          card_payments: cards.map((c) => ({
+            card: c.card,
+            statement_date: c.statement,
+            due_date: c.due,
+            statement_total_sgd: sgd(Number(c.total)),
+            minimum_sgd: c.min === null ? null : sgd(Number(c.min)),
+            paid: c.paid || Number(c.total) <= 0,
+          })),
+          recurring_bills: recurring.map((b) => ({
+            payee: maskForLlm(b.payee),
+            usual_day_of_month: b.day,
+            usual_amount_sgd: b.expected === null ? null : sgd(Number(b.expected)),
+            next_expected: b.next,
+            last_paid: b.last,
+          })),
+        },
+        view: { href: "/app/bills", count: cards.length + recurring.length, label: "Open Bills" },
+      };
+    }
+    case "get_alerts": {
+      const rows = sqlRows<{ type: string; reason: string; status: string; on: string | null }>(
+        await ctx.tx.execute(sql`
+          select type, reason, status, occurred_on::text as on from alerts
+          ${args.include_closed ? sql`` : sql`where status = 'open'`}
+          order by occurred_on desc nulls last, created_at desc limit 30`),
+      );
+      return {
+        result: {
+          alerts: rows.map((r) => ({
+            type: r.type,
+            reason: maskForLlm(r.reason),
+            status: r.status,
+            date: r.on,
+          })),
+          shown: rows.length,
+        },
+        view: { href: "/app/alerts", count: rows.length, label: "Open Alerts" },
+      };
+    }
     case "spend_summary": {
       const range = checkRange(String(args.from), String(args.to));
       const s = await resolveScope(

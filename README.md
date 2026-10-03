@@ -58,7 +58,17 @@ The agent can read your data but never changes anything on its own. Every write 
 | Demo | "Try the demo" opens a no-signup workspace with the fictional Alex Tan's 12 months. Imports are off, corrections and approvals work, and it's deleted after 24 hours by the daily cron. Limits per visitor per day are keyed by a daily-rotating HMAC of the IP, so no IP is stored |
 | Tests | 173 unit/integration tests and 28 e2e tests (desktop + mobile) with an offline model (`LLM_MOCK=1`): categoriser, golden categories, transactions and rule proposals, spend definitions against fixture ground truth, period resolution, the numbers guard, the Ask loop, demo lifecycle, and the no-PII harness over every model request body. Screenshots: [`docs/screenshots/phase-1b/`](docs/screenshots/phase-1b/) |
 
-**Next: Phase 2.** OCBC cards, bank-account statements with transfer pairing, and the detectors (subscriptions, price rises, unusual charges, fees, bills). See the PRD §12.
+**Phase 2a: detectors (done).**
+
+| Area | What's in place |
+|---|---|
+| Detectors | Deterministic and idempotent. They run after every approval, after the demo seed and in the daily cron (`/api/cron/daily`). **Subscriptions:** weekly, monthly, quarterly or yearly charges at a steady price, with trial-to-paid and price-rise (>5%) detection; their status (active, overdue, possibly cancelled) is measured against each card's latest statement. **Bills:** recurring utilities, telco, insurance, town council and loan payments, plus card payment due dates. **Alerts:** unusual amount for a merchant, first charge at a new merchant (S$200+), possible duplicate (same amount on the same or the next date), foreign-currency charges with an FX fee estimate, card annual fees with GST, and card payments due in 3 days (or missed in the last week) with no payment seen. Open alerts refresh as their group grows (more foreign charges that month) and a due-date alert is retired once paid; alerts you dismissed are never rewritten. Every alert states its reason and links its transactions |
+| Screens | Subscriptions (monthly total, price changes, "Not a subscription? Ignore"), Bills (card payments with paid/due/overdue, recurring bills), an Alerts inbox (Open and Dismissed/expected, with Dismiss, "This was expected" and Reopen), and "Coming up" tiles on Overview. Activity history names what each approval changed |
+| Ask | Three more read-only tools: `get_subscriptions`, `get_bills`, `get_alerts` (11 in total) |
+| Evaluation | A golden eval over the fixture household's planted events: **recall 17/17**; 18 of 20 detections are planted events and the other 2 are correct overdue-payment alerts (two cards due 2 Oct 2026 with no payment in the data). Edge cases: trials, price levels, coverage gaps, ignored subscriptions, idempotent re-runs |
+| Tests | 192 unit/integration tests and 36 e2e tests (desktop + mobile). The no-PII harness now covers detector output too. Screenshots: [`docs/screenshots/phase-2a/`](docs/screenshots/phase-2a/) |
+
+**Next: Phase 2b.** OCBC cards, and DBS/POSB, UOB and OCBC bank-account statements (PDF + CSV) with transfer pairing. This needs real samples, which stay local and git-ignored. See the PRD §12.
 
 ## Local development
 
@@ -94,7 +104,7 @@ The database role in `DATABASE_URL` should be the database owner with `CREATEROL
 ## Deploying (Vercel)
 
 1. Connect Neon (Singapore, `aws-ap-southeast-1`) through the Vercel Marketplace, then run `npm run db:migrate` against it.
-2. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `MASTER_KEY`, `RESEND_API_KEY` and `EMAIL_FROM`. The app refuses to start in production without them. Also set `CRON_SECRET` (`openssl rand -hex 32`): the daily cron in `vercel.json` (`/api/cron/expire-imports`) uses it to expire overdue previews and delete their encrypted data, and refuses to run without it.
+2. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `MASTER_KEY`, `RESEND_API_KEY` and `EMAIL_FROM`. The app refuses to start in production without them. Also set `CRON_SECRET` (`openssl rand -hex 32`): the daily cron in `vercel.json` (`/api/cron/daily`) uses it to expire overdue previews and delete their encrypted data, and refuses to run without it.
 3. `vercel.json` pins functions to `sin1`.
 
 **Back up `MASTER_KEY` somewhere safe.** Without it, encrypted data can't be read.

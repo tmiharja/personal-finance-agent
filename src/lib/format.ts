@@ -54,3 +54,16 @@ export const titleCase = (s: string) =>
     .toLowerCase()
     .replace(/(^|[\s/(-])([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase())
     .replace(ACRONYMS, (m) => m.toUpperCase());
+
+/** Whole days from `from` to `to` (both YYYY-MM-DD). */
+export const daysUntil = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+
+/** "due today" / "due tomorrow" / "due in 5 days" / "3 days overdue". */
+export function dueLabel(today: string, due: string): string {
+  const d = daysUntil(today, due);
+  if (d === 0) return "due today";
+  if (d === 1) return "due tomorrow";
+  if (d > 1) return `due in ${d} days`;
+  return d === -1 ? "1 day overdue" : `${-d} days overdue`;
+}
