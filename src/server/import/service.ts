@@ -1,0 +1,589 @@
+import { createHash } from "node:crypto";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import type { AppDb } from "@/db/client";
+import { sqlRows } from "@/db/rows";
+import { accounts, auditLog, imports, proposedActions, transactions } from "@/db/schema";
+import { withUser, type Tx } from "@/db/with-user";
+import type { MasterKeys, UserCrypto } from "@/server/crypto/envelope";
+import { getUserCrypto } from "@/server/crypto/user-keys";
+import {
+  ensureDefaultCategories,
+  insertPreparedStatement,
+  prepareRows,
+  upsertCardAccount,
+  type PreparedRow,
+} from "@/server/finance/ledger";
+import { parseStatementPdf, type ParsedStatement } from "@/server/ingest/parsers";
+import { logEvent } from "@/server/log";
+
+/**
+ * Statement import (PRD IMP-1…IMP-14, ACT-6):
+ *
+ *   upload → parse (in memory) → PII firewall + dedupe keys → encrypted preview
+ *          → `commit_import` proposal → user approves → ledger write + audit
+ *
+ * Nothing reaches the ledger until the user approves. The file is never stored:
+ * only its SHA-256 (to block exact re-uploads) and the sanitised, encrypted preview.
+ */
+
+export const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
+export const MAX_IMPORTS_PER_30_DAYS = 40;
+
+export type ImportErrorCode =
+  | "already_imported"
+  | "rate_limited"
+  | "proposal_not_found"
+  | "proposal_not_pending"
+  | "proposal_expired"
+  | "preview_tampered";
+
+export class ImportError extends Error {
+  constructor(readonly code: ImportErrorCode) {
+    super(`Import error: ${code}`);
+    this.name = "ImportError";
+  }
+}
+
+export type PreviewCard = {
+  productName: string;
+  ordinal: number;
+  isNewCard: boolean;
+  previousBalanceCents: number;
+  totalCents: number;
+  reconciled: boolean;
+  /** printed total − (previous balance + Σ rows); 0 when reconciled. */
+  differenceCents: number;
+  counts: {
+    rows: number;
+    newRows: number;
+    duplicates: number;
+    cardPayments: number;
+    refunds: number;
+    fees: number;
+    cashback: number;
+    foreignCurrency: number;
+  };
+  chargesCents: number;
+};
+
+/** Counts and totals only: safe to store unencrypted and to put in a proposal. */
+export type ImportSummary = {
+  bank: "DBS" | "UOB";
+  parserVersion: string;
+  statementDate: string;
+  dueDate: string | null;
+  minimumPaymentCents: number | null;
+  statementTotalCents: number | null;
+  totalsMatch: boolean | null;
+  allReconciled: boolean;
+  cards: PreviewCard[];
+  warnings: string[];
+};
+
+export type PreviewRow = Pick<
+  PreparedRow,
+  "txnDate" | "postDate" | "amountCents" | "descriptor" | "fx" | "kind"
+> & {
+  duplicate: boolean;
+};
+
+export type ImportPreview = {
+  importId: string;
+  proposalId: string;
+  status: "previewed" | "committed" | "expired" | "failed" | "discarded";
+  expiresAt: string | null;
+  summary: ImportSummary;
+  /** Sanitised rows per card, for the user's own review screen. */
+  rows: PreviewRow[][];
+};
+
+/** What is encrypted into imports.preview_enc. */
+type StoredPreview = {
+  statement: Omit<ParsedStatement, "cards"> & {
+    cards: (Omit<ParsedStatement["cards"][number], "rows"> & { rows: PreparedRow[] })[];
+  };
+};
+
+const sha256 = (data: string | Uint8Array) => createHash("sha256").update(data).digest("hex");
+
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_k, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+      : v,
+  );
+}
+
+async function existingDedupeKeys(tx: Tx, keys: string[]): Promise<Set<string>> {
+  if (!keys.length) return new Set();
+  const rows = await tx
+    .select({ k: transactions.dedupeKey })
+    .from(transactions)
+    .where(inArray(transactions.dedupeKey, keys));
+  return new Set(rows.map((r) => r.k));
+}
+
+async function buildPreview(
+  tx: Tx,
+  crypto: UserCrypto,
+  statement: ParsedStatement,
+  names: string[],
+): Promise<{ stored: StoredPreview; summary: ImportSummary; rows: PreviewRow[][] }> {
+  const myCards = await tx
+    .select({ bank: accounts.bank, productName: accounts.productName, ordinal: accounts.ordinal })
+    .from(accounts);
+  const storedCards: StoredPreview["statement"]["cards"] = [];
+  const cards: PreviewCard[] = [];
+  const rows: PreviewRow[][] = [];
+
+  for (const card of statement.cards) {
+    const prepared = prepareRows(crypto, { bank: statement.bank, ...card }, card.rows, { names });
+    const dupes = await existingDedupeKeys(
+      tx,
+      prepared.map((r) => r.dedupeKey),
+    );
+    const sum = card.rows.reduce((s, r) => s + r.amountCents, 0);
+    const count = (kind: PreparedRow["kind"]) => prepared.filter((r) => r.kind === kind).length;
+    storedCards.push({ ...card, rows: prepared });
+    cards.push({
+      productName: card.productName,
+      ordinal: card.ordinal,
+      isNewCard: !myCards.some(
+        (c) =>
+          c.bank === statement.bank &&
+          c.productName === card.productName &&
+          c.ordinal === card.ordinal,
+      ),
+      previousBalanceCents: card.previousBalanceCents,
+      totalCents: card.totalCents,
+      reconciled: card.reconciled,
+      differenceCents: card.totalCents - (card.previousBalanceCents + sum),
+      counts: {
+        rows: prepared.length,
+        newRows: prepared.filter((r) => !dupes.has(r.dedupeKey)).length,
+        duplicates: prepared.filter((r) => dupes.has(r.dedupeKey)).length,
+        cardPayments: count("card_payment"),
+        refunds: count("refund"),
+        fees: count("fee"),
+        cashback: count("cashback"),
+        foreignCurrency: prepared.filter((r) => r.fx).length,
+      },
+      chargesCents: prepared
+        .filter((r) => r.kind === "charge" || r.kind === "fee")
+        .reduce((s, r) => s + r.amountCents, 0),
+    });
+    rows.push(
+      prepared.map((r) => ({
+        txnDate: r.txnDate,
+        postDate: r.postDate,
+        amountCents: r.amountCents,
+        descriptor: r.descriptor,
+        fx: r.fx,
+        kind: r.kind,
+        duplicate: dupes.has(r.dedupeKey),
+      })),
+    );
+  }
+
+  const summary: ImportSummary = {
+    bank: statement.bank,
+    parserVersion: statement.parserVersion,
+    statementDate: statement.statementDate,
+    dueDate: statement.dueDate,
+    minimumPaymentCents: statement.minimumPaymentCents,
+    statementTotalCents: statement.statementTotalCents,
+    totalsMatch: statement.totalsMatch,
+    allReconciled: cards.every((c) => c.reconciled) && statement.totalsMatch !== false,
+    cards,
+    warnings: statement.warnings,
+  };
+  return { stored: { statement: { ...statement, cards: storedCards } }, summary, rows };
+}
+
+async function audit(
+  tx: Tx,
+  userId: string,
+  proposalId: string,
+  actor: "user" | "system",
+  event: "proposed" | "approved" | "rejected" | "executed" | "expired",
+  detail: Record<string, unknown> = {},
+  inverse: Record<string, unknown> | null = null,
+) {
+  await tx.insert(auditLog).values({ userId, proposalId, actor, event, detail, inverse });
+}
+
+/** Expires a pending proposal (and its import) once its 24 hours are up. */
+async function expireIfDue(
+  tx: Tx,
+  userId: string,
+  proposal: typeof proposedActions.$inferSelect,
+): Promise<boolean> {
+  if (proposal.status !== "pending" || proposal.expiresAt.getTime() > Date.now()) return false;
+  await tx
+    .update(proposedActions)
+    .set({ status: "expired" })
+    .where(eq(proposedActions.id, proposal.id));
+  const importId = (proposal.payload as { importId?: string }).importId;
+  if (importId) {
+    await tx
+      .update(imports)
+      .set({ status: "expired", previewEnc: null })
+      .where(eq(imports.id, importId));
+  }
+  await audit(tx, userId, proposal.id, "system", "expired");
+  return true;
+}
+
+function decryptPreview(crypto: UserCrypto, previewEnc: string): StoredPreview {
+  return JSON.parse(crypto.decrypt("imports.preview", previewEnc)) as StoredPreview;
+}
+
+function rowsFromStored(stored: StoredPreview, dupes: Set<string>): PreviewRow[][] {
+  return stored.statement.cards.map((c) =>
+    c.rows.map((r) => ({
+      txnDate: r.txnDate,
+      postDate: r.postDate,
+      amountCents: r.amountCents,
+      descriptor: r.descriptor,
+      fx: r.fx,
+      kind: r.kind,
+      duplicate: dupes.has(r.dedupeKey),
+    })),
+  );
+}
+
+/**
+ * Step 1: parse the upload and create a pending `commit_import` proposal.
+ * Re-uploading a file that is still awaiting approval returns the same preview.
+ */
+export async function previewImport(
+  db: AppDb,
+  userId: string,
+  keys: MasterKeys,
+  file: { bytes: Uint8Array; password?: string },
+): Promise<ImportPreview> {
+  const fileSha256 = sha256(file.bytes);
+  // Parse outside the transaction: pure CPU work, no database.
+  const parsed = await parseStatementPdf(file.bytes, { password: file.password });
+
+  return withUser(db, userId, async (tx) => {
+    const crypto = await getUserCrypto(tx, userId, keys);
+    const [existing] = await tx.select().from(imports).where(eq(imports.fileSha256, fileSha256));
+    if (existing?.status === "committed") throw new ImportError("already_imported");
+    if (existing?.status === "previewed") {
+      const [proposal] = await tx
+        .select()
+        .from(proposedActions)
+        .where(
+          and(
+            eq(proposedActions.type, "commit_import"),
+            sql`${proposedActions.payload}->>'importId' = ${existing.id}`,
+          ),
+        );
+      if (proposal && !(await expireIfDue(tx, userId, proposal)) && proposal.status === "pending") {
+        return readPreview(tx, crypto, existing, proposal);
+      }
+    }
+    if (existing) await tx.delete(imports).where(eq(imports.id, existing.id));
+
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [recent] = sqlRows<{ n: number }>(
+      await tx.execute(
+        sql`select count(*)::int as n from imports where created_at >= ${since.toISOString()}`,
+      ),
+    );
+    if (recent!.n >= MAX_IMPORTS_PER_30_DAYS) throw new ImportError("rate_limited");
+
+    const { stored, summary, rows } = await buildPreview(
+      tx,
+      crypto,
+      parsed.statement,
+      parsed.names,
+    );
+    const expiresAt = new Date(Date.now() + PREVIEW_TTL_MS);
+    const previewEnc = crypto.encrypt("imports.preview", JSON.stringify(stored));
+    const [imp] = await tx
+      .insert(imports)
+      .values({
+        userId,
+        fileSha256,
+        bank: summary.bank,
+        parserVersion: summary.parserVersion,
+        statementDate: summary.statementDate,
+        status: "previewed",
+        previewEnc,
+        summary,
+        expiresAt,
+      })
+      .returning();
+
+    // The payload binds the approval to exactly this preview (ACT-6).
+    const payload = { importId: imp!.id, previewSha256: sha256(previewEnc) };
+    const [proposal] = await tx
+      .insert(proposedActions)
+      .values({
+        userId,
+        type: "commit_import",
+        payload,
+        payloadHash: sha256(canonical(payload)),
+        preview: summary,
+        proposer: "system",
+        expiresAt,
+      })
+      .returning();
+    await audit(tx, userId, proposal!.id, "system", "proposed", {
+      type: "commit_import",
+      bank: summary.bank,
+    });
+
+    logEvent("import.previewed", {
+      bank: summary.bank,
+      cards: summary.cards.length,
+      rows: summary.cards.reduce((s, c) => s + c.counts.rows, 0),
+      duplicates: summary.cards.reduce((s, c) => s + c.counts.duplicates, 0),
+      reconciled: summary.allReconciled,
+    });
+    return {
+      importId: imp!.id,
+      proposalId: proposal!.id,
+      status: "previewed",
+      expiresAt: expiresAt.toISOString(),
+      summary,
+      rows,
+    };
+  });
+}
+
+async function readPreview(
+  tx: Tx,
+  crypto: UserCrypto,
+  imp: typeof imports.$inferSelect,
+  proposal: typeof proposedActions.$inferSelect,
+): Promise<ImportPreview> {
+  const summary = imp.summary as ImportSummary;
+  let rows: PreviewRow[][] = [];
+  if (imp.previewEnc) {
+    const stored = decryptPreview(crypto, imp.previewEnc);
+    const dupes = await existingDedupeKeys(
+      tx,
+      stored.statement.cards.flatMap((c) => c.rows.map((r) => r.dedupeKey)),
+    );
+    rows = rowsFromStored(stored, dupes);
+  }
+  return {
+    importId: imp.id,
+    proposalId: proposal.id,
+    status: imp.status,
+    expiresAt: imp.expiresAt?.toISOString() ?? null,
+    summary,
+    rows,
+  };
+}
+
+/** Re-opens a preview (e.g. from Activity). Null if it isn't this user's. */
+export async function getImportPreview(
+  db: AppDb,
+  userId: string,
+  keys: MasterKeys,
+  importId: string,
+): Promise<ImportPreview | null> {
+  return withUser(db, userId, async (tx) => {
+    const [imp] = await tx.select().from(imports).where(eq(imports.id, importId));
+    if (!imp) return null;
+    const [proposal] = await tx
+      .select()
+      .from(proposedActions)
+      .where(
+        and(
+          eq(proposedActions.type, "commit_import"),
+          sql`${proposedActions.payload}->>'importId' = ${imp.id}`,
+        ),
+      );
+    if (!proposal) return null;
+    if (await expireIfDue(tx, userId, proposal)) {
+      const [fresh] = await tx.select().from(imports).where(eq(imports.id, importId));
+      return readPreview(tx, await getUserCrypto(tx, userId, keys), fresh!, {
+        ...proposal,
+        status: "expired",
+      });
+    }
+    return readPreview(tx, await getUserCrypto(tx, userId, keys), imp, proposal);
+  });
+}
+
+export type CommitResult = {
+  inserted: number;
+  duplicates: number;
+  cards: number;
+  allReconciled: boolean;
+};
+
+/**
+ * Step 2: the user approves. Executes exactly the previewed rows, once.
+ * The proposal row is locked, so a double click can't commit twice.
+ */
+export async function approveProposal(
+  db: AppDb,
+  userId: string,
+  keys: MasterKeys,
+  proposalId: string,
+): Promise<CommitResult> {
+  // Expiry must be committed even though the approval fails, so it is reported
+  // out of the transaction instead of thrown inside it (a throw would roll it back).
+  const outcome = await withUser(db, userId, async (tx): Promise<CommitResult | "expired"> => {
+    const [proposal] = await tx
+      .select()
+      .from(proposedActions)
+      .where(eq(proposedActions.id, proposalId))
+      .for("update");
+    if (!proposal || proposal.type !== "commit_import") throw new ImportError("proposal_not_found");
+    if (proposal.status !== "pending") throw new ImportError("proposal_not_pending");
+    if (await expireIfDue(tx, userId, proposal)) return "expired";
+
+    const payload = proposal.payload as { importId: string; previewSha256: string };
+    const [imp] = await tx.select().from(imports).where(eq(imports.id, payload.importId));
+    if (
+      sha256(canonical(payload)) !== proposal.payloadHash ||
+      !imp?.previewEnc ||
+      imp.status !== "previewed" ||
+      sha256(imp.previewEnc) !== payload.previewSha256
+    ) {
+      throw new ImportError("preview_tampered");
+    }
+    await audit(tx, userId, proposal.id, "user", "approved");
+
+    const crypto = await getUserCrypto(tx, userId, keys);
+    const { statement } = decryptPreview(crypto, imp.previewEnc);
+    const categoryIds = await ensureDefaultCategories(tx, userId);
+    const result: CommitResult = {
+      inserted: 0,
+      duplicates: 0,
+      cards: statement.cards.length,
+      allReconciled: true,
+    };
+    for (const card of statement.cards) {
+      const accountId = await upsertCardAccount(tx, userId, {
+        bank: statement.bank,
+        productName: card.productName,
+        ordinal: card.ordinal,
+      });
+      const r = await insertPreparedStatement(
+        tx,
+        crypto,
+        {
+          bank: statement.bank,
+          productName: card.productName,
+          ordinal: card.ordinal,
+          accountId,
+          importId: imp.id,
+          statementDate: statement.statementDate,
+          dueDate: statement.dueDate,
+          minimumPaymentCents: statement.minimumPaymentCents,
+          previousBalanceCents: card.previousBalanceCents,
+          totalCents: card.totalCents,
+          rows: card.rows,
+        },
+        categoryIds,
+      );
+      result.inserted += r.inserted;
+      result.duplicates += r.duplicates;
+      result.allReconciled &&= r.reconciled;
+    }
+
+    const now = new Date();
+    // The preview has served its purpose: committed rows live in the ledger now.
+    await tx
+      .update(imports)
+      .set({ status: "committed", previewEnc: null })
+      .where(eq(imports.id, imp.id));
+    await tx
+      .update(proposedActions)
+      .set({ status: "executed", decidedAt: now, executedAt: now })
+      .where(eq(proposedActions.id, proposal.id));
+    await audit(tx, userId, proposal.id, "system", "executed", { ...result }, { importId: imp.id });
+    logEvent("import.committed", { ...result });
+    return result;
+  });
+  if (outcome === "expired") throw new ImportError("proposal_expired");
+  return outcome;
+}
+
+/** The user rejects (discards) a pending import. */
+export async function rejectProposal(db: AppDb, userId: string, proposalId: string): Promise<void> {
+  await withUser(db, userId, async (tx) => {
+    const [proposal] = await tx
+      .select()
+      .from(proposedActions)
+      .where(eq(proposedActions.id, proposalId))
+      .for("update");
+    if (!proposal || proposal.type !== "commit_import") throw new ImportError("proposal_not_found");
+    if (proposal.status !== "pending") throw new ImportError("proposal_not_pending");
+    await tx
+      .update(proposedActions)
+      .set({ status: "rejected", decidedAt: new Date() })
+      .where(eq(proposedActions.id, proposal.id));
+    const importId = (proposal.payload as { importId: string }).importId;
+    await tx
+      .update(imports)
+      .set({ status: "discarded", previewEnc: null })
+      .where(eq(imports.id, importId));
+    await audit(tx, userId, proposal.id, "user", "rejected");
+    logEvent("import.discarded", {});
+  });
+}
+
+export type PendingProposal = {
+  id: string;
+  type: string;
+  importId: string | null;
+  summary: ImportSummary;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export async function listPendingProposals(db: AppDb, userId: string): Promise<PendingProposal[]> {
+  return withUser(db, userId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(proposedActions)
+      .where(and(eq(proposedActions.status, "pending"), gte(proposedActions.expiresAt, new Date())))
+      .orderBy(proposedActions.createdAt);
+    return rows.map((p) => ({
+      id: p.id,
+      type: p.type,
+      importId: (p.payload as { importId?: string }).importId ?? null,
+      summary: p.preview as ImportSummary,
+      createdAt: p.createdAt.toISOString(),
+      expiresAt: p.expiresAt.toISOString(),
+    }));
+  });
+}
+
+export type ActivityEvent = {
+  id: string;
+  event: string;
+  actor: string;
+  proposalId: string | null;
+  createdAt: string;
+};
+
+export async function listRecentActivity(
+  db: AppDb,
+  userId: string,
+  limit = 20,
+): Promise<ActivityEvent[]> {
+  return withUser(db, userId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(auditLog)
+      .orderBy(sql`${auditLog.createdAt} desc`)
+      .limit(limit);
+    return rows.map((r) => ({
+      id: r.id,
+      event: r.event,
+      actor: r.actor,
+      proposalId: r.proposalId,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  });
+}

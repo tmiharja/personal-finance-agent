@@ -82,30 +82,112 @@ export type LedgerRow = {
   categoryName?: string;
 };
 
-export type CardStatementInput = {
-  bank: Bank;
-  accountId: string;
-  productName: string;
-  ordinal: number;
+export type CardIdentity = { bank: Bank; productName: string; ordinal: number };
+
+/** A row after the PII firewall, ready to encrypt and store. */
+export type PreparedRow = {
+  txnDate: string;
+  postDate: string | null;
+  amountCents: number;
+  /** Sanitised (PRD §7.1a). Encrypted when stored. */
+  descriptor: string;
+  merchantName: string;
+  fx: { currency: string | null; amount: string } | null;
+  kind: TxnKind;
+  /** HMAC under the user's key; the reference number never leaves this function. */
+  dedupeKey: string;
+  categoryName?: string;
+};
+
+/** Categories every import can set without a classifier (Phase 1b adds the rest). */
+const KIND_CATEGORY: Partial<Record<TxnKind, string>> = {
+  card_payment: "Transfers",
+  fee: "Fees & Charges",
+  cashback: "Cashback & Rewards",
+};
+
+/**
+ * The PII firewall step: sanitise each descriptor, normalise the merchant,
+ * assert nothing identifying survives, and derive the dedupe key. A surviving
+ * identifier throws a PiiViolation that names the field, never the value.
+ */
+export function prepareRows(
+  crypto: UserCrypto,
+  card: CardIdentity,
+  rows: LedgerRow[],
+  pii: PiiContext = {},
+): PreparedRow[] {
+  // Identical rows on one statement (e.g. a real duplicate charge) stay distinct.
+  const seen = new Map<string, number>();
+  return rows.map((r) => {
+    const descriptor = sanitiseDescriptor(r.rawDescriptor, pii);
+    const merchantName = normaliseMerchant(descriptor);
+    assertNoPii({ descriptor, merchantName }, pii);
+    const identity = [
+      card.bank,
+      card.productName,
+      card.ordinal,
+      r.txnDate,
+      r.postDate,
+      r.amountCents,
+      descriptor,
+    ];
+    const occurrence = (seen.get(identity.join("|")) ?? 0) + 1;
+    seen.set(identity.join("|"), occurrence);
+    return {
+      txnDate: r.txnDate,
+      postDate: r.postDate,
+      amountCents: r.amountCents,
+      descriptor,
+      merchantName,
+      fx: r.fx,
+      kind: r.kind,
+      dedupeKey: crypto.dedupe([...identity, r.refNo, occurrence]),
+      categoryName: r.categoryName ?? KIND_CATEGORY[r.kind],
+    };
+  });
+}
+
+export type StatementSummary = {
   statementDate: string;
   dueDate: string | null;
   minimumPaymentCents: number | null;
   previousBalanceCents: number;
   totalCents: number;
-  rows: LedgerRow[];
 };
 
-/**
- * Writes one card section of a statement. Every row passes the PII firewall
- * (sanitise, then assert) before encryption; a surviving identifier aborts the
- * whole transaction with a PiiViolation that names the field, never the value.
- */
+export type CardStatementInput = CardIdentity &
+  StatementSummary & {
+    accountId: string;
+    importId?: string | null;
+    rows: LedgerRow[];
+  };
+
+export type PreparedStatementInput = CardIdentity &
+  StatementSummary & {
+    accountId: string;
+    importId?: string | null;
+    rows: PreparedRow[];
+  };
+
+/** Writes one card section of a statement from raw parsed rows. */
 export async function insertCardStatement(
   tx: Tx,
   crypto: UserCrypto,
   input: CardStatementInput,
   categoryIds: Map<string, string>,
   pii: PiiContext = {},
+): Promise<{ inserted: number; duplicates: number; reconciled: boolean }> {
+  const rows = prepareRows(crypto, input, input.rows, pii);
+  return insertPreparedStatement(tx, crypto, { ...input, rows }, categoryIds);
+}
+
+/** Writes one card section from rows that already passed prepareRows(). */
+export async function insertPreparedStatement(
+  tx: Tx,
+  crypto: UserCrypto,
+  input: PreparedStatementInput,
+  categoryIds: Map<string, string>,
 ): Promise<{ inserted: number; duplicates: number; reconciled: boolean }> {
   const userId = crypto.userId;
   const summary = {
@@ -122,35 +204,21 @@ export async function insertCardStatement(
     .values({
       userId,
       accountId: input.accountId,
+      importId: input.importId ?? null,
       statementDate: input.statementDate,
       ...summary,
       reconciled: false,
     })
     .onConflictDoUpdate({
       target: [statements.userId, statements.accountId, statements.statementDate],
-      set: summary,
+      set: { ...summary, ...(input.importId ? { importId: input.importId } : {}) },
     })
     .returning({ id: statements.id });
 
-  // Identical rows on one statement (e.g. a real duplicate charge) stay distinct.
-  const seen = new Map<string, number>();
+  const uncategorised = categoryIds.get("Uncategorised") ?? null;
   const values = input.rows.map((r) => {
-    const descriptor = sanitiseDescriptor(r.rawDescriptor, pii);
-    const merchantName = normaliseMerchant(descriptor);
-    assertNoPii({ descriptor, merchantName }, pii);
-    const identity = [
-      input.bank,
-      input.productName,
-      input.ordinal,
-      r.txnDate,
-      r.postDate,
-      r.amountCents,
-      descriptor,
-    ];
-    const occurrence = (seen.get(identity.join("|")) ?? 0) + 1;
-    seen.set(identity.join("|"), occurrence);
-    const categoryId =
-      categoryIds.get(r.categoryName ?? "") ?? categoryIds.get("Uncategorised") ?? null;
+    // Defence in depth: prepared rows are re-checked right before they are written.
+    assertNoPii({ descriptor: r.descriptor, merchantName: r.merchantName });
     return {
       userId,
       accountId: input.accountId,
@@ -160,13 +228,13 @@ export async function insertCardStatement(
       amountCents: r.amountCents,
       fxAmount: r.fx?.amount ?? null,
       fxCurrency: r.fx?.currency ?? null,
-      descriptorEnc: crypto.encrypt("transactions.descriptor", descriptor),
-      merchantName,
+      descriptorEnc: crypto.encrypt("transactions.descriptor", r.descriptor),
+      merchantName: r.merchantName,
       kind: r.kind,
-      categoryId,
+      categoryId: (r.categoryName && categoryIds.get(r.categoryName)) || uncategorised,
       categorySource: r.categoryName ? ("system" as const) : null,
       isTransfer: r.kind === "card_payment",
-      dedupeKey: crypto.dedupe([...identity, r.refNo, occurrence]),
+      dedupeKey: r.dedupeKey,
     };
   });
 
@@ -180,7 +248,6 @@ export async function insertCardStatement(
 
   // Reconcile what is stored, not what was passed in: a corrected re-import whose
   // rows no longer add up to the printed total is flagged instead of trusted.
-  // (Replacing superseded rows is the Phase 1 commit_import action's job.)
   const [sum] = sqlRows<{ cents: number }>(
     await tx.execute(
       sql`select coalesce(sum(amount_cents), 0)::bigint as cents from transactions where statement_id = ${stmt!.id}`,
