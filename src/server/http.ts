@@ -45,6 +45,11 @@ export async function sessionUser(
   };
 }
 
+/** AUTH-3: may this user approve a large change now? Demo data is fictional, so always. */
+export const deciderOf = (u: { fresh: boolean; isDemo: boolean }) => ({
+  fresh: u.fresh || u.isDemo,
+});
+
 export function masterKeys(): MasterKeys {
   return masterKeysFromEnv(getEnv());
 }

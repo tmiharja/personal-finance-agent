@@ -3,6 +3,7 @@ import { z } from "zod";
 import { accounts, bills, budgets, categories } from "@/db/schema";
 import type { Tx } from "@/db/with-user";
 import { todaySgt } from "@/server/agent/period";
+import { nextDueDate } from "@/server/detect/ledger";
 import { ProposalError } from "../common";
 import { register, type Versions } from "../engine";
 import {
@@ -101,18 +102,6 @@ register({
   },
 });
 
-/** The next date on or after today that falls on `day` (clamped to short months). */
-export function nextDueDate(day: number, today = todaySgt()): string {
-  const [y, m, d] = today.split("-").map(Number) as [number, number, number];
-  const on = (year: number, month: number) => {
-    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
-  };
-  const thisMonth = on(y, m);
-  if (Number(thisMonth.slice(8)) >= d) return thisMonth;
-  return m === 12 ? on(y + 1, 1) : on(y, m + 1);
-}
-
 const payee = z
   .string()
   .trim()
@@ -184,7 +173,7 @@ register({
   async execute(tx, userId, p) {
     const [b] = await tx
       .insert(bills)
-      .values({ userId, ...p, source: "manual", dueDate: nextDueDate(p.dueDay) })
+      .values({ userId, ...p, source: "manual", dueDate: nextDueDate(p.dueDay, todaySgt()) })
       .returning({ id: bills.id });
     return { result: { billId: b!.id }, inverse: { billId: b!.id } };
   },
@@ -270,7 +259,7 @@ register({
         dueDay: p.dueDay,
         expectedAmountCents: p.expectedAmountCents,
         accountId: p.accountId,
-        dueDate: nextDueDate(p.dueDay),
+        dueDate: nextDueDate(p.dueDay, todaySgt()),
       })
       .where(eq(bills.id, p.billId));
     return {

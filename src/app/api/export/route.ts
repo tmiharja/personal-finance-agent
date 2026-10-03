@@ -3,7 +3,7 @@ import { withUser } from "@/db/with-user";
 import { applyNow } from "@/server/actions";
 import { getUserCrypto } from "@/server/crypto/user-keys";
 import { exportCsv, exportFilterSchema } from "@/server/finance/export";
-import { isSameOrigin, jsonError, masterKeys, sessionUser } from "@/server/http";
+import { deciderOf, isSameOrigin, jsonError, masterKeys, sessionUser } from "@/server/http";
 import { actionError } from "@/server/proposal-route";
 
 /**
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   try {
     const db = getDb();
     const keys = masterKeys();
-    await applyNow(db, user.id, keys, "export_csv", parsed.data);
+    await applyNow(db, user.id, keys, "export_csv", parsed.data, deciderOf(user));
     const { csv } = await withUser(db, user.id, async (tx) =>
       exportCsv(tx, await getUserCrypto(tx, user.id, keys), parsed.data),
     );

@@ -35,6 +35,10 @@ describe("CSV export (export_csv)", () => {
     expect(csvText("@SUM")).toBe(`"'@SUM"`);
     expect(csvText('say "hi", ok')).toBe(`"say ""hi"", ok"`);
     expect(csvText(null)).toBe(`""`);
+    // Leading spaces don't hide a formula.
+    expect(csvText("  =1+1")).toBe(`"'  =1+1"`);
+    expect(csvText(" -cmd")).toBe(`"' -cmd"`);
+    expect(csvText("Grab - ride")).toBe(`"Grab - ride"`);
   });
 
   it("exports every matching row with the sanitised descriptor and no numbers", async () => {
@@ -64,7 +68,13 @@ describe("CSV export (export_csv)", () => {
   });
 
   it("is recorded in Activity, can't be undone, and is never a pending proposal", async () => {
-    const done = await applyDirect(db, "alex", "export_csv", { category: "Dining" });
+    const done = await applyDirect(
+      db,
+      "alex",
+      "export_csv",
+      { category: "Dining" },
+      { fresh: true },
+    );
     expect(done.result.rows).toBeGreaterThan(0);
     const [h] = await listActionHistory(db, "alex", { type: "export_csv" });
     expect(h).toMatchObject({ state: "done", canUndo: false });
@@ -78,6 +88,20 @@ describe("CSV export (export_csv)", () => {
       ),
     ).map((e) => e.event);
     expect(events).toEqual(["proposed", "approved", "executed"]);
+  });
+});
+
+describe("export edge cases", () => {
+  it("an empty filter still exports (just the header), and is recorded", async () => {
+    const done = await applyDirect(db, "other", "export_csv", {}, { fresh: true });
+    expect(done.result).toEqual({ rows: 0 });
+    expect((await csvFor("other")).csv.trim().split("\r\n")).toHaveLength(1);
+  });
+
+  it("a large export needs a recent sign-in (AUTH-3)", async () => {
+    await expect(applyDirect(db, "alex", "export_csv", {})).rejects.toMatchObject({
+      code: "reauth_required",
+    });
   });
 });
 
@@ -100,5 +124,36 @@ describe("Settings read model", () => {
     );
     expect(s.rules).toEqual([expect.objectContaining({ pattern: "Grab", category: "Transport" })]);
     expect(await getSettings(db, "other")).toMatchObject({ accounts: [], rules: [] });
+  });
+});
+
+describe("account deletion keeps LLM spend once", () => {
+  it("moves a user's spend to the archive and removes it from usage, in one step", async () => {
+    const { moveSpendToArchive } = await import("@/server/llm/usage");
+    const { ownerCount } = await import("../helpers/test-db");
+    await db.execute(sql`insert into usage (user_id, route, model, input_tokens, output_tokens, cost_usd)
+      values ('other', 'ask', 'test-model', 10, 10, 1.5)`);
+    const archived = async () =>
+      Number(
+        sqlRows<{ usd: string }>(
+          await db.execute(
+            sql`select coalesce(sum(cost_usd), 0)::text as usd from llm_spend_archive`,
+          ),
+        )[0]!.usd,
+      );
+    const before = await archived();
+    await db.transaction((tx) => moveSpendToArchive(tx, "other"));
+    expect(await archived()).toBeCloseTo(before + 1.5);
+    expect(
+      Number(
+        sqlRows<{ n: number }>(
+          await db.execute(sql`select count(*)::int as n from usage where user_id = 'other'`),
+        )[0]!.n,
+      ),
+    ).toBe(0);
+    // A retry finds nothing left to archive.
+    await db.transaction((tx) => moveSpendToArchive(tx, "other"));
+    expect(await archived()).toBeCloseTo(before + 1.5);
+    expect(await ownerCount(db, "usage")).toBeGreaterThanOrEqual(0);
   });
 });

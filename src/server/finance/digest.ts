@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
 import { withUser } from "@/db/with-user";
-import { addDays } from "@/server/detect/ledger";
+import { addDays, addMonthsIso } from "@/server/detect/ledger";
 import { spendByCategory, spendTotals, type CategorySpend } from "./spend";
 
 /**
@@ -18,8 +18,10 @@ import { spendByCategory, spendTotals, type CategorySpend } from "./spend";
 
 export type WeeklyDigest = {
   week: { from: string; to: string };
-  /** False when no transactions are imported for that week yet. */
+  /** Every account's statements cover the whole week. */
   imported: boolean;
+  /** Some accounts' statements cover it, others don't yet (or have a gap). */
+  partial: boolean;
   /** The last date your data covers. */
   dataTo: string | null;
   spentCents: number;
@@ -57,6 +59,14 @@ export async function weeklyDigest(
       await tx.execute(sql`select max(txn_date)::text as "to" from transactions`),
     );
     const dataTo = span?.to ?? null;
+    const coverage = weekCoverage(
+      sqlRows<{ account: string; date: string }>(
+        await tx.execute(
+          sql`select account_id as account, statement_date::text as date from statements order by 1, 2`,
+        ),
+      ),
+      week,
+    );
     const alerts = sqlRows<{ type: string; subject: string | null; on: string }>(
       await tx.execute(sql`
         select type, subject, occurred_on::text as on from alerts
@@ -83,7 +93,8 @@ export async function weeklyDigest(
     );
     return {
       week,
-      imported: dataTo !== null && dataTo >= week.to,
+      imported: coverage === "full",
+      partial: coverage === "partial",
       dataTo,
       spentCents: now.spentCents,
       count: now.count,
@@ -101,4 +112,31 @@ export async function weeklyDigest(
       })),
     };
   });
+}
+
+/**
+ * Whether statements cover a week. Statements are monthly, so a statement
+ * dated S covers roughly the month up to S. An account that had started by
+ * the week must cover both its first and last day; a missing statement (a gap)
+ * or one not imported yet leaves it uncovered.
+ */
+export function weekCoverage(
+  statements: readonly { account: string; date: string }[],
+  week: { from: string; to: string },
+): "full" | "partial" | "none" {
+  const byAccount = new Map<string, string[]>();
+  for (const s of statements)
+    byAccount.set(s.account, [...(byAccount.get(s.account) ?? []), s.date]);
+  const covers = (dates: string[], day: string) =>
+    dates.some((d) => addMonthsIso(d, -1) < day && day <= d);
+  let expected = 0;
+  let covered = 0;
+  for (const dates of byAccount.values()) {
+    // An account whose first statement period starts after the week isn't expected to cover it.
+    if (addMonthsIso(dates[0]!, -1) >= week.to) continue;
+    expected++;
+    if (covers(dates, week.from) && covers(dates, week.to)) covered++;
+  }
+  if (expected === 0 || covered === 0) return "none";
+  return covered === expected ? "full" : "partial";
 }

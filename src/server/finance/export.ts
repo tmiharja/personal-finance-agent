@@ -30,11 +30,12 @@ const HEADER = [
 
 /**
  * A text cell, quoted, and defused if a spreadsheet would read it as a formula
- * (CSV injection): a leading = + - @ tab or CR gets an apostrophe.
+ * (CSV injection): = + - @ first, even after leading spaces, or a leading tab
+ * or CR, gets an apostrophe.
  */
 export function csvText(value: string | null): string {
   const v = value ?? "";
-  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  const safe = /^[\s]*[=+\-@]|^[\t\r]/.test(v) ? `'${v}` : v;
   return `"${safe.replace(/"/g, '""')}"`;
 }
 

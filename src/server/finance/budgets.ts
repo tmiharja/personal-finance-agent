@@ -66,7 +66,8 @@ export async function budgetProgress(
   );
   const complete = daysCovered >= daysInMonth;
   const lines: BudgetLine[] = set.map((b) => {
-    const spentCents = Math.max(0, spent.get(b.category) ?? 0);
+    // Net of refunds, like Overview and Ask (it can be negative).
+    const spentCents = spent.get(b.category) ?? 0;
     const projectedCents =
       complete || daysCovered === 0 ? null : Math.round((spentCents / daysCovered) * daysInMonth);
     const status: BudgetStatus =

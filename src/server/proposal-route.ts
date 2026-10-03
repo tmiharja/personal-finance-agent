@@ -1,7 +1,7 @@
 import { getDb } from "@/db/client";
 import { approveAny, approveMany, rejectAny, undoAction } from "@/server/actions";
 import { ProposalError } from "@/server/actions/common";
-import { isSameOrigin, jsonError, masterKeys, sessionUserId } from "@/server/http";
+import { deciderOf, isSameOrigin, jsonError, masterKeys, sessionUser } from "@/server/http";
 import { ImportError } from "@/server/import/service";
 import { logError } from "@/server/log";
 
@@ -14,6 +14,7 @@ const STATUS: Record<string, number> = {
   undo_expired: 410,
   proposal_not_pending: 409,
   proposal_stale: 409,
+  reauth_required: 403,
   undo_stale: 409,
   already_undone: 409,
   not_undoable: 409,
@@ -44,12 +45,13 @@ export async function decide(
   decision: "approve" | "reject" | "undo",
 ): Promise<Response> {
   if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
-  const userId = await sessionUserId(request);
-  if (!userId) return jsonError("unauthenticated", 401);
+  const user = await sessionUser(request);
+  if (!user) return jsonError("unauthenticated", 401);
+  const userId = user.id;
   if (!UUID.test(id)) return jsonError("proposal_not_found", 404);
   try {
     if (decision === "approve") {
-      return Response.json(await approveAny(getDb(), userId, masterKeys(), id));
+      return Response.json(await approveAny(getDb(), userId, masterKeys(), id, deciderOf(user)));
     }
     if (decision === "undo") await undoAction(getDb(), userId, masterKeys(), id);
     else await rejectAny(getDb(), userId, id);
@@ -62,8 +64,9 @@ export async function decide(
 /** ACT-5: approve several at once; each succeeds or fails on its own. */
 export async function decideMany(request: Request): Promise<Response> {
   if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
-  const userId = await sessionUserId(request);
-  if (!userId) return jsonError("unauthenticated", 401);
+  const user = await sessionUser(request);
+  if (!user) return jsonError("unauthenticated", 401);
+  const userId = user.id;
   const body = (await request.json().catch(() => null)) as { ids?: unknown } | null;
   const ids = Array.isArray(body?.ids) ? body.ids : null;
   if (
@@ -74,7 +77,13 @@ export async function decideMany(request: Request): Promise<Response> {
   )
     return jsonError("bad_request", 400);
   try {
-    const results = await approveMany(getDb(), userId, masterKeys(), [...new Set(ids as string[])]);
+    const results = await approveMany(
+      getDb(),
+      userId,
+      masterKeys(),
+      [...new Set(ids as string[])],
+      deciderOf(user),
+    );
     return Response.json({ results });
   } catch (e) {
     return actionError(e, "proposal.approve_many");

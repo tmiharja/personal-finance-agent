@@ -59,6 +59,8 @@ export type ActionDef<I = unknown, P = unknown> = {
   ledger: boolean;
   /** Only as your own direct action, never a pending proposal (an export needs you there for the file). */
   directOnly?: boolean;
+  /** Zero rows is still a valid request (an export of an empty filter). */
+  allowEmpty?: boolean;
   /** Validates against your data (RLS: anything not yours doesn't exist) and builds the preview. */
   prepare(tx: Tx, userId: string, input: I): Promise<{ payload: P; preview: ActionPreview }>;
   /** Current versions of everything the payload touches; `lock` locks the rows (FOR UPDATE). */
@@ -83,6 +85,12 @@ export const definition = (type: ActionType) => REGISTRY.get(type);
 
 export const UNDO_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** AUTH-3: approving a change to more than this many rows needs a recent sign-in. */
+export const STEP_UP_ROWS = 100;
+
+/** Who is deciding: `fresh` when the sign-in is recent enough for a large change (AUTH-3). */
+export type Decider = { fresh: boolean };
+
 const sameVersions = (a: Versions, b: Versions) => {
   const keys = Object.keys(a);
   return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
@@ -102,7 +110,7 @@ async function proposeTx(
   const input = def.input.safeParse(rawInput);
   if (!input.success) throw new ProposalError("invalid_input");
   const { payload, preview } = await def.prepare(tx, userId, input.data);
-  if (preview.affected === 0) throw new ProposalError("nothing_to_change");
+  if (preview.affected === 0 && !def.allowEmpty) throw new ProposalError("nothing_to_change");
   // The PII firewall, before anything is stored: a tag, a payee or a preview
   // must never carry a card number, NRIC, phone number or email.
   if (textOf({ payload, preview }).some((t) => scanForPii(t).length))
@@ -146,11 +154,14 @@ async function executeTx(
   tx: Tx,
   userId: string,
   proposal: Proposal,
+  decider: Decider,
 ): Promise<Decided | "expired" | "stale"> {
   const def = REGISTRY.get(proposal.type);
   if (!def) throw new ProposalError("proposal_not_found");
   if (proposal.status !== "pending") throw new ProposalError("proposal_not_pending");
   if (await expireIfDue(tx, userId, proposal)) return "expired";
+  const affected = (proposal.preview as Partial<ActionPreview>).affected ?? 0;
+  if (affected > STEP_UP_ROWS && !decider.fresh) throw new ProposalError("reauth_required");
   const payload = def.payload.safeParse(proposal.payload);
   if (!payload.success || sha256(canonical(proposal.payload)) !== proposal.payloadHash) {
     throw new ProposalError("proposal_not_found");
@@ -223,13 +234,18 @@ export async function proposeIn(
 }
 
 /** Approves one pending proposal (any type but imports). */
-export async function approve(db: AppDb, userId: string, proposalId: string): Promise<Decided> {
+export async function approve(
+  db: AppDb,
+  userId: string,
+  proposalId: string,
+  decider: Decider = { fresh: false },
+): Promise<Decided> {
   // Expiry and staleness are committed, then reported (a throw would roll them back).
   const outcome = await withUser(db, userId, async (tx) => {
     const proposal = await lockProposal(tx, proposalId);
     if (!proposal || proposal.type === "commit_import")
       throw new ProposalError("proposal_not_found");
-    return executeTx(tx, userId, proposal);
+    return executeTx(tx, userId, proposal, decider);
   });
   return settle(outcome);
 }
@@ -243,10 +259,11 @@ export async function applyDirect(
   userId: string,
   type: ActionType,
   input: unknown,
+  decider: Decider = { fresh: false },
 ): Promise<Decided & { proposalId: string }> {
   const outcome = await withUser(db, userId, async (tx) => {
     const { proposal } = await proposeTx(tx, userId, "user", type, input, true);
-    const done = await executeTx(tx, userId, proposal);
+    const done = await executeTx(tx, userId, proposal, decider);
     return typeof done === "string" ? done : { ...done, proposalId: proposal.id };
   });
   return settle(outcome);
@@ -309,11 +326,12 @@ export async function approveMany(
   db: AppDb,
   userId: string,
   ids: readonly string[],
+  decider: Decider = { fresh: false },
 ): Promise<{ id: string; ok: boolean; code?: string; ledger?: boolean }[]> {
   const out = [];
   for (const id of ids) {
     try {
-      const r = await approve(db, userId, id);
+      const r = await approve(db, userId, id, decider);
       out.push({ id, ok: true, ledger: r.ledger });
     } catch (e) {
       out.push({ id, ok: false, code: e instanceof ProposalError ? e.code : "internal_error" });

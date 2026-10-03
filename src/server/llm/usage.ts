@@ -87,3 +87,13 @@ export async function archiveSpend(tx: Tx, who: SQL) {
     group by 1
     on conflict (month) do update set cost_usd = llm_spend_archive.cost_usd + excluded.cost_usd`);
 }
+
+/**
+ * Moves one user's LLM spend into the archive before their account is
+ * deleted: archived and removed in one transaction, so a deletion that fails
+ * afterwards (or is retried) can never count the same spend twice.
+ */
+export async function moveSpendToArchive(tx: Tx, userId: string) {
+  await archiveSpend(tx, sql`u.user_id = ${userId}`);
+  await tx.execute(sql`delete from usage where user_id = ${userId}`);
+}

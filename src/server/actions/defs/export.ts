@@ -16,6 +16,7 @@ register({
   undoable: false,
   ledger: false,
   directOnly: true,
+  allowEmpty: true,
   async prepare(tx, _userId, filter) {
     const rows = await countExport(tx, filter);
     if (rows > EXPORT_MAX_ROWS) throw new ProposalError("too_many_rows");

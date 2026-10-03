@@ -20,7 +20,9 @@ export {
   listActionHistory,
   propose,
   proposeIn,
+  STEP_UP_ROWS,
   UNDO_WINDOW_MS,
+  type Decider,
   type ActionHistoryItem,
   type ActionState,
   type HistoryFilter,
@@ -49,14 +51,20 @@ export async function afterLedgerChange(db: AppDb, userId: string, keys: MasterK
   await runDetectors(db, userId, keys).catch((e) => logError("detect.after_change", e));
 }
 
-export async function approveAny(db: AppDb, userId: string, keys: MasterKeys, id: string) {
+export async function approveAny(
+  db: AppDb,
+  userId: string,
+  keys: MasterKeys,
+  id: string,
+  decider: engine.Decider,
+) {
   const type = await typeOf(db, userId, id);
   if (type === "commit_import") {
     const result = await approveImport(db, userId, keys, id);
     await afterLedgerChange(db, userId, keys);
     return result;
   }
-  const { result, ledger } = await engine.approve(db, userId, id);
+  const { result, ledger } = await engine.approve(db, userId, id, decider);
   if (ledger) await afterLedgerChange(db, userId, keys);
   return result;
 }
@@ -73,8 +81,9 @@ export async function approveMany(
   userId: string,
   keys: MasterKeys,
   ids: readonly string[],
+  decider: engine.Decider,
 ) {
-  const results = await engine.approveMany(db, userId, ids);
+  const results = await engine.approveMany(db, userId, ids, decider);
   if (results.some((r) => r.ok && r.ledger)) await afterLedgerChange(db, userId, keys);
   return results.map(({ id, ok, code }) => (ok ? { id, ok } : { id, ok, code }));
 }
@@ -91,8 +100,9 @@ export async function applyNow(
   keys: MasterKeys,
   type: engine.ActionType,
   input: unknown,
+  decider: engine.Decider,
 ) {
-  const done = await engine.applyDirect(db, userId, type, input);
+  const done = await engine.applyDirect(db, userId, type, input, decider);
   if (done.ledger) await afterLedgerChange(db, userId, keys);
   return { proposalId: done.proposalId, result: done.result };
 }

@@ -10,8 +10,7 @@ import * as schema from "@/db/schema";
 import { getEnv } from "@/env";
 import { site } from "@/lib/site";
 import { logEvent } from "@/server/log";
-import { sql } from "drizzle-orm";
-import { archiveSpend } from "@/server/llm/usage";
+import { moveSpendToArchive } from "@/server/llm/usage";
 import { sendSignInCode } from "./mailer";
 
 function createAuth() {
@@ -64,7 +63,7 @@ function createAuth() {
       deleteUser: {
         enabled: true,
         beforeDelete: async (u) => {
-          await getDb().transaction((tx) => archiveSpend(tx, sql`u.user_id = ${u.id}`));
+          await getDb().transaction((tx) => moveSpendToArchive(tx, u.id));
         },
         afterDelete: async () => logEvent("account.deleted", {}),
       },

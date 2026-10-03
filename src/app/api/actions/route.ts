@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { applyNow, definition, type ActionType } from "@/server/actions";
-import { isSameOrigin, jsonError, masterKeys, sessionUserId } from "@/server/http";
+import { deciderOf, isSameOrigin, jsonError, masterKeys, sessionUser } from "@/server/http";
 import { actionError } from "@/server/proposal-route";
 
 const body = z.object({ type: z.string().max(40), input: z.unknown() });
@@ -13,14 +13,17 @@ const body = z.object({ type: z.string().max(40), input: z.unknown() });
  */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
-  const userId = await sessionUserId(request);
-  if (!userId) return jsonError("unauthenticated", 401);
+  const user = await sessionUser(request);
+  if (!user) return jsonError("unauthenticated", 401);
+  const userId = user.id;
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("bad_request", 400);
   const type = parsed.data.type as ActionType;
   if (!definition(type) || type === "export_csv") return jsonError("action_not_allowed", 400);
   try {
-    return Response.json(await applyNow(getDb(), userId, masterKeys(), type, parsed.data.input));
+    return Response.json(
+      await applyNow(getDb(), userId, masterKeys(), type, parsed.data.input, deciderOf(user)),
+    );
   } catch (e) {
     return actionError(e, "actions.apply");
   }

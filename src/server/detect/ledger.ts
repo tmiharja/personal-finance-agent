@@ -154,3 +154,15 @@ export function percentile(values: readonly number[], p: number): number {
   if (!s.length) return 0;
   return s[Math.min(s.length - 1, Math.ceil((p / 100) * s.length) - 1)]!;
 }
+
+/** The next date on or after today that falls on `day` (clamped to short months). */
+export function nextDueDate(day: number, today: string): string {
+  const [y, m, d] = today.split("-").map(Number) as [number, number, number];
+  const on = (year: number, month: number) => {
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
+  };
+  const thisMonth = on(y, m);
+  if (Number(thisMonth.slice(8)) >= d) return thisMonth;
+  return m === 12 ? on(y + 1, 1) : on(y, m + 1);
+}

@@ -58,11 +58,40 @@ describe("budgets (ASK-10)", () => {
     }
   });
 
+  it("a category whose refunds exceed its charges is net negative, like Overview", async () => {
+    const { applyDirect } = await import("@/server/actions");
+    const { transactions } = await import("@/db/schema");
+    const { and, eq } = await import("drizzle-orm");
+    const [refund] = await withUser(db, "alex", (tx) =>
+      tx
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(and(eq(transactions.kind, "refund"), eq(transactions.txnDate, "2026-02-09"))),
+    );
+    await applyDirect(db, "alex", "recategorise_transactions", {
+      transactionIds: [refund!.id],
+      category: "Insurance",
+    });
+    await applyDirect(db, "alex", "set_budget", {
+      category: "Insurance",
+      monthlyAmountCents: 5_000,
+    });
+    const p = (await progress("2026-02", "2026-09-30"))!;
+    const insurance = p.lines.find((l) => l.category === "Insurance")!;
+    const overview = (await getMonthOverview(db, "alex", "2026-02"))!.byCategory.find(
+      (c) => c.category === "Insurance",
+    );
+    expect(insurance.spentCents).toBe(overview?.cents);
+    expect(insurance.spentCents).toBeLessThan(0);
+    expect(insurance.status).toBe("within");
+  });
+
   it("is on Overview, and absent for someone without budgets", async () => {
     const o = (await getMonthOverview(db, "alex", "2026-09"))!;
     expect(o.budgets?.lines.map((l) => l.category).sort()).toEqual([
       "Dining",
       "Groceries",
+      "Insurance",
       "Shopping",
       "Transport",
     ]);

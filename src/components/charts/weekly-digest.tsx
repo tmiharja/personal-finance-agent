@@ -28,7 +28,7 @@ export default function WeeklyDigestCard({ digest: d }: { digest: WeeklyDigest }
       <div className="mt-3 grid gap-4 rounded-lg border border-rule px-4 py-4 text-[15px] md:grid-cols-3">
         <div>
           <span className="block text-[13px] text-muted">Spent</span>
-          {d.imported || d.count > 0 ? (
+          {d.imported || d.partial ? (
             <>
               <Link
                 href={filterHref({ from: d.week.from, to: d.week.to, spend: "1" })}
@@ -46,9 +46,9 @@ export default function WeeklyDigestCard({ digest: d }: { digest: WeeklyDigest }
                   Most on {d.topCategories.map((c) => `${c.category} ${money(c.cents)}`).join(", ")}
                 </span>
               )}
-              {!d.imported && d.dataTo && (
+              {d.partial && (
                 <span className="block text-[12px] text-warn">
-                  Imported up to {shortDate(d.dataTo)} only.
+                  Not every card or account is imported for this week yet.
                 </span>
               )}
             </>
