@@ -188,11 +188,18 @@ export const accounts = pgTable(
     /** 1, 2… only when one statement has two cards with the same product name. */
     ordinal: smallint("ordinal").notNull().default(1),
     nicknameEnc: text("nickname_enc"),
+    /**
+     * HMAC of the card or account number under the user's dedupe key, so two cards
+     * or accounts with the same product name stay apart. One-way: the number is
+     * never stored. Null for accounts created from files without a number.
+     */
+    identityKey: char("identity_key", { length: 64 }),
     currency: char("currency", { length: 3 }).notNull().default("SGD"),
     createdAt: createdAt(),
   },
   (t) => [
     uniqueIndex("accounts_identity_uq").on(t.userId, t.bank, t.productName, t.ordinal),
+    uniqueIndex("accounts_key_uq").on(t.userId, t.identityKey),
     rls("accounts"),
   ],
 );

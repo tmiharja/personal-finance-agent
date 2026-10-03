@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
-import { accounts, auditLog, imports, proposedActions, transactions } from "@/db/schema";
+import { auditLog, imports, proposedActions, transactions } from "@/db/schema";
 import { withUser, type Tx } from "@/db/with-user";
 import type { MasterKeys, UserCrypto } from "@/server/crypto/envelope";
 import { getUserCrypto } from "@/server/crypto/user-keys";
@@ -9,6 +9,7 @@ import {
   ensureDefaultCategories,
   insertPreparedStatement,
   prepareRows,
+  findAccount,
   upsertAccount,
   type LedgerRow,
   type PreparedRow,
@@ -151,7 +152,11 @@ export type ImportPreview = {
 /** What is encrypted into imports.preview_enc. */
 type StoredPreview = {
   statement: Omit<ParsedStatement, "cards"> & {
-    cards: (Omit<ParsedStatement["cards"][number], "rows"> & { rows: PreparedRow[] })[];
+    cards: (Omit<ParsedStatement["cards"][number], "rows"> & {
+      rows: PreparedRow[];
+      /** HMAC of the card/account number; the number itself is never kept. */
+      identityKey?: string | null;
+    })[];
   };
 };
 
@@ -202,15 +207,8 @@ async function buildPreview(
   statement: ParsedStatement,
   names: string[],
   categorised: StatementCategoriesLike | null,
+  accountRefs: readonly (string | null)[] = [],
 ): Promise<{ stored: StoredPreview; summary: ImportSummary; rows: PreviewRow[][] }> {
-  const myCards = await tx
-    .select({
-      id: accounts.id,
-      bank: accounts.bank,
-      productName: accounts.productName,
-      ordinal: accounts.ordinal,
-    })
-    .from(accounts);
   // Transfer pairing, counted (not written) for the preview: this statement's new
   // rows against everything already in the ledger.
   const existing = await loadPairCandidates(tx);
@@ -223,9 +221,14 @@ async function buildPreview(
   const freshRows: PreparedRow[] = [];
   for (const [cardIndex, card] of statement.cards.entries()) {
     const cats = categorised?.byCard[cardIndex];
+    // The number becomes a one-way, per-user digest here and is dropped.
+    const number = accountRefs[cardIndex]?.replace(/\D/g, "");
+    const identityKey = number ? crypto.dedupe(["account", statement.bank, number]) : null;
+    const ref = { bank: statement.bank, ...card, identityKey };
+    const existingId = await findAccount(tx, ref);
     const prepared = prepareRows(
       crypto,
-      { bank: statement.bank, ...card },
+      ref,
       card.rows.map((r, i) => withCategory(r, cats?.[i])),
       { names },
     );
@@ -236,16 +239,10 @@ async function buildPreview(
     const sum = card.rows.reduce((s, r) => s + r.amountCents, 0);
     const balances = card.previousBalanceCents !== null && card.totalCents !== null;
     const count = (kind: PreparedRow["kind"]) => prepared.filter((r) => r.kind === kind).length;
-    storedCards.push({ ...card, rows: prepared });
+    storedCards.push({ ...card, rows: prepared, identityKey });
     // Duplicates are skipped on approval, so they don't count towards "to review".
     freshRows.push(...prepared.filter((r) => !dupes.has(r.dedupeKey)));
-    const accountId =
-      myCards.find(
-        (c) =>
-          c.bank === statement.bank &&
-          c.productName === card.productName &&
-          c.ordinal === card.ordinal,
-      )?.id ?? `new:${cardIndex}`;
+    const accountId = existingId ?? `new:${cardIndex}`;
     prepared.forEach((r, i) => {
       if (!dupes.has(r.dedupeKey))
         newCandidates.push({
@@ -269,12 +266,7 @@ async function buildPreview(
     cards.push({
       productName: card.productName,
       ordinal: card.ordinal,
-      isNewCard: !myCards.some(
-        (c) =>
-          c.bank === statement.bank &&
-          c.productName === card.productName &&
-          c.ordinal === card.ordinal,
-      ),
+      isNewCard: existingId === null,
       previousBalanceCents: card.previousBalanceCents,
       totalCents: card.totalCents,
       reconciled: card.reconciled,
@@ -451,6 +443,7 @@ export async function previewImport(
       parsed.statement,
       parsed.names,
       categorised,
+      parsed.accountRefs,
     );
     const expiresAt = new Date(Date.now() + PREVIEW_TTL_MS);
     const previewEnc = crypto.encrypt("imports.preview", JSON.stringify(stored));
@@ -641,6 +634,7 @@ export async function approveProposal(
         bank: statement.bank,
         productName: card.productName,
         ordinal: card.ordinal,
+        identityKey: card.identityKey ?? null,
         // Previews stored before Phase 2b have no kind: they are card statements.
         kind: statement.kind ?? "card",
       });

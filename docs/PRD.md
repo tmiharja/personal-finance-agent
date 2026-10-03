@@ -242,7 +242,7 @@ All detectors are **deterministic code over the database, not LLM calls**. The L
 
 | Data on the statement | Handling |
 |---|---|
-| Full card number, in every format (`4111 1111 1111 1111`, `4111-1111-1111-1111`, in the header, summary table, rewards table and payment slip) | **Never stored, never sent to the LLM.** It's used in memory only to split card sections, then dropped. Last-4 digits are not kept either. |
+| Full card number, in every format (`4111 1111 1111 1111`, `4111-1111-1111-1111`, in the header, summary table, rewards table and payment slip) | **Never stored, never sent to the LLM.** It's used in memory only to split card sections and to derive a one-way **account digest** (HMAC under the user's own key, like the dedupe key), then dropped. The digest only tells two cards with the same product name apart; it can't be reversed or shown. Last-4 digits are not kept either. |
 | Cardholder name and name on card (including supplementary cardholders) | **Never stored.** Section headers like `NEW TRANSACTIONS <NAME>` or `<card no> <NAME>` are consumed by the parser and dropped. |
 | Mailing address, postal code | **Never extracted.** The parser skips the address block entirely. |
 | Bank account numbers in payment rows (e.g. `AUTOPAY AC#…`, "deducted from bank account …") | **Removed** from the descriptor. The row is kept as "Card payment (GIRO/AutoPay)" and marked as a transfer. |
@@ -250,7 +250,7 @@ All detectors are **deterministic code over the database, not LLM calls**. The L
 | Transaction reference numbers (`REF NO:` / `Ref No. :`) | Used **transiently** inside a keyed hash (HMAC with a per-user secret) for dedupe, then dropped. The hash can't be reversed. |
 | Long digit runs inside descriptors (transit trip IDs, merchant IDs, phone numbers) | Runs of 6+ digits are **replaced with `#`** before storage. For example, a transit descriptor becomes `BUS/MRT # SINGAPORE`, normalised to "SimplyGo / Transit". |
 | Statement date, due date, minimum payment, previous balance, card total | **Stored.** They're needed for bills and reconciliation. |
-| Bank account number, account holder name and address on a bank-account statement | **Never stored.** The account's **product name** (e.g. "POSB Sample Savings Account") is the only identifier, as for cards. |
+| Bank account number, account holder name and address on a bank-account statement | **Never stored.** The account's **product name** (e.g. "POSB Sample Savings Account") is the identifier shown, as for cards; the number only becomes the one-way account digest, so two accounts with the same product name stay apart. |
 | Other people's names in PayNow, FAST and funds-transfer rows ("PAYNOW TO <name>") | **Removed** by the parser: the row is kept as "PayNow transfer" (direction and amount only). Business payees with a company suffix (PTE LTD, LTD, LLP…) are kept, since they are merchants. |
 | Opening and closing balance of a bank account | **Stored.** They're needed for reconciliation. |
 | Transaction date(s), amount, currency, FX amount + currency, sanitised descriptor | **Stored**, with the descriptor encrypted at the application level. |

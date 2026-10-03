@@ -50,6 +50,9 @@ const value = (rows: string[][], label: RegExp) =>
   rows.find((r) => label.test(r[0] ?? ""))?.[1] ?? null;
 const cents = (s: string | undefined) =>
   s && /\d/.test(s) ? toCents(s.replace(/[^\d.,]/g, "")) : 0;
+/** The account number's digits, in memory only (ParseResult.accountRefs); null if none. */
+const accountNumber = (s: string) => /([\d-]{6,})\s*$/.exec(s)?.[1]?.replace(/\D/g, "") || null;
+
 /** "Posb Sample Savings Account 000-00000-0" → "POSB SAMPLE SAVINGS ACCOUNT". */
 const product = (s: string) =>
   s
@@ -124,6 +127,7 @@ export function parseDbsCsv(text: string): ParseResult {
   });
   return {
     names: [],
+    accountRefs: [accountNumber(account)],
     statement: {
       bank: "DBS",
       kind: "deposit",
@@ -213,6 +217,7 @@ export function parseUobCsv(text: string): ParseResult {
 
   return {
     names: [],
+    accountRefs: [accountNumber(value(rows, /^Account Number:?$/i) ?? "")],
     statement: {
       bank: "UOB",
       kind: "deposit",

@@ -57,6 +57,13 @@
       "when": 1791017053007,
       "tag": "0007_bank_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791036363289,
+      "tag": "0008_account_identity",
+      "breakpoints": true
     }
   ]
 }

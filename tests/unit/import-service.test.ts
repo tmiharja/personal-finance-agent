@@ -295,6 +295,27 @@ describe("import: bank-account statements", () => {
     )[0]!.n;
     expect(paired).toBe(2);
   });
+
+  it("a second account with the same product name stays a separate account", async () => {
+    // The same UOB One export, but from another account (a different number).
+    const text = readFileSync(join(DIR, "uob-one/2026-04.csv"), "utf8").replace(
+      "Account Number:,000-000-000-0",
+      "Account Number:,000-000-000-9",
+    );
+    const other = await previewImport(db, "alex", keys, { bytes: new TextEncoder().encode(text) });
+    expect(other.summary.cards[0]).toMatchObject({ isNewCard: true });
+    await approveProposal(db, "alex", keys, other.proposalId);
+    const ones = sqlRows<{ ordinal: number; keyed: boolean }>(
+      await withUser(db, "alex", (tx) =>
+        tx.execute(sql`select ordinal, identity_key is not null as keyed from accounts
+                       where product_name = 'UOB SAMPLE ONE ACCOUNT' order by ordinal`),
+      ),
+    );
+    expect(ones).toEqual([
+      { ordinal: 1, keyed: true },
+      { ordinal: 2, keyed: true },
+    ]);
+  });
 });
 
 describe("import: no PII stored or logged", () => {

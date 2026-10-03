@@ -14,6 +14,7 @@ const SECTIONS: { h: string; p: string[] }[] = [
     h: "What we never store",
     p: [
       "Card numbers (not even the last four digits), cardholder names, addresses, bank account numbers, statement passwords or the files themselves. Files are read in memory and discarded. Sign-in IP addresses aren't stored either.",
+      "To tell apart two cards or accounts with the same name, each number is turned into a one-way code with a key unique to you. The code can't be turned back into the number and is never shown.",
       "The names of people you pay or are paid by. A PayNow or FAST transfer to or from a person is kept as just “PayNow transfer”, with its date and amount; payments to businesses keep the business name.",
     ],
   },

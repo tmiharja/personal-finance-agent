@@ -62,6 +62,12 @@ export type StatementKind = ParsedStatement["kind"];
 export type ParseResult = {
   statement: ParsedStatement;
   /**
+   * The card or account number of each section (aligned with statement.cards),
+   * IN MEMORY ONLY: the import turns it into a per-user keyed digest at once so two
+   * cards or accounts with the same product name stay apart. Never stored or logged.
+   */
+  accountRefs?: (string | null)[];
+  /**
    * Cardholder names seen in this file, for the PII firewall's name check.
    * In memory only for the duration of the import request; never stored.
    */

@@ -25,7 +25,7 @@ export function isDbsCard(lines: Line[]): boolean {
   );
 }
 
-const CARD_START = /^(.+?) CARD NO\.:\s*[\d ]{13,23}$/;
+const CARD_START = /^(.+?) CARD NO\.:\s*([\d ]{13,23})$/;
 const NEW_TXNS = /^NEW TRANSACTIONS\s+(.+)$/;
 const ROW = /^(\d{2} [A-Z]{3})\s+(.+)$/;
 const REF = /^REF NO:\s*(\d+)$/i;
@@ -66,12 +66,14 @@ export function parseDbsCard(lines: Line[]): ParseResult {
   let lastRow: ParsedRow | null = null;
   let statementTotalCents: number | null = null;
 
+  const refs: string[] = [];
   for (const line of lines) {
     const text = line.text;
     if (STOP.test(text)) break;
 
     const start = CARD_START.exec(text);
     if (start) {
+      refs.push(start[2]!.replace(/\D/g, ""));
       card = {
         productName: cleanDescriptor(start[1]!),
         previousBalanceCents: 0,
@@ -155,6 +157,7 @@ export function parseDbsCard(lines: Line[]): ParseResult {
   const sum = cards.reduce((s, c) => s + c.totalCents, 0);
   return {
     names: [...names],
+    accountRefs: refs,
     statement: {
       bank: "DBS",
       kind: "card",

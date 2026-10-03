@@ -19,7 +19,7 @@ const PARSERS = [
 function checked(result: ParseResult): ParseResult {
   const ok = parsedStatementSchema.safeParse(result.statement);
   if (!ok.success) throw new ParseError("invalid_output");
-  return { statement: ok.data, names: result.names };
+  return { statement: ok.data, names: result.names, accountRefs: result.accountRefs ?? [] };
 }
 
 /** PDF bytes → parsed card or bank-account statement. Deterministic, in memory. */

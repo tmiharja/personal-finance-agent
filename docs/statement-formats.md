@@ -187,7 +187,9 @@ type ParsedStatement = {
   warnings: string[];                 // codes only, never values
 };
 // Returned alongside, never stored: names: string[] (cardholder or account-holder
-// names seen in the file, used only by the PII firewall's name check during this request).
+// names seen in the file, used only by the PII firewall's name check during this request),
+// and accountRefs: (string | null)[] (each section's card/account number digits, turned at
+// once into a per-user HMAC "account digest" so same-named cards/accounts stay apart).
 ```
 
 **What gets persisted.** `prepareRows()` (`src/server/finance/ledger.ts`) is the PII firewall step. It turns each row into a sanitised `descriptor`, a normalised `merchantName` and an HMAC `dedupeKey`. The reference number is consumed by the hash and dropped. Only these prepared rows are stored: first encrypted in the import preview (`imports.preview_enc`), and after approval as transactions with an encrypted descriptor. Raw descriptors, reference numbers and names never reach the database.

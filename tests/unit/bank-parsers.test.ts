@@ -107,6 +107,9 @@ describe("bank-account statements (provisional layouts): golden fixtures", () =>
       const text = JSON.stringify(statement);
       expect(text).not.toMatch(/ALEX|JORDAN|EXAMPLE AVENUE|000-0/);
       if (f.endsWith(".pdf")) expect(names).toEqual(["ALEX TAN"]);
+      // The number comes back separately, in memory only, for the account digest.
+      const { accountRefs } = await parseStatementFile(load(f));
+      expect(accountRefs).toEqual([f.startsWith("posb") ? "000000000" : "0000000000"]);
     }
   });
 

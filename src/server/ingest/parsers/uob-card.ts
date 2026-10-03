@@ -57,6 +57,7 @@ export function parseUobCard(lines: Line[]): ParseResult {
   let card: Draft | null = null;
   let lastRow: ParsedRow | null = null;
   let previousLine = "";
+  const refs: string[] = [];
 
   for (const line of lines) {
     const text = line.text;
@@ -66,6 +67,7 @@ export function parseUobCard(lines: Line[]): ParseResult {
     if (cardLine) {
       names.add(cardLine[2]!.trim());
       if (!cardLine[3]) {
+        refs.push(cardLine[1]!.replace(/\D/g, ""));
         // The product name is the title line just above the number line.
         card = {
           productName: cleanDescriptor(previousLine),
@@ -141,6 +143,7 @@ export function parseUobCard(lines: Line[]): ParseResult {
   const sum = cards.reduce((s, c) => s + c.totalCents, 0);
   return {
     names: [...names],
+    accountRefs: refs,
     statement: {
       bank: "UOB",
       kind: "card",

@@ -49,28 +49,79 @@ export async function ensureDefaultCategories(
 
 type AccountKind = (typeof accounts.$inferInsert)["kind"];
 
-/** A card or bank account, identified by bank + product name as printed (+ ordinal). */
+type AccountRef = {
+  bank: Bank;
+  productName: string;
+  ordinal?: number;
+  /** HMAC of the card/account number (see accounts.identity_key); null if the file had none. */
+  identityKey?: string | null;
+};
+
+type Resolution = { id: string; adopt: boolean } | { id: null; ordinal: number };
+
+/**
+ * Which stored account a statement section belongs to. With a number digest: the
+ * account holding that digest, else one of the same product that has none yet
+ * (created before digests, at the same ordinal), else a new account at the next
+ * free ordinal, so two same-named cards or accounts never merge. Without one:
+ * bank + product name + ordinal, as before.
+ */
+async function resolveAccount(tx: Tx, ref: AccountRef): Promise<Resolution> {
+  const ordinal = ref.ordinal ?? 1;
+  if (ref.identityKey) {
+    const [byKey] = await tx
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.identityKey, ref.identityKey));
+    if (byKey) return { id: byKey.id, adopt: false };
+  }
+  const same = await tx
+    .select({ id: accounts.id, ordinal: accounts.ordinal, key: accounts.identityKey })
+    .from(accounts)
+    .where(and(eq(accounts.bank, ref.bank), eq(accounts.productName, ref.productName)))
+    .orderBy(accounts.ordinal);
+  const atOrdinal = same.find((a) => a.ordinal === ordinal);
+  if (!ref.identityKey)
+    return atOrdinal ? { id: atOrdinal.id, adopt: false } : { id: null, ordinal };
+  if (atOrdinal && atOrdinal.key === null) return { id: atOrdinal.id, adopt: true };
+  return {
+    id: null,
+    ordinal: atOrdinal ? Math.max(...same.map((a) => a.ordinal)) + 1 : ordinal,
+  };
+}
+
+/** The stored account for a statement section, or null if importing it would create one. */
+export async function findAccount(tx: Tx, ref: AccountRef): Promise<string | null> {
+  return (await resolveAccount(tx, ref)).id;
+}
+
+/** A card or bank account: product name as printed, plus a number digest when the file has one. */
 export async function upsertAccount(
   tx: Tx,
   userId: string,
-  card: { bank: Bank; productName: string; ordinal?: number; kind: AccountKind },
+  card: AccountRef & { kind: AccountKind },
 ): Promise<string> {
-  const ordinal = card.ordinal ?? 1;
   assertNoPii({ productName: card.productName });
-  await tx
-    .insert(accounts)
-    .values({ userId, bank: card.bank, kind: card.kind, productName: card.productName, ordinal })
-    .onConflictDoNothing();
+  const found = await resolveAccount(tx, card);
+  if ("adopt" in found) {
+    if (found.adopt)
+      await tx
+        .update(accounts)
+        .set({ identityKey: card.identityKey })
+        .where(eq(accounts.id, found.id));
+    return found.id;
+  }
   const [row] = await tx
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(
-      and(
-        eq(accounts.bank, card.bank),
-        eq(accounts.productName, card.productName),
-        eq(accounts.ordinal, ordinal),
-      ),
-    );
+    .insert(accounts)
+    .values({
+      userId,
+      bank: card.bank,
+      kind: card.kind,
+      productName: card.productName,
+      ordinal: found.ordinal,
+      identityKey: card.identityKey ?? null,
+    })
+    .returning({ id: accounts.id });
   return row!.id;
 }
 
@@ -95,7 +146,13 @@ export type LedgerRow = {
   confidence?: number | null;
 };
 
-export type CardIdentity = { bank: Bank; productName: string; ordinal: number };
+export type CardIdentity = {
+  bank: Bank;
+  productName: string;
+  ordinal: number;
+  /** Number digest (accounts.identity_key), when the file printed a number. */
+  identityKey?: string | null;
+};
 
 /** A row after the PII firewall, ready to encrypt and store. */
 export type PreparedRow = {
@@ -150,15 +207,12 @@ export function prepareRows(
   return rows.map((r) => {
     const { descriptor, merchantName } = describeRow(r.rawDescriptor, pii);
     assertNoPii({ descriptor, merchantName }, pii);
-    const identity = [
-      card.bank,
-      card.productName,
-      card.ordinal,
-      r.txnDate,
-      r.postDate,
-      r.amountCents,
-      descriptor,
-    ];
+    // The account: its number digest when known (two same-named accounts stay
+    // apart), else product name + ordinal.
+    const account = card.identityKey
+      ? [`key:${card.identityKey}`]
+      : [card.productName, card.ordinal];
+    const identity = [card.bank, ...account, r.txnDate, r.postDate, r.amountCents, descriptor];
     const occurrence = (seen.get(identity.join("|")) ?? 0) + 1;
     seen.set(identity.join("|"), occurrence);
     return {

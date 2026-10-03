@@ -48,7 +48,7 @@ const DBS: Layout = {
       all.some((t) => /\b(DBS Bank Ltd|POSB)\b/.test(t))
     );
   },
-  section: /^(.+?\bACCOUNT)\s+Account No\.?\s*[\d-]+$/i,
+  section: /^(.+?\bACCOUNT)\s+Account No\.?\s*([\d-]+)$/i,
   title: /^CONSOLIDATED STATEMENT$/i,
   rowDate: (t) => {
     const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t);
@@ -71,7 +71,7 @@ const UOB: Layout = {
       all.some((t) => /\bBALANCE B\/F\b/i.test(t))
     );
   },
-  section: /^(.+?\bACCOUNT)\s+[\d-]{9,}(?:\s*\(continued\))?$/i,
+  section: /^(.+?\bACCOUNT)\s+([\d-]{9,})(?:\s*\(continued\))?$/i,
   title: /^Statement of Account$/i,
   rowDate: (t, statementDate) =>
     /^\d{2} [A-Za-z]{3}$/.test(t) ? inferDate(t, statementDate) : null,
@@ -136,6 +136,8 @@ function holderName(lines: Line[], layout: Layout): string[] {
 
 type Draft = {
   productName: string;
+  /** The account number, in memory only (ParseResult.accountRefs). */
+  ref: string;
   opening: number | null;
   closing: number | null;
   rows: { date: string; type: string; details: string[]; cents: number; balance: number | null }[];
@@ -157,8 +159,10 @@ function parseAccountPdf(lines: Line[], layout: Layout): ParseResult {
     const sec = layout.section.exec(text);
     if (sec) {
       const productName = sec[1]!.replace(/\s+/g, " ").trim().toUpperCase();
-      if (current?.productName !== productName) {
-        current = { productName, opening: null, closing: null, rows: [] };
+      const ref = sec[2]!.replace(/\D/g, "");
+      // A continued page repeats the same account; a different number is a new one.
+      if (current?.ref !== ref) {
+        current = { productName, ref, opening: null, closing: null, rows: [] };
         sections.push(current);
       }
       row = null;
@@ -271,6 +275,7 @@ function parseAccountPdf(lines: Line[], layout: Layout): ParseResult {
 
   return {
     names: holderName(lines, layout),
+    accountRefs: sections.map((s) => s.ref),
     statement: {
       bank: layout.bank,
       kind: "deposit",
