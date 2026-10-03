@@ -4,7 +4,7 @@ import { user } from "@/db/schema";
 import { getAuth } from "@/server/auth/auth";
 import { getEnv } from "@/env";
 import { consumeDemoQuota, prepareDemoWorkspace, visitorKey } from "@/server/demo/workspace";
-import { isSameOrigin, jsonError, masterKeys } from "@/server/http";
+import { isSameOrigin, jsonError, masterKeys, sessionUser } from "@/server/http";
 import { logError } from "@/server/log";
 
 // Seeding 12 months of statements takes a few seconds on a cold database.
@@ -16,6 +16,8 @@ export const maxDuration = 30;
  */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return jsonError("bad_origin", 403);
+  // Already signed in (a demo or a real account): just go to the workspace.
+  if (await sessionUser(request)) return Response.json({ ok: true, existing: true });
   const db = getDb();
   if (
     !(await consumeDemoQuota(

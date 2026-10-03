@@ -23,8 +23,10 @@ export default function MonthTrend({
   return (
     <figure>
       <div className="flex h-36 items-end gap-[2px] border-b border-rule">
-        {months.map((m) => {
+        {months.map((m, i) => {
           const isSel = m.month === selected;
+          // Keep edge labels inside the chart: anchor them to the outer side.
+          const edge = i === months.length - 1 ? "right-0" : i === 0 ? "left-0" : "";
           const h = Math.max(0, (m.cents / max) * 100);
           return (
             <Link
@@ -37,7 +39,7 @@ export default function MonthTrend({
               {isSel && (
                 <span
                   aria-hidden
-                  className="tabular absolute text-[11px] whitespace-nowrap"
+                  className={`tabular absolute text-[11px] whitespace-nowrap ${edge}`}
                   style={{ bottom: `calc(${h}% + 4px)` }}
                 >
                   {money(m.cents)}
@@ -52,7 +54,7 @@ export default function MonthTrend({
               />
               <span
                 aria-hidden
-                className="pointer-events-none absolute bottom-full z-10 mb-1 hidden rounded-md border border-rule bg-background px-2 py-1 text-[12px] whitespace-nowrap group-hover:block group-focus-visible:block"
+                className={`pointer-events-none absolute bottom-full z-10 mb-1 hidden rounded-md ${edge} border border-rule bg-background px-2 py-1 text-[12px] whitespace-nowrap group-hover:block group-focus-visible:block`}
               >
                 <strong className="tabular font-medium">{money(m.cents)}</strong>{" "}
                 <span className="text-muted">{label(m.month, "long")}</span>

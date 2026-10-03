@@ -100,7 +100,7 @@ export default async function OverviewPage({
         <Stat
           label="Cashback"
           value={money(-o.totals.cashbackCents)}
-          note={`${o.totals.excluded.cashback} credits`}
+          note={`${o.totals.excluded.cashback} ${o.totals.excluded.cashback === 1 ? "credit" : "credits"}`}
         />
         <Stat
           label="Card payments"

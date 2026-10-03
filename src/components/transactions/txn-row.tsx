@@ -64,10 +64,17 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
   return (
     <>
       <tr className="border-t border-rule align-top">
-        <td className="py-3 pr-3 whitespace-nowrap text-muted">{shortDate(row.txnDate)}</td>
-        <td className="py-3 pr-3">
-          <span className="block">{row.merchantName ?? row.descriptor}</span>
-          <span className="block text-[12px] break-all text-muted">
+        <td className="py-3 pr-2 text-[13px] whitespace-nowrap text-muted sm:pr-3 sm:text-[15px]">
+          {shortDate(row.txnDate)}
+        </td>
+        <td className="py-3 pr-2 sm:pr-3">
+          <span className="block break-words">{row.merchantName ?? row.descriptor}</span>
+          {KIND_LABEL[row.kind] && (
+            <span className="mt-0.5 inline-block rounded-full border border-rule px-2 text-[11px] text-muted sm:hidden">
+              {KIND_LABEL[row.kind]}
+            </span>
+          )}
+          <span className="hidden text-[12px] break-words text-muted sm:block">
             {row.descriptor}
             {KIND_LABEL[row.kind] && (
               <span className="ml-2 rounded-full border border-rule px-2 text-[11px]">
@@ -96,7 +103,7 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
                   setChoice(next && next.id !== row.categoryId ? next : null);
                 }}
                 className={cn(
-                  "max-w-[150px] rounded-md border border-rule bg-background px-1.5 py-1",
+                  "max-w-[112px] rounded-md border border-rule bg-background px-1.5 py-1 sm:max-w-[150px]",
                   row.review && !choice && "border-warn",
                 )}
               >

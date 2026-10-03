@@ -84,6 +84,11 @@ test("Ask answers from the data with a link to the transactions", async ({ page,
 
 test("imports are off in the demo", async ({ page }) => {
   await startDemo(page);
+  // A second click from the same browser reuses the workspace instead of failing.
+  const again = await page.request.post("/api/demo", {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(await again.json()).toEqual({ ok: true, existing: true });
   await page.goto("/app/import");
   await expect(page.getByRole("heading", { name: "Imports are off in the demo" })).toBeVisible();
   const res = await page.request.post("/api/import", {
