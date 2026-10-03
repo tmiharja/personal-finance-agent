@@ -1,0 +1,257 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. The core palette is copied from the portfolio site
+ * (tmiharja/portfolio-website, src/app/globals.css) so both sites read as one
+ * family. `warn` and `danger` are the only additions. See docs/PRD.md §8.
+ *
+ * Portfolio semantics win where they clash with shadcn's defaults: `muted` is a
+ * text colour and `accent` is the brand navy. shadcn names that don't clash
+ * (primary, border, input, ring, destructive) are aliased below so CLI-added
+ * components still pick up the palette.
+ */
+@theme inline {
+  --font-sans: Helvetica, "Helvetica Neue", Arial, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  /* shadcn aliases */
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-contrast);
+  --color-muted-foreground: var(--muted);
+  --color-border: var(--rule);
+  --color-input: var(--rule);
+  --color-ring: var(--accent);
+  --color-destructive: var(--danger);
+  --color-card: var(--background);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--background);
+  --color-popover-foreground: var(--foreground);
+
+  --color-accent-track: var(--accent-track);
+}
+
+:root {
+  --background: #fbfbf9;
+  --foreground: #1a1a1a;
+  --muted: #5f5f5f;
+  --rule: #e6e4df;
+  --accent: #1f4e79;
+  --accent-soft: #eef3f8;
+  --accent-contrast: #ffffff;
+  --warn: #8a5a00;
+  --warn-soft: #faf3e3;
+  --danger: #9b2c2c;
+  --danger-soft: #fbeeee;
+  /* Unfilled part of the bars and charts: a light step of the accent hue. */
+  --accent-track: color-mix(in srgb, var(--accent) 16%, var(--background));
+  --radius: 0.5rem;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #131416;
+  --foreground: #e8e6e1;
+  --muted: #9a9a94;
+  --rule: #2a2c30;
+  --accent: #8fb4dc;
+  --accent-soft: #1b2733;
+  --accent-contrast: #131416;
+  --warn: #e0b25c;
+  --warn-soft: #2a2418;
+  --danger: #e38b8b;
+  --danger-soft: #2c1c1c;
+  --accent-track: color-mix(in srgb, var(--accent) 22%, var(--background));
+  color-scheme: dark;
+}
+
+/* Page column: 680px like the portfolio for landing, sign-in and privacy;
+   960px for the app's data screens (PRD §8), set by the app layout. */
+:root {
+  --page-col: 680px;
+}
+.app-shell {
+  --page-col: 960px;
+}
+.page-col {
+  width: 100%;
+  max-width: var(--page-col);
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+  transition: max-width 300ms ease-out;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  overflow-x: clip;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+}
+
+/* Portfolio link style: accent text, underline draws in on hover/focus. */
+.link {
+  color: var(--color-accent);
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 1px;
+  transition:
+    background-size 250ms ease-out,
+    color 200ms ease-out;
+}
+.link:hover,
+.link:focus-visible {
+  background-size: 100% 1px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Fixed header: transparent at the top, then a frosted bar with a hairline
+   rule once the page scrolls (HeaderShell sets data-scrolled). */
+.site-header {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 50;
+  border-bottom: 1px solid transparent;
+  transition:
+    background-color 250ms ease-out,
+    border-color 250ms ease-out,
+    backdrop-filter 250ms ease-out;
+}
+.site-header__inner {
+  padding-top: 2rem;
+  padding-bottom: 0.75rem;
+  transition: padding 250ms ease-out;
+}
+.site-header[data-scrolled="true"] {
+  background-color: color-mix(in srgb, var(--background) 80%, transparent);
+  border-bottom-color: var(--rule);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  backdrop-filter: saturate(140%) blur(14px);
+}
+.site-header[data-scrolled="true"] .site-header__inner {
+  padding-top: 0.75rem;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .site-header[data-scrolled="true"] {
+    background-color: color-mix(in srgb, var(--background) 96%, transparent);
+  }
+}
+
+/* Landing hero: a full-bleed image band like the portfolio's, fading into the
+   page. Until the real images are added (src/img/hero.ts) a neutral striped
+   placeholder is shown. */
+.hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  min-height: clamp(440px, 72svh, 780px);
+}
+.hero-image {
+  object-fit: cover;
+}
+.hero-image--dark,
+.dark .hero-image--light {
+  display: none;
+}
+.dark .hero-image--dark {
+  display: block;
+}
+.hero-placeholder {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(135deg, rgb(0 0 0 / 0.03) 0 2px, transparent 2px 16px),
+    radial-gradient(60% 70% at 38% 34%, rgb(255 255 255 / 0.6), transparent 70%),
+    linear-gradient(160deg, #cdd2d8 0%, #dcd8cf 45%, #bcc3cb 100%);
+}
+.dark .hero-placeholder {
+  background:
+    repeating-linear-gradient(135deg, rgb(255 255 255 / 0.025) 0 2px, transparent 2px 16px),
+    radial-gradient(60% 70% at 62% 40%, rgb(143 180 220 / 0.14), transparent 70%),
+    linear-gradient(160deg, #2c3036 0%, #23262a 50%, #1a1c1f 100%);
+}
+/* Melts the bottom of the image into the page background. */
+.hero-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    color-mix(in srgb, var(--background) 60%, transparent) 78%,
+    var(--background)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* App bottom tab bar (mobile). Desktop uses the top nav. */
+.tab-bar {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 50;
+  border-top: 1px solid var(--rule);
+  background-color: color-mix(in srgb, var(--background) 92%, transparent);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  backdrop-filter: saturate(140%) blur(14px);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@media (min-width: 768px) {
+  .tab-bar {
+    display: none;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .site-header,
+  .tab-bar,
+  footer {
+    display: none;
+  }
+}
