@@ -105,6 +105,15 @@ describe("corrections", () => {
     expect(after).toMatchObject({ categoryId: groceries, categorySource: "user", version: 2 });
   });
 
+  it("confirms a flagged category as is, which takes it off the review list", async () => {
+    const before = await countToReview(db, "alex");
+    const flagged = (await list({ review: "1" })).rows.find(
+      (r) => r.categoryName !== "Uncategorised",
+    )!;
+    await setTransactionCategory(db, "alex", flagged.id, flagged.categoryId!);
+    expect(await countToReview(db, "alex")).toBe(before - 1);
+  });
+
   it("refuses system rows, transfer categories and other users' rows", async () => {
     const [payment] = (await list({ q: "card payment" })).rows;
     const dining = await categoryId("Dining");

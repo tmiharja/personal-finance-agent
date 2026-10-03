@@ -149,11 +149,15 @@ export async function approveRuleProposal(
       const base = proposal.baseVersions as Record<string, number>;
 
       // ACT-6: the rows must be exactly as previewed (same rows, same versions).
+      // Locked first, so a concurrent correction either commits before this check
+      // (and the proposal goes stale) or waits until this approval has committed.
       const current = payload.transactionIds.length
         ? await tx
             .select({ id: transactions.id, version: transactions.version })
             .from(transactions)
             .where(inArray(transactions.id, payload.transactionIds))
+            .orderBy(transactions.id)
+            .for("update")
         : [];
       const [cat] = await tx
         .select({ id: categories.id })

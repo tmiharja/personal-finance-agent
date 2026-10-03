@@ -5,7 +5,7 @@ import { withUser } from "@/db/with-user";
 import { getEnv } from "@/env";
 import { dataSpan, type Range } from "@/server/finance/spend";
 import { FALLBACK_BETA, getLlm } from "@/server/llm/client";
-import { addUsage, fromApiUsage, ZERO_USAGE } from "@/server/llm/pricing";
+import { addUsage, fromApiUsage, responseCostUsd, ZERO_USAGE } from "@/server/llm/pricing";
 import type { BetaMessage, BetaMessageParam, TurnParams } from "@/server/llm/types";
 import { budgetBlock, recordUsage, type BudgetBlock } from "@/server/llm/usage";
 import { logError, logEvent } from "@/server/log";
@@ -109,12 +109,23 @@ export async function runAsk(opts: {
   const toolLog: { name: string; result: Record<string, unknown> }[] = [];
   const allowed: number[] = [0, 100, ...extractNumbers(question).map((f) => f.value)];
   let usage = ZERO_USAGE;
+  let cost = 0;
+  let calls = 0;
   let servedBy: string = model;
   let retried = false;
   let period: string | undefined;
 
+  // One usage row per question, on every exit after a model call (answers,
+  // failures and step limits alike), priced per turn: a fallback hop costs its own rate.
+  let recorded = false;
+  const record = async () => {
+    if (recorded || calls === 0) return;
+    recorded = true;
+    await withUser(db, userId, (tx) => recordUsage(tx, userId, "ask", servedBy, usage, cost));
+  };
+
   const finish = async (guard: "pass" | "retried" | "fallback" | "skipped") => {
-    await withUser(db, userId, (tx) => recordUsage(tx, userId, "ask", servedBy, usage));
+    await record();
     logEvent("ask.answered", { tools: toolLog.length, guard, model: servedBy });
     emit({
       t: "done",
@@ -150,7 +161,9 @@ export async function runAsk(opts: {
         },
         signal,
       );
+      calls++;
       usage = addUsage(usage, fromApiUsage(message.usage));
+      cost += responseCostUsd(message, model);
       servedBy = message.model;
 
       if (message.stop_reason === "refusal") {
@@ -208,6 +221,7 @@ export async function runAsk(opts: {
 
       const answer = textOf(message);
       if (!answer) {
+        await record();
         emit({ t: "error", code: "ask_failed" });
         return;
       }
@@ -224,14 +238,11 @@ export async function runAsk(opts: {
       emit({ t: "text", d: fallbackAnswer(toolLog) });
       return await finish("fallback");
     }
+    await record();
     emit({ t: "error", code: "too_many_steps" });
   } catch (e) {
     logError("ask", e);
-    if (usage.inputTokens || usage.outputTokens) {
-      await withUser(db, userId, (tx) => recordUsage(tx, userId, "ask", servedBy, usage)).catch(
-        () => undefined,
-      );
-    }
+    await record().catch(() => undefined);
     emit({ t: "error", code: "ask_failed" });
   }
 }

@@ -144,6 +144,8 @@ describe("import: preview → approve", () => {
     expect(p.summary.cards.reduce((s, c) => s + c.counts.duplicates, 0)).toBe(27);
     expect(p.summary.cards.reduce((s, c) => s + c.counts.newRows, 0)).toBe(0);
     expect(p.rows.flat().every((r) => r.duplicate)).toBe(true);
+    // Duplicates are skipped on approval, so nothing new needs review.
+    expect(p.summary.categories.toReview).toBe(0);
     await rejectProposal(db, "alex", p.proposalId);
   });
 

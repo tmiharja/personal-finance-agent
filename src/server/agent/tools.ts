@@ -119,7 +119,8 @@ const DESCRIPTIONS: Record<ToolName, string> = {
 
 /** Tool definitions in a fixed order (a changing tools list breaks prompt caching). */
 export const TOOLS: BetaTool[] = (Object.keys(SCHEMAS) as ToolName[]).map((name) => {
-  const { $schema: _drop, ...raw } = z.toJSONSchema(SCHEMAS[name]) as Record<string, unknown>;
+  const raw = z.toJSONSchema(SCHEMAS[name]) as Record<string, unknown>;
+  delete raw.$schema;
   // Strict mode accepts a subset of JSON Schema; the SDK moves the rest (lengths,
   // ranges, patterns) into descriptions. zod still enforces them on the way in.
   const schema = transformJSONSchema(raw);
@@ -346,7 +347,10 @@ async function run(
       const range = checkRange(String(args.from), String(args.to));
       const s = await resolveScope(ctx, args.category as string | null, null);
       if ("error" in s) return { result: s.error };
-      const rows = await topMerchants(ctx.tx, range, s.scope, Number(args.limit ?? 5));
+      const [rows, all] = await Promise.all([
+        topMerchants(ctx.tx, range, s.scope, Number(args.limit ?? 5)),
+        spendTotals(ctx.tx, range, s.scope),
+      ]);
       return {
         result: {
           from: range.from,
@@ -362,7 +366,8 @@ async function run(
         view: viewFor(
           range,
           s.scope,
-          rows.reduce((n, r) => n + r.count, 0),
+          // The link opens every merchant in the period, so it counts all their rows.
+          all.count,
         ),
         figure: {
           kind: "bars",

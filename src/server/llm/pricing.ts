@@ -71,3 +71,34 @@ export function fromApiUsage(u: {
     cacheWriteTokens: u.cache_creation_input_tokens ?? 0,
   };
 }
+
+type IterationUsage = {
+  type: string;
+  model?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+};
+
+/**
+ * Cost of one response. With a server-side fallback, one response can include
+ * hops on different models; `usage.iterations` lists each with its model, so
+ * each is priced at its own rate. Otherwise the response's model prices it all.
+ */
+export function responseCostUsd(
+  response: {
+    model: string;
+    usage: Parameters<typeof fromApiUsage>[0] & { iterations?: readonly IterationUsage[] | null };
+  },
+  requestedModel: string,
+): number {
+  const iterations = response.usage.iterations?.filter(
+    (i) => i.type === "message" || i.type === "fallback_message",
+  );
+  if (!iterations?.length) return costUsd(response.model, fromApiUsage(response.usage));
+  return iterations.reduce(
+    (sum, i) => sum + costUsd(i.model ?? requestedModel, fromApiUsage(i)),
+    0,
+  );
+}

@@ -22,6 +22,9 @@ type Answer = {
   error?: string;
 };
 
+/** The API accepts at most 24 earlier turns; the agent itself uses fewer. */
+const MAX_HISTORY = 24;
+
 const STARTERS = [
   "What did I spend on dining last month?",
   "Where did I spend the most in the last 3 months?",
@@ -99,7 +102,8 @@ export default function AskPanel() {
       .flatMap((a) => [
         { role: "user" as const, content: a.question },
         { role: "assistant" as const, content: a.text },
-      ]);
+      ])
+      .slice(-MAX_HISTORY);
     setAnswers((all) => [...all, { question: q, text: "", status: null, done: false }]);
     setInput("");
     setBusy(true);

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AppDb } from "@/db/client";
 import { withUser } from "@/db/with-user";
-import { costUsd } from "@/server/llm/pricing";
+import { costUsd, responseCostUsd } from "@/server/llm/pricing";
 import { budgetBlock, recordUsage } from "@/server/llm/usage";
 import { createTestDb, createUser } from "../helpers/test-db";
 
@@ -29,6 +29,40 @@ describe("pricing", () => {
     expect(
       costUsd("claude-sonnet-5-5", { ...tokens(0, 0), cacheReadTokens: 1_000_000 }),
     ).toBeCloseTo(0.2);
+  });
+  it("prices each hop of a fallback response at its own model's rate", () => {
+    const usage = {
+      input_tokens: 0,
+      output_tokens: 2_000_000,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+    };
+    const iterations = [
+      {
+        type: "message",
+        model: "claude-sonnet-5-5",
+        input_tokens: 0,
+        output_tokens: 1_000_000,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+      {
+        type: "fallback_message",
+        model: "claude-opus-5-5",
+        input_tokens: 0,
+        output_tokens: 1_000_000,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    ];
+    // Sonnet S$10/MTok out + Opus S$20/MTok out, not 2 MTok at the final model's rate.
+    expect(
+      responseCostUsd(
+        { model: "claude-opus-5-5", usage: { ...usage, iterations } },
+        "claude-sonnet-5-5",
+      ),
+    ).toBe(30);
+    expect(responseCostUsd({ model: "claude-sonnet-5-5", usage }, "claude-sonnet-5-5")).toBe(20);
   });
   it("prices an unknown (fallback) model at the highest listed rate", () => {
     expect(costUsd("some-future-model", tokens(0, 1_000_000))).toBe(20);

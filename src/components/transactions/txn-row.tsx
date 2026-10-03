@@ -31,14 +31,15 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
   const [proposal, setProposal] = useState<{ id: string; preview: RulePreview } | null>(null);
   const merchant = row.merchantName ?? "this merchant";
 
-  async function apply(scope: "one" | "merchant") {
-    if (!choice) return;
+  async function apply(scope: "one" | "merchant", confirm?: CategoryOption) {
+    const target = confirm ?? choice;
+    if (!target) return;
     setBusy(true);
     setError(null);
     const res = await fetch(`/api/transactions/${row.id}/category`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ categoryId: choice.id, scope }),
+      body: JSON.stringify({ categoryId: target.id, scope }),
     });
     const body = (await res.json().catch(() => ({}))) as {
       error?: string;
@@ -60,6 +61,8 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
   }
 
   const choosable = categories.filter((c) => c.kind !== "transfer" && c.kind !== "system");
+  // A flagged row whose suggested category is right can be confirmed as is.
+  const current = choosable.find((c) => c.id === row.categoryId) ?? null;
 
   return (
     <>
@@ -117,6 +120,22 @@ export default function TxnRow({ row, categories }: { row: Row; categories: Cate
               {row.review && !choice && (
                 <span className="text-warn" title="Needs a look: low confidence or uncategorised">
                   ?
+                </span>
+              )}
+              {row.review && !choice && current && (
+                <button
+                  type="button"
+                  onClick={() => apply("one", current)}
+                  disabled={busy}
+                  className="link ml-1 text-[12px] whitespace-nowrap"
+                  aria-label={`Confirm ${current.name} for ${merchant} on ${shortDate(row.txnDate)}`}
+                >
+                  Looks right
+                </button>
+              )}
+              {error && !choice && (
+                <span role="alert" className="ml-1 text-[12px] text-danger">
+                  {error}
                 </span>
               )}
             </label>

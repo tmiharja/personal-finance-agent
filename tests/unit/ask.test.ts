@@ -211,6 +211,20 @@ describe("tools (ASK-2)", () => {
       ).result,
     ).toMatchObject({ error: "invalid_input" });
     expect((await run("drop_table", {})).result).toMatchObject({ error: "unknown_tool" });
+    // "View N transactions" counts every row the link opens, not just the top merchants'.
+    const top = await run("top_merchants", {
+      from: "2026-03-01",
+      to: "2026-03-31",
+      category: null,
+      limit: 2,
+    });
+    const all = await run("spend_summary", {
+      from: "2026-03-01",
+      to: "2026-03-31",
+      category: null,
+      merchant: null,
+    });
+    expect(top.view).toEqual(all.view);
     expect(
       (
         await run("find_transactions", {
@@ -319,6 +333,35 @@ describe("the Ask loop (offline mock model)", () => {
     })();
     // The configured limit (60) isn't reached by 3 questions.
     expect(error).toBeUndefined();
+  });
+
+  it("records the usage of a question that fails, so limits still count it", async () => {
+    const { mockTurn } = await import("@/server/llm/mock-agent");
+    // A model that never stops calling tools: the loop hits its step limit.
+    const looping = {
+      ...mockLlm,
+      turn: async (params: Parameters<typeof mockLlm.turn>[0], onText: (d: string) => void) => {
+        const first = await mockTurn({ ...params, messages: params.messages.slice(0, 1) }, onText);
+        return {
+          ...first,
+          content: first.content.map((b) => ({ ...b, id: `toolu_${Math.random()}` })),
+        };
+      },
+    };
+    const spy = vi
+      .spyOn(await import("@/server/llm/client"), "getLlm")
+      .mockResolvedValue(looping as never);
+    const count = async () =>
+      sqlRows<{ n: number }>(
+        await withUser(db, "other", (tx) =>
+          tx.execute(sql`select count(*)::int as n from usage where route = 'ask'`),
+        ),
+      )[0]!.n;
+    const before = await count();
+    const { error } = await ask("What did I spend in March 2026?", "other");
+    spy.mockRestore();
+    expect(error).toEqual({ t: "error", code: "too_many_steps" });
+    expect(await count()).toBe(before + 1);
   });
 
   it("is unavailable without a model", async () => {

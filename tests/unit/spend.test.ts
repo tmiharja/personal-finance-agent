@@ -65,6 +65,31 @@ describe("spend definitions (shared by Overview and Ask)", () => {
     expect(merchants[0]!.cents).toBeGreaterThanOrEqual(merchants[2]!.cents);
   });
 
+  it("keeps a category whose refunds exceed its charges, so categories add up to spend", async () => {
+    const { setTransactionCategory } = await import("@/server/finance/transactions");
+    const { categories, transactions } = await import("@/db/schema");
+    const { and, eq } = await import("drizzle-orm");
+    const [refund] = await withUser(db, "alex", (tx) =>
+      tx
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(and(eq(transactions.kind, "refund"), eq(transactions.txnDate, "2026-02-09"))),
+    );
+    const [gifts] = await withUser(db, "alex", (tx) =>
+      tx
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.name, "Gifts & Donations")),
+    );
+    await setTransactionCategory(db, "alex", refund!.id, gifts!.id);
+    const range = monthRange("2026-02");
+    const [cats, total] = await withUser(db, "alex", (tx) =>
+      Promise.all([spendByCategory(tx, range), spendTotals(tx, range)]),
+    );
+    expect(cats.find((c) => c.category === "Gifts & Donations")?.cents).toBeLessThan(0);
+    expect(cats.reduce((s, c) => s + c.cents, 0)).toBe(total.spentCents);
+  });
+
   it("returns every month in the range, empty months included", async () => {
     const months = await withUser(db, "alex", (tx) =>
       monthlySpend(tx, { from: "2025-06-01", to: "2025-12-31" }),

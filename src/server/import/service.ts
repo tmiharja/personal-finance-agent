@@ -81,7 +81,7 @@ export type ImportSummary = {
   totalsMatch: boolean | null;
   allReconciled: boolean;
   cards: PreviewCard[];
-  /** Category outcome: how many rows to review after import, by how they were categorised. */
+  /** Category outcome for the rows this import will add (duplicates excluded). */
   categories: {
     toReview: number;
     bySource: Record<"system" | "rule" | "map" | "llm" | "none", number>;
@@ -190,6 +190,7 @@ async function buildPreview(
   const cards: PreviewCard[] = [];
   const rows: PreviewRow[][] = [];
 
+  const freshRows: PreparedRow[] = [];
   for (const [cardIndex, card] of statement.cards.entries()) {
     const cats = categorised?.byCard[cardIndex];
     const prepared = prepareRows(
@@ -205,6 +206,8 @@ async function buildPreview(
     const sum = card.rows.reduce((s, r) => s + r.amountCents, 0);
     const count = (kind: PreparedRow["kind"]) => prepared.filter((r) => r.kind === kind).length;
     storedCards.push({ ...card, rows: prepared });
+    // Duplicates are skipped on approval, so they don't count towards "to review".
+    freshRows.push(...prepared.filter((r) => !dupes.has(r.dedupeKey)));
     cards.push({
       productName: card.productName,
       ordinal: card.ordinal,
@@ -246,7 +249,7 @@ async function buildPreview(
     // A statement total that couldn't be found is unverified, not a pass.
     allReconciled: cards.every((c) => c.reconciled) && statement.totalsMatch === true,
     cards,
-    categories: categoryCounts(storedCards.flatMap((c) => c.rows)),
+    categories: categoryCounts(freshRows),
     warnings: [...statement.warnings, ...(categorised?.warnings ?? [])],
   };
   return { stored: { statement: { ...statement, cards: storedCards } }, summary, rows };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 const MESSAGES: Record<string, string> = {
@@ -10,6 +11,7 @@ const MESSAGES: Record<string, string> = {
 
 /** PRD AUTH-6: a no-signup workspace with fictional data. */
 export default function TryDemoButton() {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function start() {
@@ -17,7 +19,8 @@ export default function TryDemoButton() {
     setError(null);
     const res = await fetch("/api/demo", { method: "POST" });
     if (res.ok) {
-      window.location.assign("/app");
+      // The session cookie came back with the response; the next request carries it.
+      router.push("/app");
       return;
     }
     const body = (await res.json().catch(() => ({}))) as { error?: string };

@@ -72,7 +72,10 @@ export async function spendTotals(tx: Tx, range: Range, scope: Scope = {}): Prom
 
 export type CategorySpend = { category: string; cents: number; count: number };
 
-/** Spend per category, largest first. Categories netting to zero or less are dropped. */
+/**
+ * Spend per category, largest first. A category whose refunds exceed its charges
+ * is kept (negative), so the categories always add up to the spend total.
+ */
 export async function spendByCategory(
   tx: Tx,
   range: Range,
@@ -88,7 +91,7 @@ export async function spendByCategory(
   );
   return rows
     .map((r) => ({ category: r.category, cents: Number(r.cents), count: r.n }))
-    .filter((r) => r.cents > 0);
+    .filter((r) => r.cents !== 0);
 }
 
 export type MonthSpend = { month: string; cents: number };

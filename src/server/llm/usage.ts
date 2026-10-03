@@ -15,8 +15,10 @@ export async function recordUsage(
   route: LlmRoute,
   model: string,
   u: TokenUsage,
+  /** Already-priced cost (e.g. summed per turn when models differed). */
+  priced?: number,
 ): Promise<number> {
-  const cost = costUsd(model, u);
+  const cost = priced ?? costUsd(model, u);
   await tx.insert(usage).values({
     userId,
     route,
