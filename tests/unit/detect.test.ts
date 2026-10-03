@@ -2,14 +2,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { alerts, bills, subscriptions } from "@/db/schema";
 import { withUser } from "@/db/with-user";
 import { seedDemoWorkspace } from "@/server/demo/seed";
-import { chargeAlerts, dueAlerts } from "@/server/detect/alerts";
+import { chargeAlerts, dueAlerts, feeAlerts, trialAlerts } from "@/server/detect/alerts";
 import type { Ledger, Row } from "@/server/detect/ledger";
-import { detectSubscriptions } from "@/server/detect/recurring";
+import { detectSubscriptions, isPriceRise } from "@/server/detect/recurring";
 import { runDetectors } from "@/server/detect/run";
 import { describeRow } from "@/server/finance/ledger";
 import { createTestDb, createUser } from "../helpers/test-db";
@@ -119,6 +119,60 @@ describe("golden set: the events planted in the synthetic statements", () => {
     expect(still!.status).toBe("dismissed");
   });
 
+  it("refreshes an open alert as its group grows, but never a dismissed one", async () => {
+    const pick = (type: string) =>
+      withUser(db, "alex", (tx) =>
+        tx
+          .select()
+          .from(alerts)
+          .where(eq(alerts.type, type as "foreign_charge"))
+          .limit(1),
+      );
+    const [open] = await pick("foreign_charge");
+    await withUser(db, "alex", (tx) =>
+      tx.update(alerts).set({ reason: "stale", status: "open" }).where(eq(alerts.id, open!.id)),
+    );
+    await runDetectors(db, "alex", keys, TODAY);
+    const [fresh] = await withUser(db, "alex", (tx) =>
+      tx.select().from(alerts).where(eq(alerts.id, open!.id)),
+    );
+    expect(fresh!.reason).toBe(open!.reason);
+    await withUser(db, "alex", (tx) =>
+      tx.update(alerts).set({ reason: "kept", status: "dismissed" }).where(eq(alerts.id, open!.id)),
+    );
+    await runDetectors(db, "alex", keys, TODAY);
+    const [kept] = await withUser(db, "alex", (tx) =>
+      tx.select().from(alerts).where(eq(alerts.id, open!.id)),
+    );
+    expect(kept).toMatchObject({ reason: "kept", status: "dismissed" });
+  });
+
+  it("retires an open due-date alert once it no longer holds", async () => {
+    const stale = (status: "open" | "dismissed", key: string) =>
+      withUser(db, "alex", (tx) =>
+        tx.insert(alerts).values({
+          userId: "alex",
+          type: "bill_due",
+          status,
+          dedupeKey: key,
+          reason: "Card: due tomorrow. No payment recorded.",
+          transactionIds: [],
+        }),
+      );
+    await stale("open", "bill_due|paid-card|2026-09-01");
+    await stale("dismissed", "bill_due|paid-card|2026-08-01");
+    await runDetectors(db, "alex", keys, TODAY);
+    const left = await withUser(db, "alex", (tx) =>
+      tx
+        .select({ key: alerts.dedupeKey })
+        .from(alerts)
+        .where(and(eq(alerts.type, "bill_due"), eq(alerts.userId, "alex"))),
+    );
+    const keysLeft = left.map((l) => l.key);
+    expect(keysLeft).not.toContain("bill_due|paid-card|2026-09-01");
+    expect(keysLeft).toContain("bill_due|paid-card|2026-08-01");
+  });
+
   it("finds nothing for another user", async () => {
     expect(await runDetectors(db, "other", keys, TODAY)).toEqual({
       subscriptions: 0,
@@ -207,6 +261,15 @@ describe("unusual charges (DET-4)", () => {
     ];
     expect(chargeAlerts(ledger(rides), new Set())).toEqual([]);
   });
+  it("calls same or next-date repeats duplicates, not ones two dates apart", () => {
+    const pair = (a: string, b: string) =>
+      chargeAlerts(ledger([row(a, 8990, "Shop"), row(b, 8990, "Shop")]), new Set()).map(
+        (x) => x.type,
+      );
+    expect(pair("2026-06-01", "2026-06-01")).toEqual(["duplicate_charge"]);
+    expect(pair("2026-06-01", "2026-06-02")).toEqual(["duplicate_charge"]);
+    expect(pair("2026-06-01", "2026-06-03")).toEqual([]);
+  });
   it("needs history before calling a merchant new", () => {
     expect(chargeAlerts(ledger([row("2026-01-01", 50000, "Big Shop")]), new Set())).toEqual([]);
     const later = chargeAlerts(
@@ -214,6 +277,48 @@ describe("unusual charges (DET-4)", () => {
       new Set(),
     );
     expect(later.map((a) => a.type)).toEqual(["first_time_merchant"]);
+  });
+});
+
+describe("price rises, trials and fees (DET-2, DET-3, DET-5)", () => {
+  it("reports a 5–10% rise that stays within one price level", () => {
+    const [s] = detectSubscriptions(
+      ledger([row("2026-01-10", 1000), row("2026-02-10", 1000), row("2026-03-10", 1080)]),
+    );
+    expect(s).toMatchObject({ previousAmountCents: 1000, priceChangedOn: "2026-03-10" });
+    expect(isPriceRise(s!)).toBe(true);
+    const [steady] = detectSubscriptions(
+      ledger([row("2026-01-10", 1000), row("2026-02-10", 1030), row("2026-03-10", 1000)]),
+    );
+    expect(steady!.previousAmountCents).toBeNull();
+  });
+
+  it("raises a subscription trial on its first paid charge", () => {
+    const sub = { category: "Subscriptions" };
+    const early = trialAlerts(
+      ledger([row("2026-01-01", 100, "Stream", sub), row("2026-02-01", 1500, "Stream", sub)]),
+      [],
+    );
+    expect(early).toHaveLength(1);
+    expect(early[0]!.reason).toContain("followed by a charge of S$15.00 on 1 Feb 2026");
+    // Elsewhere a small first purchase is just a purchase.
+    expect(
+      trialAlerts(ledger([row("2026-01-01", 150, "Kopi"), row("2026-01-20", 500, "Kopi")]), []),
+    ).toEqual([]);
+  });
+
+  it("itemises every fee charged to a card on one day", () => {
+    const rows = [
+      row("2026-03-11", 2500, "Card fees", { kind: "fee" }),
+      row("2026-03-11", 1000, "Card fees", { kind: "fee" }),
+      row("2026-03-11", 315, "Card fees", { kind: "fee" }),
+    ];
+    const label = ["LATE CHARGE", "FINANCE CHARGE", "GST @ 9%"];
+    const [a] = feeAlerts(ledger(rows), (id) => label[rows.findIndex((r) => r.id === id)]!);
+    expect(a!.reason).toContain(
+      "Late payment fee of S$25.00 and interest of S$10.00 plus GST of S$3.15",
+    );
+    expect(a!.details).toMatchObject({ feeCents: 3500, gstCents: 315, totalCents: 3815 });
   });
 });
 
@@ -232,10 +337,11 @@ describe("card payments due (DET-7)", () => {
     ],
     coverage: new Map(),
   };
-  it("alerts within 3 days of the due date when no payment is recorded", () => {
+  it("alerts from 3 days before the due date to a week after, while no payment is recorded", () => {
     expect(dueAlerts(due, "2026-10-01")).toEqual([]);
     expect(dueAlerts(due, "2026-10-03")[0]!.reason).toContain("due on 5 Oct 2026");
-    expect(dueAlerts(due, "2026-10-06")).toEqual([]);
+    expect(dueAlerts(due, "2026-10-06")[0]!.reason).toContain("was due on 5 Oct 2026");
+    expect(dueAlerts(due, "2026-10-13")).toEqual([]);
     const paid = {
       ...due,
       rows: [row("2026-09-30", -120000, "Card payment", { kind: "card_payment" })],

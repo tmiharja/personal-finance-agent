@@ -13,6 +13,7 @@ import {
   feeAlerts,
   foreignAlerts,
   priceAlerts,
+  trialAlerts,
   type DetectedAlert,
 } from "./alerts";
 import { loadLedger } from "./ledger";
@@ -21,8 +22,10 @@ import { detectBills, detectSubscriptions } from "./recurring";
 /**
  * Runs every detector for one user (PRD DET-9): after a committed import or a
  * rule, and daily by cron. Deterministic and idempotent: subscriptions and
- * bills are refreshed in place, alerts are inserted once per dedupe key, and
- * an alert you dismissed is never reopened.
+ * bills are refreshed in place; alerts are keyed by their dedupe key, and an
+ * open alert's text and figures are refreshed as its group grows (more foreign
+ * charges in a month). An alert you dismissed is never reopened or rewritten.
+ * A due-date alert that no longer holds (paid, or superseded) is retired.
  */
 
 export type DetectResult = { subscriptions: number; bills: number; newAlerts: number };
@@ -52,6 +55,7 @@ export async function runDetectorsTx(
 
   const detected: DetectedAlert[] = [
     ...priceAlerts(subs),
+    ...trialAlerts(ledger, subs),
     ...chargeAlerts(ledger, subKeys),
     ...foreignAlerts(ledger, subKeys),
     ...feeAlerts(ledger, (id) => descriptors.get(id) ?? ""),
@@ -125,22 +129,36 @@ export async function runDetectorsTx(
   for (const a of detected) {
     // Reasons are built from sanitised merchant names; checked anyway before storage.
     assertNoPii({ reason: a.reason, subject: a.subject });
-    const inserted = await tx
+    const fields = {
+      type: a.type,
+      reason: a.reason,
+      transactionIds: a.transactionIds,
+      subject: a.subject,
+      occurredOn: a.occurredOn,
+      details: a.details,
+    };
+    const [row] = await tx
       .insert(alerts)
-      .values({
-        userId,
-        type: a.type,
-        reason: a.reason,
-        transactionIds: a.transactionIds,
-        dedupeKey: a.dedupeKey,
-        subject: a.subject,
-        occurredOn: a.occurredOn,
-        details: a.details,
+      .values({ userId, dedupeKey: a.dedupeKey, ...fields })
+      .onConflictDoUpdate({
+        target: [alerts.userId, alerts.dedupeKey],
+        set: fields,
+        setWhere: eq(alerts.status, "open"),
       })
-      .onConflictDoNothing()
-      .returning({ id: alerts.id });
-    newAlerts += inserted.length;
+      // xmax = 0 only on a freshly inserted row (not an update).
+      .returning({ inserted: sql<boolean>`(xmax = 0)` });
+    if (row?.inserted) newAlerts++;
   }
+  const live = detected.map((a) => a.dedupeKey);
+  await tx
+    .delete(alerts)
+    .where(
+      and(
+        eq(alerts.status, "open"),
+        eq(alerts.type, "bill_due"),
+        live.length ? notInArray(alerts.dedupeKey, live) : sql`true`,
+      ),
+    );
   return { subscriptions: subs.length, bills: found.length, newAlerts };
 }
 

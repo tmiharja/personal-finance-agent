@@ -31,14 +31,19 @@ export default function PatchButton({
         onClick={async () => {
           setBusy(true);
           setFailed(false);
-          const res = await fetch(url, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(body),
-          });
-          setBusy(false);
-          if (!res.ok) setFailed(true);
-          else router.refresh();
+          try {
+            const res = await fetch(url, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) setFailed(true);
+            else router.refresh();
+          } catch {
+            setFailed(true);
+          } finally {
+            setBusy(false);
+          }
         }}
       >
         {children}

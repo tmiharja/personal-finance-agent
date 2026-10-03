@@ -33,9 +33,11 @@ const CADENCES: {
 
 export const BILL_CATEGORIES = new Set(["Bills & Utilities", "Telco & Internet", "Insurance"]);
 const BILL_PAYEE = /\b(TOWN COUNCIL|MCST|IRAS|LOAN|CONSERVANCY)\b/i;
-const TRIAL_MAX_CENTS = 200;
+export const TRIAL_MAX_CENTS = 200;
 const LEVEL_TOLERANCE = 0.1;
 const PRICE_RISE = 0.05;
+/** Charges within 1% of the latest count as the same (current) price. */
+const SAME_PRICE = 0.01;
 
 export type Subscription = {
   key: string;
@@ -77,6 +79,20 @@ function levels(amounts: readonly number[]): number[][] {
     else out.push([a]);
   }
   return out;
+}
+
+/**
+ * The latest price change in a series (oldest first): where the trailing run at
+ * the current price starts, and the median price before it, when the two differ
+ * by more than 5%. Independent of the ±10% grouping, so a 5–10% rise is seen.
+ */
+function priceChange(amounts: readonly number[]): { at: number; previous: number } | null {
+  const last = amounts.at(-1)!;
+  let at = amounts.length - 1;
+  while (at > 0 && Math.abs(amounts[at - 1]! - last) <= last * SAME_PRICE) at--;
+  if (at === 0) return null;
+  const previous = median(amounts.slice(0, at));
+  return Math.abs(last - previous) > previous * PRICE_RISE ? { at, previous } : null;
 }
 
 /** The longest run, ending at the latest charge, where each charge follows the cadence. */
@@ -136,7 +152,7 @@ export function detectSubscriptions(ledger: Ledger): Subscription[] {
           : null;
       const nextExpected = c.next(last.date);
       const reference = ledger.coverage.get(last.accountId) ?? last.date;
-      const changed = lv.length === 2 ? run[lv[0]!.length]! : null;
+      const change = priceChange(run.map((r) => r.amountCents));
       out.push({
         key,
         merchant: last.merchant,
@@ -148,8 +164,8 @@ export function detectSubscriptions(ledger: Ledger): Subscription[] {
         lastChargeDate: last.date,
         nextExpectedDate: nextExpected,
         status: statusAt(nextExpected, reference, c.cadence),
-        previousAmountCents: changed ? median(lv[0]!) : null,
-        priceChangedOn: changed ? changed.date : null,
+        previousAmountCents: change ? change.previous : null,
+        priceChangedOn: change ? run[change.at]!.date : null,
         card: last.card,
         ids: run.map((r) => r.id),
         trial,

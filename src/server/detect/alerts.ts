@@ -1,6 +1,6 @@
 import { money, longDate, monthLabel } from "@/lib/format";
 import { daysBetween, median, percentile, type Ledger, type Row } from "./ledger";
-import { isPriceRise, type Subscription } from "./recurring";
+import { isPriceRise, TRIAL_MAX_CENTS, type Subscription } from "./recurring";
 
 /**
  * One-off findings (PRD DET-2…DET-5, DET-7). Each alert's reason is plain text
@@ -67,19 +67,53 @@ export function priceAlerts(subs: readonly Subscription[]): DetectedAlert[] {
         },
       });
     }
-    if (s.trial) {
-      out.push({
-        type: "trial_conversion",
-        dedupeKey: `trial_conversion|${s.key}|${s.trial.date}`,
-        subject: s.merchant,
-        occurredOn: s.firstChargeDate,
-        reason: `A ${money(s.trial.amountCents)} trial at ${s.merchant} on ${longDate(s.trial.date)} became a ${s.cadence} charge of ${money(s.amountCents)} from ${longDate(s.firstChargeDate)}.`,
-        transactionIds: [s.trial.id, s.ids[0]!],
-        details: { trialCents: s.trial.amountCents, priceCents: s.amountCents, cadence: s.cadence },
-      });
-    }
   }
   return out;
+}
+
+/**
+ * DET-3: a $0–2 trial followed by a full-price charge 3–35 days later. For a
+ * merchant categorised as a subscription it's raised on the first paid charge;
+ * otherwise once the paid charges form a recurring series. One alert per trial
+ * (the dedupe key is the merchant and the trial date), refreshed as it firms up.
+ */
+export function trialAlerts(ledger: Ledger, subs: readonly Subscription[]): DetectedAlert[] {
+  const out = new Map<string, DetectedAlert>();
+  const add = (
+    key: string,
+    merchant: string,
+    trial: { id: string; date: string; amountCents: number },
+    paid: { id: string; date: string; amountCents: number },
+    cadence: string | null,
+  ) => {
+    const dedupeKey = `trial_conversion|${key}|${trial.date}`;
+    out.set(dedupeKey, {
+      type: "trial_conversion",
+      dedupeKey,
+      subject: merchant,
+      occurredOn: paid.date,
+      reason: cadence
+        ? `A ${money(trial.amountCents)} trial at ${merchant} on ${longDate(trial.date)} became a ${cadence} charge of ${money(paid.amountCents)} from ${longDate(paid.date)}.`
+        : `A ${money(trial.amountCents)} trial at ${merchant} on ${longDate(trial.date)} was followed by a charge of ${money(paid.amountCents)} on ${longDate(paid.date)}.`,
+      transactionIds: [trial.id, paid.id],
+      details: { trialCents: trial.amountCents, priceCents: paid.amountCents, cadence },
+    });
+  };
+  const byKey = new Map<string, Row[]>();
+  for (const r of charges(ledger.rows)) byKey.set(r.key, [...(byKey.get(r.key) ?? []), r]);
+  for (const [key, [first, next]] of byKey) {
+    if (!first || !next || first.amountCents > TRIAL_MAX_CENTS) continue;
+    if (next.amountCents <= TRIAL_MAX_CENTS) continue;
+    if (first.category !== "Subscriptions" && next.category !== "Subscriptions") continue;
+    const gap = daysBetween(first.date, next.date);
+    if (gap >= 3 && gap <= 35) add(key, next.merchant, first, next, null);
+  }
+  for (const s of subs) {
+    if (!s.trial) continue;
+    const paid = ledger.rows.find((r) => r.id === s.ids[0])!;
+    add(s.key, s.merchant, s.trial, paid, s.cadence);
+  }
+  return [...out.values()];
 }
 
 /** DET-4 (a) unusual amount, (b) first-time merchant, (c) duplicates. */
@@ -132,18 +166,19 @@ export function chargeAlerts(
         details: { amountCents: r.amountCents, thresholdCents: FIRST_TIME_MIN_CENTS },
       });
     }
-    // (c) the same amount at the same merchant within 48 hours (not transit/F&B small change).
+    // (c) the same amount at the same merchant on the same or the next date, so
+    // under 48 hours apart (dates carry no time). Not transit/F&B small change.
     const micro = MICRO.has(r.category) && r.amountCents < MICRO_MAX_CENTS;
     const twin = micro
       ? undefined
-      : prior.findLast((p) => p.amountCents === r.amountCents && daysBetween(p.date, r.date) <= 2);
+      : prior.findLast((p) => p.amountCents === r.amountCents && daysBetween(p.date, r.date) <= 1);
     if (twin) {
       out.push({
         type: "duplicate_charge",
         dedupeKey: `duplicate_charge|${twin.id}|${r.id}`,
         subject: r.merchant,
         occurredOn: r.date,
-        reason: `Two charges of ${money(r.amountCents)} at ${r.merchant} ${twin.date === r.date ? `on ${longDate(r.date)}` : `within 48 hours (${longDate(twin.date)} and ${longDate(r.date)})`}. If you were charged twice, ask the merchant or your bank to reverse one.`,
+        reason: `Two charges of ${money(r.amountCents)} at ${r.merchant} ${twin.date === r.date ? `on ${longDate(r.date)}` : `on consecutive days (${longDate(twin.date)} and ${longDate(r.date)})`}. If you were charged twice, ask the merchant or your bank to reverse one.`,
         transactionIds: [twin.id, r.id],
         details: { amountCents: r.amountCents },
       });
@@ -188,7 +223,10 @@ const FEE_LABEL: readonly [RegExp, string][] = [
   [/OVERLIMIT|OVER LIMIT/i, "Over-limit fee"],
 ];
 
-/** DET-5: card fees; an annual fee and the GST on it are one event. */
+const joinList = (items: readonly string[]) =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+
+/** DET-5: card fees on one card and date are one event (an annual fee and its GST), every fee itemised. */
 export function feeAlerts(ledger: Ledger, descriptorOf: (id: string) => string): DetectedAlert[] {
   const groups = new Map<string, Row[]>();
   for (const r of ledger.rows) {
@@ -203,30 +241,42 @@ export function feeAlerts(ledger: Ledger, descriptorOf: (id: string) => string):
         FEE_LABEL.find(([re]) => re.test(descriptorOf(r.id)))?.[1] ??
         (/GST/i.test(descriptorOf(r.id)) ? "GST" : "Fee"),
     }));
-    const main = labelled.find((l) => l.label !== "GST") ?? labelled[0]!;
-    const gst = labelled.find((l) => l.label === "GST" && l !== main);
+    const fees = labelled.filter((l) => l.label !== "GST");
+    const gst = fees.length ? labelled.filter((l) => l.label === "GST") : [];
+    const main = fees.length ? fees : labelled;
+    const sum = (ls: typeof labelled) => ls.reduce((s, l) => s + l.r.amountCents, 0);
+    const items = main.map(
+      (l, i) => `${i ? l.label.toLowerCase() : l.label} of ${money(l.r.amountCents)}`,
+    );
     const total = rows.reduce((s, r) => s + r.amountCents, 0);
-    const waiver = main.label === "Annual fee" || main.label === "Late payment fee";
+    const waiver = main.some((l) => l.label === "Annual fee" || l.label === "Late payment fee");
     return {
       type: "card_fee" as const,
       dedupeKey: `card_fee|${k}`,
       subject: rows[0]!.card,
       occurredOn: rows[0]!.date,
       reason:
-        `${main.label} of ${money(main.r.amountCents)}${gst ? ` plus GST of ${money(gst.r.amountCents)}` : ""} on ${rows[0]!.card} (${longDate(rows[0]!.date)}).` +
+        `${joinList(items)}${gst.length ? ` plus GST of ${money(sum(gst))}` : ""} on ${rows[0]!.card} (${longDate(rows[0]!.date)}).` +
         (waiver ? " Singapore banks often waive this if you ask." : ""),
       transactionIds: rows.map((r) => r.id),
       details: {
-        feeCents: main.r.amountCents,
-        gstCents: gst?.r.amountCents ?? 0,
+        feeCents: sum(main),
+        gstCents: sum(gst),
         totalCents: total,
-        kind: main.label,
+        kind: main.map((l) => l.label).join(", "),
       },
     };
   });
 }
 
-/** DET-7: a card payment due within 3 days of today with no payment recorded since the statement. */
+/** How long after a missed due date the alert stays (older statements are history, not news). */
+const DUE_GRACE_DAYS = 7;
+
+/**
+ * DET-7: a card payment due within 3 days of today, or missed in the last week,
+ * with no payment recorded since the statement. The alert is retired once a
+ * payment or a newer statement arrives (see runDetectorsTx).
+ */
 export function dueAlerts(ledger: Ledger, today: string): DetectedAlert[] {
   const latest = new Map<string, Ledger["statements"][number]>();
   for (const s of ledger.statements) latest.set(s.accountId, s);
@@ -234,7 +284,7 @@ export function dueAlerts(ledger: Ledger, today: string): DetectedAlert[] {
   for (const s of latest.values()) {
     if (!s.dueDate || s.totalCents <= 0) continue;
     const days = daysBetween(today, s.dueDate);
-    if (days < 0 || days > 3) continue;
+    if (days < -DUE_GRACE_DAYS || days > 3) continue;
     const paid = ledger.rows.some(
       (r) => r.accountId === s.accountId && r.kind === "card_payment" && r.date > s.statementDate,
     );
@@ -244,7 +294,7 @@ export function dueAlerts(ledger: Ledger, today: string): DetectedAlert[] {
       dedupeKey: `bill_due|${s.accountId}|${s.dueDate}`,
       subject: s.card,
       occurredOn: s.dueDate,
-      reason: `${s.card}: ${money(s.totalCents)} due ${days === 0 ? "today" : days === 1 ? "tomorrow" : `on ${longDate(s.dueDate)}`} (minimum ${money(s.minimumPaymentCents ?? 0)}). No payment recorded since the ${longDate(s.statementDate)} statement.`,
+      reason: `${s.card}: ${money(s.totalCents)} ${days < 0 ? `was due on ${longDate(s.dueDate)}` : `due ${days === 0 ? "today" : days === 1 ? "tomorrow" : `on ${longDate(s.dueDate)}`}`} (minimum ${money(s.minimumPaymentCents ?? 0)}). No payment recorded since the ${longDate(s.statementDate)} statement.`,
       transactionIds: [],
       details: {
         totalCents: s.totalCents,
