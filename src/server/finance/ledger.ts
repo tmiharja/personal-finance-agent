@@ -46,16 +46,19 @@ export async function ensureDefaultCategories(
   return new Map(rows.map((r) => [r.name, r.id]));
 }
 
-export async function upsertCardAccount(
+type AccountKind = (typeof accounts.$inferInsert)["kind"];
+
+/** A card or bank account, identified by bank + product name as printed (+ ordinal). */
+export async function upsertAccount(
   tx: Tx,
   userId: string,
-  card: { bank: Bank; productName: string; ordinal?: number },
+  card: { bank: Bank; productName: string; ordinal?: number; kind: AccountKind },
 ): Promise<string> {
   const ordinal = card.ordinal ?? 1;
   assertNoPii({ productName: card.productName });
   await tx
     .insert(accounts)
-    .values({ userId, bank: card.bank, kind: "card", productName: card.productName, ordinal })
+    .values({ userId, bank: card.bank, kind: card.kind, productName: card.productName, ordinal })
     .onConflictDoNothing();
   const [row] = await tx
     .select({ id: accounts.id })
@@ -69,6 +72,12 @@ export async function upsertCardAccount(
     );
   return row!.id;
 }
+
+export const upsertCardAccount = (
+  tx: Tx,
+  userId: string,
+  card: { bank: Bank; productName: string; ordinal?: number },
+) => upsertAccount(tx, userId, { ...card, kind: "card" });
 
 export type LedgerRow = {
   txnDate: string;
@@ -116,9 +125,13 @@ export function describeRow(
 /** Categories every import can set without a classifier (Phase 1b adds the rest). */
 const KIND_CATEGORY: Partial<Record<TxnKind, string>> = {
   card_payment: "Transfers",
+  transfer: "Transfers",
   fee: "Fees & Charges",
   cashback: "Cashback & Rewards",
 };
+
+/** Rows that are never spend or income, whatever their category (PRD IMP-10). */
+export const isTransferKind = (kind: TxnKind) => kind === "card_payment" || kind === "transfer";
 
 /**
  * The PII firewall step: sanitise each descriptor, normalise the merchant,
@@ -174,8 +187,9 @@ export type StatementSummary = {
   statementDate: string;
   dueDate: string | null;
   minimumPaymentCents: number | null;
-  previousBalanceCents: number;
-  totalCents: number;
+  /** Signed like rows (+ owed, − held); null when the file printed no balances. */
+  previousBalanceCents: number | null;
+  totalCents: number | null;
 };
 
 export type CardStatementInput = CardIdentity &
@@ -199,7 +213,7 @@ export async function insertCardStatement(
   input: CardStatementInput,
   categoryIds: Map<string, string>,
   pii: PiiContext = {},
-): Promise<{ inserted: number; duplicates: number; reconciled: boolean }> {
+): Promise<{ inserted: number; duplicates: number; reconciled: boolean | null }> {
   const rows = prepareRows(crypto, input, input.rows, pii);
   return insertPreparedStatement(tx, crypto, { ...input, rows }, categoryIds);
 }
@@ -210,7 +224,7 @@ export async function insertPreparedStatement(
   crypto: UserCrypto,
   input: PreparedStatementInput,
   categoryIds: Map<string, string>,
-): Promise<{ inserted: number; duplicates: number; reconciled: boolean }> {
+): Promise<{ inserted: number; duplicates: number; reconciled: boolean | null }> {
   const userId = crypto.userId;
   const summary = {
     dueDate: input.dueDate,
@@ -260,7 +274,7 @@ export async function insertPreparedStatement(
           : r.categorySource
         : null,
       confidence: r.categoryName ? (r.confidence ?? null) : null,
-      isTransfer: r.kind === "card_payment",
+      isTransfer: isTransferKind(r.kind),
       dedupeKey: r.dedupeKey,
     };
   });
@@ -286,7 +300,11 @@ export async function insertPreparedStatement(
       sql`select coalesce(sum(amount_cents), 0)::bigint as cents from transactions where ${ownRows}`,
     ),
   );
-  const reconciled = input.previousBalanceCents + Number(sum!.cents) === input.totalCents;
+  // No balances in the file (some CSV exports): nothing to check, so null, not a pass.
+  const reconciled =
+    input.previousBalanceCents === null || input.totalCents === null
+      ? null
+      : input.previousBalanceCents + Number(sum!.cents) === input.totalCents;
   await tx.update(statements).set({ reconciled }).where(eq(statements.id, stmt!.id));
   return { inserted: inserted.length, duplicates: values.length - inserted.length, reconciled };
 }

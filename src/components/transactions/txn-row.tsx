@@ -1,5 +1,6 @@
 "use client";
 
+import { FIXED_KINDS } from "@/lib/kinds";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import RuleProposalCard from "@/components/proposals/rule-proposal-card";
@@ -16,7 +17,7 @@ const KIND_LABEL: Record<string, string> = {
   fee: "Fee",
   cashback: "Cashback",
 };
-const FIXED = new Set(["card_payment", "fee", "cashback"]);
+const FIXED = new Set<string>(FIXED_KINDS);
 const COLS = 5;
 
 /**

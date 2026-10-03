@@ -1,3 +1,4 @@
+import type { TxnKind } from "@/lib/kinds";
 import { sql } from "drizzle-orm";
 import { sqlRows } from "@/db/rows";
 import type { Tx } from "@/db/with-user";
@@ -15,7 +16,7 @@ export type Row = {
   merchant: string;
   /** Lower-cased merchant, the grouping key. */
   key: string;
-  kind: "charge" | "refund" | "card_payment" | "fee" | "cashback";
+  kind: TxnKind;
   category: string;
   fxCurrency: string | null;
   fxAmount: string | null;

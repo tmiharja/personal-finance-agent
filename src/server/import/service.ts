@@ -9,7 +9,7 @@ import {
   ensureDefaultCategories,
   insertPreparedStatement,
   prepareRows,
-  upsertCardAccount,
+  upsertAccount,
   type LedgerRow,
   type PreparedRow,
 } from "@/server/finance/ledger";
@@ -49,15 +49,18 @@ export class ImportError extends Error {
   }
 }
 
+/** One card, or one bank account (summary.kind "deposit"). */
 export type PreviewCard = {
   productName: string;
   ordinal: number;
   isNewCard: boolean;
-  previousBalanceCents: number;
-  totalCents: number;
-  reconciled: boolean;
-  /** printed total − (previous balance + Σ rows); 0 when reconciled. */
-  differenceCents: number;
+  /** Signed like rows: + owed, − held (a bank balance is negative). Null: none printed. */
+  previousBalanceCents: number | null;
+  totalCents: number | null;
+  /** Null: no balances in the file, so nothing to check against. */
+  reconciled: boolean | null;
+  /** printed total − (previous balance + Σ rows); 0 when reconciled, null when unknown. */
+  differenceCents: number | null;
   counts: {
     rows: number;
     newRows: number;
@@ -67,13 +70,20 @@ export type PreviewCard = {
     fees: number;
     cashback: number;
     foreignCurrency: number;
+    /** Bank accounts: credits that aren't refunds, and moves between your own accounts. */
+    income?: number;
+    transfers?: number;
   };
   chargesCents: number;
+  /** Bank accounts: Σ income rows (as a positive amount). */
+  incomeCents?: number;
 };
 
 /** Counts and totals only: safe to store unencrypted and to put in a proposal. */
 export type ImportSummary = {
   bank: "DBS" | "UOB";
+  /** Absent on previews made before Phase 2b: those are card statements. */
+  kind?: "card" | "deposit";
   parserVersion: string;
   statementDate: string;
   dueDate: string | null;
@@ -205,6 +215,7 @@ async function buildPreview(
       prepared.map((r) => r.dedupeKey),
     );
     const sum = card.rows.reduce((s, r) => s + r.amountCents, 0);
+    const balances = card.previousBalanceCents !== null && card.totalCents !== null;
     const count = (kind: PreparedRow["kind"]) => prepared.filter((r) => r.kind === kind).length;
     storedCards.push({ ...card, rows: prepared });
     // Duplicates are skipped on approval, so they don't count towards "to review".
@@ -221,7 +232,7 @@ async function buildPreview(
       previousBalanceCents: card.previousBalanceCents,
       totalCents: card.totalCents,
       reconciled: card.reconciled,
-      differenceCents: card.totalCents - (card.previousBalanceCents + sum),
+      differenceCents: balances ? card.totalCents! - (card.previousBalanceCents! + sum) : null,
       counts: {
         rows: prepared.length,
         newRows: prepared.filter((r) => !dupes.has(r.dedupeKey)).length,
@@ -231,24 +242,38 @@ async function buildPreview(
         fees: count("fee"),
         cashback: count("cashback"),
         foreignCurrency: prepared.filter((r) => r.fx).length,
+        ...(statement.kind === "deposit"
+          ? { income: count("income"), transfers: count("transfer") }
+          : {}),
       },
       chargesCents: prepared
         .filter((r) => r.kind === "charge" || r.kind === "fee")
         .reduce((s, r) => s + r.amountCents, 0),
+      ...(statement.kind === "deposit"
+        ? {
+            incomeCents: -prepared
+              .filter((r) => r.kind === "income")
+              .reduce((s, r) => s + r.amountCents, 0),
+          }
+        : {}),
     });
     rows.push(prepared.map((r) => previewRow(r, dupes.has(r.dedupeKey))));
   }
 
   const summary: ImportSummary = {
     bank: statement.bank,
+    kind: statement.kind,
     parserVersion: statement.parserVersion,
     statementDate: statement.statementDate,
     dueDate: statement.dueDate,
     minimumPaymentCents: statement.minimumPaymentCents,
     statementTotalCents: statement.statementTotalCents,
     totalsMatch: statement.totalsMatch,
-    // A statement total that couldn't be found is unverified, not a pass.
-    allReconciled: cards.every((c) => c.reconciled) && statement.totalsMatch === true,
+    // A statement total that couldn't be found is unverified, not a pass. Bank
+    // statements have no grand total: each account's balances are the check.
+    allReconciled:
+      cards.every((c) => c.reconciled === true) &&
+      (statement.kind === "deposit" || statement.totalsMatch === true),
     cards,
     categories: categoryCounts(freshRows),
     warnings: [...statement.warnings, ...(categorised?.warnings ?? [])],
@@ -555,10 +580,12 @@ export async function approveProposal(
       allReconciled: true,
     };
     for (const card of statement.cards) {
-      const accountId = await upsertCardAccount(tx, userId, {
+      const accountId = await upsertAccount(tx, userId, {
         bank: statement.bank,
         productName: card.productName,
         ordinal: card.ordinal,
+        // Previews stored before Phase 2b have no kind: they are card statements.
+        kind: statement.kind ?? "card",
       });
       const r = await insertPreparedStatement(
         tx,
@@ -580,7 +607,7 @@ export async function approveProposal(
       );
       result.inserted += r.inserted;
       result.duplicates += r.duplicates;
-      result.allReconciled &&= r.reconciled;
+      result.allReconciled &&= r.reconciled === true;
     }
 
     const now = new Date();
@@ -685,7 +712,7 @@ function proposalSubject(type: string | null, preview: unknown): string | null {
   if (type === "commit_import") {
     const p = preview as Partial<ImportSummary> | null;
     return p?.bank && p.statementDate
-      ? `Import ${p.bank} statement ${longDate(p.statementDate)}`
+      ? `Import ${p.bank} ${p.kind === "deposit" ? "account " : ""}statement ${longDate(p.statementDate)}`
       : "Import";
   }
   if (type === "create_rule") {

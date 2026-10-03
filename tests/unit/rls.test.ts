@@ -220,6 +220,35 @@ describe("references can't cross users", () => {
         tx.update(transactions).set({ accountId: bAcct!.id }).where(eq(transactions.userId, A)),
       ),
     ).rejects.toThrow();
+    // A's transaction paired with B's (a transfer), or pointed at B's account.
+    expect(
+      await pgError(
+        withUser(db, A, (tx) =>
+          tx
+            .update(transactions)
+            .set({ transferPairId: bTxn!.id })
+            .where(eq(transactions.userId, A)),
+        ),
+      ),
+    ).toMatch(/row-level security/);
+    expect(
+      await pgError(
+        withUser(db, A, (tx) =>
+          tx
+            .update(transactions)
+            .set({ transferAccountId: bAcct!.id })
+            .where(eq(transactions.userId, A)),
+        ),
+      ),
+    ).toMatch(/row-level security/);
+    // …while pairing within A's own rows is allowed.
+    const [aTxn] = await withUser(db, A, (tx) => tx.select().from(transactions));
+    await withUser(db, A, (tx) =>
+      tx
+        .update(transactions)
+        .set({ transferPairId: aTxn!.id })
+        .where(eq(transactions.id, aTxn!.id)),
+    );
   });
 });
 
@@ -236,9 +265,13 @@ describe("schema guard", () => {
     );
     expect(fks.length).toBeGreaterThan(5);
     for (const fk of fks) {
-      expect(fk.check_sql ?? "", `${fk.child}.${fk.col} → ${fk.parent}`).toContain(
-        `FROM ${fk.parent} p`,
-      );
+      // A table can't query itself in its own policy, so a self-reference is checked
+      // by a SECURITY DEFINER function instead (drizzle/0007, tested above).
+      const expected =
+        fk.child === fk.parent && fk.parent === "transactions"
+          ? `app_owns_transaction(${fk.col})`
+          : `FROM ${fk.parent} p`;
+      expect(fk.check_sql ?? "", `${fk.child}.${fk.col} → ${fk.parent}`).toContain(expected);
     }
   });
 });

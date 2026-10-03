@@ -1,5 +1,6 @@
 import type { Line } from "../pdf";
 import {
+  type CardDraft,
   finaliseCards,
   classify,
   cleanDescriptor,
@@ -10,7 +11,7 @@ import {
   splitAmount,
   toCents,
 } from "./common";
-import { ParseError, type ParsedCard, type ParsedRow, type ParseResult } from "./types";
+import { ParseError, type ParsedRow, type ParseResult } from "./types";
 
 export const DBS_CARD_VERSION = "dbs-card-pdf@1";
 
@@ -31,10 +32,7 @@ const REF = /^REF NO:\s*(\d+)$/i;
 const FX = /^([A-Z][A-Z .]+?)\s+(\d[\d,]*\.\d{2})$/;
 const STOP = /POINTS SUMMARY|USEFUL INFORMATION|SPECIALLY FOR YOU/i;
 
-type Draft = Omit<ParsedCard, "ordinal" | "reconciled"> & {
-  hasTotal: boolean;
-  hasPrevious: boolean;
-};
+type Draft = CardDraft;
 
 export function parseDbsCard(lines: Line[]): ParseResult {
   const warnings: string[] = [];
@@ -159,6 +157,7 @@ export function parseDbsCard(lines: Line[]): ParseResult {
     names: [...names],
     statement: {
       bank: "DBS",
+      kind: "card",
       parserVersion: DBS_CARD_VERSION,
       statementDate,
       dueDate,

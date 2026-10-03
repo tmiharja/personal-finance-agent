@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   char,
@@ -20,6 +21,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { TXN_KINDS } from "../../lib/kinds";
 import { user } from "./auth";
 
 /**
@@ -84,13 +86,7 @@ export const importStatusEnum = pgEnum("import_status", [
   "failed",
   "discarded",
 ]);
-export const txnKindEnum = pgEnum("txn_kind", [
-  "charge",
-  "refund",
-  "card_payment",
-  "fee",
-  "cashback",
-]);
+export const txnKindEnum = pgEnum("txn_kind", TXN_KINDS);
 export const categoryKindEnum = pgEnum("category_kind", [
   "expense",
   "income",
@@ -225,7 +221,12 @@ export const imports = pgTable(
   (t) => [uniqueIndex("imports_file_uq").on(t.userId, t.fileSha256), rls("imports")],
 );
 
-/** One row per card section of a statement. */
+/**
+ * One row per card or bank-account section of a statement. Balances are signed
+ * like transactions (+ owed to the bank, − money held), so for every kind
+ * `previous_balance + Σ rows = total`. A bank account holding S$5,000 has a
+ * total of −500000. Null balances: the file (some CSV exports) had none.
+ */
 export const statements = pgTable(
   "statements",
   {
@@ -238,9 +239,10 @@ export const statements = pgTable(
     statementDate: date("statement_date").notNull(),
     dueDate: date("due_date"),
     minimumPaymentCents: bigint("minimum_payment_cents", { mode: "number" }),
-    previousBalanceCents: bigint("previous_balance_cents", { mode: "number" }).notNull(),
-    totalCents: bigint("total_cents", { mode: "number" }).notNull(),
-    reconciled: boolean("reconciled").notNull(),
+    previousBalanceCents: bigint("previous_balance_cents", { mode: "number" }),
+    totalCents: bigint("total_cents", { mode: "number" }),
+    /** Null: nothing to reconcile against (no balances in the file). */
+    reconciled: boolean("reconciled"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -291,6 +293,14 @@ export const transactions = pgTable(
     categorySource: categorySourceEnum("category_source"),
     confidence: real("confidence"),
     isTransfer: boolean("is_transfer").notNull().default(false),
+    /** The other leg of a transfer between your own accounts, once both are imported (IMP-10). */
+    transferPairId: uuid("transfer_pair_id").references((): AnyPgColumn => transactions.id, {
+      onDelete: "set null",
+    }),
+    /** The account money went to or came from, when known (e.g. the card a bank payment paid). */
+    transferAccountId: uuid("transfer_account_id").references(() => accounts.id, {
+      onDelete: "set null",
+    }),
     /** HMAC under the user's dedupe key; reference numbers only ever enter this hash. */
     dedupeKey: char("dedupe_key", { length: 64 }).notNull(),
     /** Optimistic concurrency for proposals (ACT-6). */
@@ -302,11 +312,20 @@ export const transactions = pgTable(
     uniqueIndex("transactions_dedupe_uq").on(t.userId, t.dedupeKey),
     index("transactions_user_date_idx").on(t.userId, t.txnDate),
     index("transactions_user_merchant_idx").on(t.userId, t.merchantName),
-    rls("transactions", [
-      ["account_id", "accounts"],
-      ["statement_id", "statements"],
-      ["category_id", "categories"],
-    ]),
+    rls(
+      "transactions",
+      [
+        ["account_id", "accounts"],
+        ["statement_id", "statements"],
+        ["category_id", "categories"],
+        ["transfer_account_id", "accounts"],
+      ],
+      [
+        // A policy on transactions can't query transactions (infinite recursion), so the
+        // pair's ownership is checked by a SECURITY DEFINER function (drizzle/0007).
+        "(transactions.transfer_pair_id is null or app_owns_transaction(transactions.transfer_pair_id))",
+      ],
+    ),
   ],
 );
 

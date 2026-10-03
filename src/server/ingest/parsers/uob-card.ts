@@ -1,5 +1,6 @@
 import type { Line } from "../pdf";
 import {
+  type CardDraft,
   finaliseCards,
   classify,
   cleanDescriptor,
@@ -9,7 +10,7 @@ import {
   splitAmount,
   toCents,
 } from "./common";
-import { ParseError, type ParsedCard, type ParsedRow, type ParseResult } from "./types";
+import { ParseError, type ParsedRow, type ParseResult } from "./types";
 
 export const UOB_CARD_VERSION = "uob-card-pdf@1";
 
@@ -30,10 +31,7 @@ const FX = /^([A-Z]{3})\s+([\d,]+\.\d{2})$/;
 const TOTAL_FOR = /^TOTAL BALANCE FOR\s+(.+)$/i;
 const STOP = /End of Transaction Details/i;
 
-type Draft = Omit<ParsedCard, "ordinal" | "reconciled"> & {
-  hasTotal: boolean;
-  hasPrevious: boolean;
-};
+type Draft = CardDraft;
 
 function headerValue(lines: Line[], label: RegExp): string | null {
   for (const l of lines) {
@@ -145,6 +143,7 @@ export function parseUobCard(lines: Line[]): ParseResult {
     names: [...names],
     statement: {
       bank: "UOB",
+      kind: "card",
       parserVersion: UOB_CARD_VERSION,
       statementDate,
       dueDate: due ? parseFullDate(due) : null,

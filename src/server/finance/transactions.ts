@@ -1,3 +1,4 @@
+import type { TxnKind } from "@/lib/kinds";
 import { and, desc, eq, gte, ilike, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { AppDb } from "@/db/client";
@@ -84,7 +85,7 @@ export type TxnRow = {
   fx: { currency: string | null; amount: string } | null;
   descriptor: string;
   merchantName: string | null;
-  kind: "charge" | "refund" | "card_payment" | "fee" | "cashback";
+  kind: TxnKind;
   categoryId: string | null;
   categoryName: string;
   categorySource: "rule" | "map" | "llm" | "user" | "system" | null;
@@ -210,7 +211,8 @@ export class TxnError extends Error {
 }
 
 /** Kinds whose category comes from the row itself, never from the user. */
-export const FIXED_KINDS = ["card_payment", "fee", "cashback"] as const;
+export { FIXED_KINDS } from "@/lib/kinds";
+import { FIXED_KINDS } from "@/lib/kinds";
 
 /** "This transaction only": the user's own direct edit (PRD CAT-5). */
 export async function setTransactionCategory(

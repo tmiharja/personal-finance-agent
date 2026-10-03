@@ -1,3 +1,4 @@
+import type { TxnKind } from "@/lib/kinds";
 import { z } from "zod";
 import { addUsage, ZERO_USAGE, type TokenUsage } from "@/server/llm/pricing";
 import type { ClassifyItem, Llm } from "@/server/llm/types";
@@ -23,7 +24,7 @@ export type Categorised = {
 export type CategoriseRow = {
   descriptor: string;
   merchantName: string;
-  kind: "charge" | "refund" | "card_payment" | "fee" | "cashback";
+  kind: TxnKind;
   amountCents: number;
   fx: { currency: string | null } | null;
 };
@@ -42,9 +43,13 @@ const LLM_TIMEOUT_MS = 25_000;
 
 const KIND_CATEGORY: Partial<Record<CategoriseRow["kind"], string>> = {
   card_payment: "Transfers",
+  transfer: "Transfers",
   fee: "Fees & Charges",
   cashback: "Cashback & Rewards",
 };
+
+/** Money in by PayNow/FAST/transfer: income, or your own money from another account? */
+const TRANSFER_LIKE = /\b(PAYNOW|FAST|FUNDS? TRANSFER|IBG|TRANSFER)\b/i;
 
 export const UNCATEGORISED: Categorised = {
   categoryName: "Uncategorised",
@@ -66,6 +71,13 @@ export function resolveDeterministic(
 ): Categorised | null {
   const system = KIND_CATEGORY[row.kind];
   if (system) return { categoryName: system, source: "system", confidence: 1 };
+  // Salary, interest and other credits are income. A transfer in that wasn't paired
+  // with one of your own accounts is left for you to confirm (PRD IMP-10).
+  if (row.kind === "income") {
+    return TRANSFER_LIKE.test(row.descriptor)
+      ? UNCATEGORISED
+      : { categoryName: "Income", source: "system", confidence: 1 };
+  }
   const ordered = [...rules].sort((a, b) => a.priority - b.priority);
   for (const rule of ordered) {
     const hit =
