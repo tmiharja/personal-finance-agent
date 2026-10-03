@@ -85,7 +85,7 @@ flowchart LR
   AUTH --- UI1 & UI2 & UI3 & UI4
 ```
 
-**Reading the diagram:** every arrow that ends in a **write to the ledger** passes through ⑱ → ⑲ → (your approval) → ⑳. That includes committing an import (⑬), agent proposals (⑯) and detector suggestions (㉒). The only writes outside that path are your own direct edits in the UI (e.g. renaming a category) and system bookkeeping (usage counters, the audit log).
+**Reading the diagram:** every arrow that ends in a **write to the ledger** passes through ⑱ → ⑲ → (your approval) → ⑳. That includes committing an import (⑬), agent proposals (⑯) and detector suggestions (㉒). Your own direct edits in the UI ("this transaction only", dismiss an alert, ignore a subscription) take the same path in one step: proposed and approved together by you, so they are validated, audited and undoable like the rest (`applyDirect` in `src/server/actions/engine.ts`). The only writes outside it are system bookkeeping (usage counters, the audit log) and the detectors' own tables.
 
 ---
 
@@ -145,7 +145,7 @@ sequenceDiagram
   T-->>A: { total: 1243.50, count: 47, queryRef }
   LLM->>A: call list_transactions(merchant=Grab Food, range)
   T-->>A: 18 rows (masked)
-  LLM->>A: call propose_action(recategorise_transactions …)
+  LLM->>A: call propose_recategorise(merchant=Grab Food, category=Transport)
   A->>P: validate (allowlist, Zod, ownership, bounds) + build deterministic diff
   P->>DB: insert proposed_action (pending, payload hash, row versions)
   LLM-->>A: final text
@@ -204,11 +204,11 @@ The detectors are SQL/TS only and make no LLM calls, so the daily run costs no t
 | ⑬ | **Import preview** | Holds the parsed result in Redis (TTL 24 h) and creates a `commit_import` proposal. |
 | ⑭ | **Ask tool loop** | A streamed manual tool loop (`client.beta.messages.stream`) on Sonnet 5.5: adaptive thinking at low effort, strict tool schemas, server-side refusal fallback. The system prompt and tool schemas are cached. A step limit of 8, a 60 s timeout and per-user cost checks apply. Built in Phase 1b (`src/server/agent/`). |
 | ⑮ | **Read tools** | `resolve_period`, `spend_summary`, `compare_periods`, `top_merchants`, `list_transactions`, `get_subscriptions`, `get_bills`, `get_alerts`, `get_budgets`, `list_categories`. Parameterised SQL only, with `user_id` taken from the session. Results are masked and capped in size, and each carries a `queryRef` for the "View N" link. |
-| ⑯ | **propose_action** | The agent's **only** write-adjacent tool. It creates a pending proposal, never executes one. |
+| ⑯ | **Propose tools** | `propose_recategorise`, `propose_rule`, `propose_mark_transfer`, `propose_tag`, `propose_budget`, `propose_alert_decision`, `propose_ignore_subscription`, `propose_bill` (`src/server/agent/proposals.ts`). The agent's **only** write-adjacent tools: each creates a pending proposal (proposer `agent`) through ⑱ and never executes one. A refusal comes back as a code the model explains. There is no approve tool. |
 | ⑰ | **Numbers guard** | Extracts the numbers from the final answer and checks each against the tool outputs (with tolerance for rounding and formatting). On failure it regenerates once, then falls back to rendering the tool table. |
-| ⑱ | **Policy + preview builder** | Allowlist of action types, Zod validation, ownership of every ID, bounds, and a deterministic diff. Stores the payload hash and the row versions it was based on. |
+| ⑱ | **Policy + preview builder** | One registry of action definitions (`src/server/actions/defs/`), one per allowed type. Each has an input and a payload schema, `prepare` (ownership under RLS, bounds, the deterministic preview), `versions` (every row and reference it depends on), `execute` (returns the result and the inverse) and `undo`. Stores the payload hash and the versions it was based on. |
 | ⑲ | **`proposed_actions`** | States: `pending → approved → executed`, or `rejected`, `expired`, `stale`, `failed`. Expires after 24 h. |
-| ⑳ | **Executor** | Runs only on an approval POST from the owner (with CSRF + idempotency key). Re-checks row versions, executes **exactly** the stored payload in one DB transaction, and writes the inverse for Undo. |
+| ⑳ | **Executor** | Runs only on an approval POST from the owner (same-origin checked). Locks the proposal and the rows it touches, re-checks the versions (stale otherwise), executes **exactly** the stored payload in one DB transaction, and writes the inverse plus the versions after execution. Undo (30 days) runs the inverse only if those versions still hold, so it never overwrites a newer decision. Batch approval runs each proposal on its own. |
 | ㉑ | **`audit_log`** | Append-only, enforced by a DB trigger that blocks UPDATE/DELETE except during account wipe. Records the proposer (agent, detector or user), preview, decision, result and undo. |
 | ㉒ | **Detectors** | Subscriptions, price rise, trial conversion, unusual charge, duplicates, card fees, bills and due dates. Pure functions over SQL results that write alerts and *suggested* proposals. |
 | ㉓ | **Cron** | Daily detectors, the weekly digest, demo workspace cleanup and retention jobs. |

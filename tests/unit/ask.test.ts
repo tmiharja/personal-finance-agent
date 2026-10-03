@@ -128,6 +128,7 @@ describe("numbers guard (ASK-3)", () => {
 describe("tools (ASK-2)", () => {
   const ctx = (tx: Parameters<Parameters<typeof withUser>[2]>[0]) => ({
     tx,
+    userId: "alex",
     today: TODAY,
     coverage: realCoverage,
     categories: ["Dining", "Groceries", "Transport", "Uncategorised"],
@@ -146,6 +147,14 @@ describe("tools (ASK-2)", () => {
       "get_subscriptions",
       "get_bills",
       "get_alerts",
+      "propose_recategorise",
+      "propose_rule",
+      "propose_mark_transfer",
+      "propose_tag",
+      "propose_budget",
+      "propose_alert_decision",
+      "propose_ignore_subscription",
+      "propose_bill",
     ]);
     expect(TOOLS.every((t) => t.strict && t.input_schema.additionalProperties === false)).toBe(
       true,
@@ -299,6 +308,37 @@ describe("tools (ASK-2)", () => {
     );
   });
 
+  it("propose tools create a pending proposal as the agent, and change nothing", async () => {
+    const out = await withUser(db, "alex", (tx) =>
+      runTool(ctx(tx), "propose_recategorise", {
+        merchant: "grab",
+        category: "dining",
+        from: "2026-03-01",
+        to: "2026-03-31",
+      }),
+    );
+    expect(out.result).toMatchObject({
+      proposed: true,
+      title: expect.stringMatching(/to Dining$/),
+    });
+    expect(out.proposal?.preview.lines[0]).toBe(
+      "Transactions from Grab (2026-03-01 to 2026-03-31).",
+    );
+    const travel = await withUser(db, "alex", (tx) =>
+      spendTotals(
+        tx,
+        { from: "2026-03-01", to: "2026-03-31" },
+        { category: "Dining", merchant: "Grab" },
+      ),
+    );
+    expect(travel.count).toBe(0);
+    // A refusal comes back as a code the model can explain, and the turn goes on.
+    const refused = await withUser(db, "alex", (tx) =>
+      runTool(ctx(tx), "propose_budget", { category: "Uncategorised", monthly_amount_sgd: 10 }),
+    );
+    expect(refused).toEqual({ result: { error: "invalid_category" } });
+  });
+
   it("reads only the signed-in user's rows", async () => {
     const out = await withUser(db, "other", (tx) =>
       runTool(ctx(tx), "spend_summary", {
@@ -360,6 +400,34 @@ describe("the Ask loop (offline mock model)", () => {
     expect(done).toMatchObject({ guard: "pass", view: { href: "/app/subscriptions" } });
   });
 
+  it("proposes a change it was asked for, and never applies it (ACT-10)", async () => {
+    const budgets = () =>
+      withUser(db, "alex", async (tx) =>
+        sqlRows<{ n: number }>(await tx.execute(sql`select count(*)::int as n from budgets`)),
+      );
+    const before = await budgets();
+    const { text, done } = await ask("Set a budget of S$450 a month for Dining");
+    expect(text).toMatch(/suggested it: Budget S\$450\.00 a month for Dining/);
+    expect(done).toMatchObject({
+      guard: "pass",
+      proposals: [{ preview: { title: "Budget S$450.00 a month for Dining", affected: 1 } }],
+    });
+    expect(await budgets()).toEqual(before);
+    const id = done!.t === "done" ? done!.proposals![0]!.id : "";
+    const [p] = await withUser(db, "alex", async (tx) =>
+      sqlRows<{ status: string; proposer: string }>(
+        await tx.execute(sql`select status, proposer from proposed_actions where id = ${id}`),
+      ),
+    );
+    expect(p).toEqual({ status: "pending", proposer: "agent" });
+  });
+
+  it("explains a proposal the engine refuses", async () => {
+    const { text, done } = await ask("Move Grab transactions to Nonsense");
+    expect(text).toMatch(/couldn't suggest that change \(unknown category\)/);
+    expect(done).toMatchObject({ proposals: [] });
+  });
+
   it("declines advice without calling tools", async () => {
     const { events, done } = await ask("Should I buy stocks with my cashback?");
     expect(events.some((e) => e.t === "status")).toBe(false);
@@ -374,8 +442,8 @@ describe("the Ask loop (offline mock model)", () => {
         ),
       ),
     )[0]!;
-    expect(asked).toEqual({ n: 4, model: "claude-sonnet-5-5" });
-    expect(await budgetBlock(db, "alex", "ask", 4)).toBe("daily_limit");
+    expect(asked).toEqual({ n: 6, model: "claude-sonnet-5-5" });
+    expect(await budgetBlock(db, "alex", "ask", 6)).toBe("daily_limit");
     const { error } = await (async () => {
       const events: AskEvent[] = [];
       await runAsk({
@@ -388,7 +456,7 @@ describe("the Ask loop (offline mock model)", () => {
       });
       return { error: events.find((e) => e.t === "error") };
     })();
-    // The configured limit (60) isn't reached by 4 questions.
+    // The configured limit (60) isn't reached by 6 questions.
     expect(error).toBeUndefined();
   });
 

@@ -227,53 +227,6 @@ export class TxnError extends Error {
 
 /** Kinds whose category comes from the row itself, never from the user. */
 export { FIXED_KINDS } from "@/lib/kinds";
-import { FIXED_KINDS } from "@/lib/kinds";
-import { TRANSFER_MERCHANTS } from "@/lib/kinds";
-
-/** "This transaction only": the user's own direct edit (PRD CAT-5). */
-export async function setTransactionCategory(
-  db: AppDb,
-  userId: string,
-  transactionId: string,
-  categoryId: string,
-): Promise<{ categoryName: string }> {
-  return withUser(db, userId, async (tx) => {
-    const [cat] = await tx
-      .select({ id: categories.id, name: categories.name, kind: categories.kind })
-      .from(categories)
-      .where(and(eq(categories.id, categoryId), eq(categories.hidden, false)));
-    if (!cat) throw new TxnError("invalid_category");
-    const [row] = await tx
-      .select({
-        kind: transactions.kind,
-        merchant: transactions.merchantName,
-        pair: transactions.transferPairId,
-      })
-      .from(transactions)
-      .where(eq(transactions.id, transactionId));
-    if (!row) throw new TxnError("transaction_not_found");
-    // System rows, and transfers the app paired across your accounts, keep their category.
-    if ((FIXED_KINDS as readonly string[]).includes(row.kind) || row.pair)
-      throw new TxnError("not_categorisable");
-    // "Transfers" confirms a PayNow/FAST transfer as your own money moving (IMP-10);
-    // it isn't a category for purchases.
-    const toTransfer = cat.kind === "transfer";
-    if (toTransfer && !TRANSFER_MERCHANTS.has(row.merchant ?? ""))
-      throw new TxnError("invalid_category");
-    await tx
-      .update(transactions)
-      .set({
-        categoryId: cat.id,
-        categorySource: "user",
-        confidence: null,
-        isTransfer: toTransfer,
-        version: sql`${transactions.version} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(transactions.id, transactionId));
-    return { categoryName: cat.name };
-  });
-}
 
 /** How many rows need a category check (the Transactions "To review" chip). */
 export async function countToReview(db: AppDb, userId: string): Promise<number> {

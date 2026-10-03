@@ -102,6 +102,32 @@ export async function mockTurn(
   if (/\b(invest|stocks?|should i buy)\b/i.test(question)) {
     return say("I can't give investment advice, but I can tell you what you've spent and where.");
   }
+  // Changes: the mock proposes (never applies), like the real model must.
+  const budget = /budget of S?\$?([\d,.]+) (?:a month )?for ([\w &]+?)\??$/i.exec(question);
+  const move = /(?:move|recategori[sz]e) ([\w &]+?) (?:transactions )?to ([\w &]+?)\??$/i.exec(
+    question,
+  );
+  if (budget || move) {
+    const proposed = results.find((r) => r.name.startsWith("propose_"))?.data;
+    if (!proposed) {
+      const call = budget
+        ? toolUse("propose_budget", {
+            category: budget[2]!.trim(),
+            monthly_amount_sgd: Number(budget[1]!.replace(/,/g, "")),
+          })
+        : toolUse("propose_recategorise", {
+            merchant: move![1]!.trim(),
+            category: move![2]!.trim(),
+            from: null,
+            to: null,
+          });
+      return message([call] as BetaMessage["content"], "tool_use", model);
+    }
+    if (typeof proposed.error === "string") {
+      return say(`I couldn't suggest that change (${proposed.error.replace(/_/g, " ")}).`);
+    }
+    return say(`I've suggested it: ${String(proposed.title)}. Check the card below to approve it.`);
+  }
   if (/subscription/i.test(question)) {
     const subs = results.find((r) => r.name === "get_subscriptions")?.data;
     if (!subs)

@@ -5,8 +5,7 @@ import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
 import { categories, transactions } from "@/db/schema";
 import { withUser } from "@/db/with-user";
-import { approveAny, rejectAny } from "@/server/actions";
-import { proposeMerchantRule } from "@/server/actions/rules";
+import { applyDirect, approveAny, propose, rejectAny } from "@/server/actions";
 import { loadCategoriseContext } from "@/server/categorise/context";
 import type { MasterKeys } from "@/server/crypto/envelope";
 import { seedDemoWorkspace } from "@/server/demo/seed";
@@ -17,7 +16,6 @@ import {
   listTransactions,
   parseTxnFilter,
   PAGE_SIZE,
-  setTransactionCategory,
 } from "@/server/finance/transactions";
 import { listPendingProposals } from "@/server/import/service";
 import { createTestDb, createUser } from "../helpers/test-db";
@@ -36,6 +34,11 @@ afterAll(() => close());
 
 const list = (params: Record<string, string>) =>
   listTransactions(db, "alex", keys, parseTxnFilter(params));
+/** "This transaction only": applied now through the action engine. */
+const setTransactionCategory = (_db: AppDb, user: string, id: string, categoryId: string) =>
+  applyDirect(db, user, "recategorise_transactions", { transactionIds: [id], categoryId });
+const proposeMerchantRule = (_db: AppDb, user: string, id: string, categoryId: string) =>
+  propose(db, user, "user", "create_rule", { transactionId: id, categoryId });
 const categoryId = async (name: string) =>
   (
     await withUser(db, "alex", (tx) =>
@@ -136,13 +139,12 @@ describe("all from this merchant: a create_rule proposal", () => {
     const health = await categoryId("Health");
     const p = await proposeMerchantRule(db, "alex", starbucks.rows[0]!.id, health);
     expect(p.preview).toMatchObject({
-      kind: "create_rule",
-      merchant: "Starbucks",
-      toCategory: "Health",
-      affected: starbucks.total,
-      changes: [{ from: "Dining", count: starbucks.total }],
+      title: "Always categorise Starbucks as Health",
+      // The rule itself, plus every past row it moves.
+      affected: starbucks.total + 1,
+      changes: [{ from: "Dining", to: "Health", count: starbucks.total }],
     });
-    expect(p.preview.sample.length).toBeLessThanOrEqual(5);
+    expect(p.preview.sample!.length).toBeLessThanOrEqual(5);
     expect((await list({ merchant: "Starbucks", category: "Dining" })).total).toBe(starbucks.total);
     const pending = await listPendingProposals(db, "alex");
     expect(pending.some((x) => x.id === p.proposalId && x.type === "create_rule")).toBe(true);

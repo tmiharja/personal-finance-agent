@@ -5,7 +5,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AskEvent, AskTurn } from "@/server/agent/ask";
+import type { ProposedCard } from "@/server/agent/proposals";
 import type { Figure, View } from "@/server/agent/tools";
+import ProposalCard from "@/components/proposals/proposal-card";
 import AskFigure from "./ask-figure";
 import { OPEN_ASK } from "./ask-button";
 
@@ -20,6 +22,8 @@ type Answer = {
   period?: string;
   guard?: string;
   error?: string;
+  /** Changes Ask suggested: each waits for approval here or in Activity. */
+  proposals?: ProposedCard[];
 };
 
 /** The API accepts at most 24 earlier turns; the agent itself uses fewer. */
@@ -45,6 +49,14 @@ const TOOL_STATUS: Record<string, string> = {
   get_bills: "Checking bills…",
   get_alerts: "Checking alerts…",
   list_categories: "Checking your categories…",
+  propose_recategorise: "Preparing a suggestion…",
+  propose_rule: "Preparing a suggestion…",
+  propose_mark_transfer: "Preparing a suggestion…",
+  propose_tag: "Preparing a suggestion…",
+  propose_budget: "Preparing a suggestion…",
+  propose_alert_decision: "Preparing a suggestion…",
+  propose_ignore_subscription: "Preparing a suggestion…",
+  propose_bill: "Preparing a suggestion…",
 };
 
 const ERRORS: Record<string, string> = {
@@ -155,6 +167,7 @@ export default function AskPanel() {
                   excludes: e.excludes,
                   period: e.period,
                   guard: e.guard,
+                  proposals: e.proposals,
                 };
               case "error":
                 return {
@@ -242,6 +255,16 @@ export default function AskPanel() {
                           </p>
                         )}
                         {a.done && a.figure && <AskFigure figure={a.figure} />}
+                        {a.done &&
+                          a.proposals?.map((p) => (
+                            <div key={p.id} className="mt-3">
+                              <ProposalCard
+                                proposalId={p.id}
+                                preview={p.preview}
+                                from="assistant"
+                              />
+                            </div>
+                          ))}
                         {a.done && (a.excludes || a.guard === "fallback") && (
                           <p className="mt-2 text-[12px] text-muted">
                             {a.guard === "fallback" && "Shown straight from your data. "}
@@ -294,7 +317,9 @@ export default function AskPanel() {
             className="w-full resize-none rounded-lg border border-rule bg-background px-3 py-2 text-[15px]"
           />
           <div className="mt-2 flex items-center justify-between gap-3">
-            <p className="text-[11px] text-muted">Read-only. Not financial advice. Not saved.</p>
+            <p className="text-[11px] text-muted">
+              Changes only with your approval. Not financial advice. Not saved.
+            </p>
             <Button
               type="submit"
               size="sm"

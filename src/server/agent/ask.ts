@@ -13,12 +13,14 @@ import { maskForLlm } from "@/server/pii/firewall";
 import { checkNumbers, collectNumbers, extractNumbers, fallbackAnswer } from "./guard";
 import { todaySgt } from "./period";
 import { ASK_SYSTEM, GUARD_NOTE } from "./prompt";
+import type { ProposedCard } from "./proposals";
 import { runTool, TOOLS, type Figure, type ToolOutcome, type View } from "./tools";
 
 /**
- * Ask (PRD §6.5): a read-only tool loop on Claude Sonnet 5.5, streamed.
- * The model reads through typed tools only, never writes and never does
- * arithmetic; the numbers guard checks the final answer against tool results.
+ * Ask (PRD §6.5): a tool loop on Claude Sonnet 5.5, streamed. The model
+ * reads through typed tools and never does arithmetic; the numbers guard
+ * checks the final answer against tool results. It can propose changes
+ * (ACT-10) but never apply them: each proposal waits for the person's approval.
  */
 
 export const MAX_STEPS = 8;
@@ -38,6 +40,8 @@ export type AskEvent =
       figure?: Figure;
       excludes?: string;
       period?: string;
+      /** Changes Ask proposed this turn, each waiting for the person's approval. */
+      proposals?: ProposedCard[];
     }
   | { t: "error"; code: AskErrorCode };
 
@@ -140,6 +144,7 @@ export async function runAsk(opts: {
         guard === "skipped" ? undefined : [...outcomes].reverse().find((o) => o.figure)?.figure,
       excludes: excludesNote(outcomes),
       period,
+      proposals: outcomes.flatMap((o) => (o.proposal ? [o.proposal] : [])),
     });
   };
 
@@ -194,6 +199,7 @@ export async function runAsk(opts: {
             const o = await runTool(
               {
                 tx,
+                userId,
                 today,
                 coverage: ctxData.coverage as Range | null,
                 categories: ctxData.categories,

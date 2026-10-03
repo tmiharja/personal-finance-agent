@@ -514,6 +514,8 @@ export const proposedActions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     executedAt: timestamp("executed_at", { withTimezone: true }),
+    /** Set when the executed change was undone (ACT-9); undo is itself audited. */
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
     errorCode: text("error_code"),
     createdAt: createdAt(),
   },
@@ -536,7 +538,10 @@ export const auditLog = pgTable(
       .notNull()
       .default(sql`'{}'::jsonb`),
     inverse: jsonb("inverse"),
-    createdAt: createdAt(),
+    /** Wall-clock time, so the events of one transaction keep their order. */
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
   },
   (t) => [
     index("audit_log_user_created_idx").on(t.userId, t.createdAt),

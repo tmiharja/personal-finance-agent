@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
 import { alerts, bills, subscriptions, transactions } from "@/db/schema";
@@ -226,39 +226,5 @@ export async function countOpenAlerts(db: AppDb, userId: string): Promise<number
       .from(alerts)
       .where(eq(alerts.status, "open"));
     return r?.n ?? 0;
-  });
-}
-
-/** The user's own decision on an alert (not a ledger change). False if it isn't theirs. */
-export async function setAlertStatus(
-  db: AppDb,
-  userId: string,
-  alertId: string,
-  status: "open" | "dismissed" | "expected",
-): Promise<boolean> {
-  return withUser(db, userId, async (tx) => {
-    const r = await tx
-      .update(alerts)
-      .set({ status })
-      .where(eq(alerts.id, alertId))
-      .returning({ id: alerts.id });
-    return r.length > 0;
-  });
-}
-
-/** Hide (or show again) a subscription; detectors keep it but the totals leave it out. */
-export async function setSubscriptionIgnored(
-  db: AppDb,
-  userId: string,
-  subscriptionId: string,
-  ignored: boolean,
-): Promise<boolean> {
-  return withUser(db, userId, async (tx) => {
-    const r = await tx
-      .update(subscriptions)
-      .set({ ignored, updatedAt: new Date() })
-      .where(and(eq(subscriptions.id, subscriptionId)))
-      .returning({ id: subscriptions.id });
-    return r.length > 0;
   });
 }

@@ -79,7 +79,21 @@ The agent can read your data but never changes anything on its own. Every write 
 | Evaluation | The fixture household now has a POSB and a UOB One account (salary, an own transfer each month, card bills paid from the bank, a town-council GIRO, ATM, NETS, PayNow). **60 of 60** planted card payments and transfers pair; detector **recall 19/19** (the bank-side town-council bill and a first-time PayNow payee included) |
 | Tests | 269 unit/integration tests and 40 e2e tests (desktop + mobile): 48 bank fixtures parse exactly (PDF and CSV), the bank-row classifier, the pairing matcher, cross-bank pairing and CSV dedupe through the real import path, RLS on the new pair columns, and the no-PII dump with bank data. Screenshots: [`docs/screenshots/phase-2b/`](docs/screenshots/phase-2b/) |
 
-**Next: Phase 3 (act).** The full proposal engine, budgets, undo and the weekly digest. Real DBS/POSB and UOB bank-account samples, when you have them, turn the provisional parsers into verified ones. See the PRD §12.
+**Phase 3a: the action engine (done).**
+
+| Area | What's in place |
+|---|---|
+| Engine | One registry of allowed action types (PRD ACT-1): recategorise, mark as transfer, tag, create/update/delete a rule, dismiss an alert or mark it expected, ignore a subscription, set a budget, add/update a bill. Anything else is refused before it is stored. Each type validates its input with Zod, checks every id against your data under RLS, caps a change at 2,000 rows, and builds a **deterministic preview** from data (title, from → to counts, sample rows), never from model text (ACT-4, ACT-7) |
+| Integrity | A proposal stores its payload hash and the versions of everything it touches. Approval locks those rows and executes exactly the previewed payload once; if anything changed, it goes stale instead. Proposals expire after 24 hours (ACT-6) |
+| Undo | Every change stores its inverse (ids and previous values only). Undo is one click for 30 days, refused if anything it touched has changed since (so it never overwrites a newer decision), and is itself audited (ACT-9). Reopening an alert undoes the decision that closed it |
+| Your own edits | "This transaction only", dismissing an alert and ignoring a subscription go through the same engine in one step: validated, audited and undoable |
+| Activity | Pending changes as cards with **select all → Approve selected** (each applied or refused on its own, ACT-5), and a history of every change filtered by who (you, Ask, the app), change type and outcome, with Undo (ACT-8) |
+| Ask | Eight **propose-only** tools (`propose_recategorise`, `propose_rule`, `propose_mark_transfer`, `propose_tag`, `propose_budget`, `propose_alert_decision`, `propose_ignore_subscription`, `propose_bill`). Each creates a pending proposal shown as a card under the answer; nothing changes until you approve it, and there is no tool that approves (ACT-10) |
+| Tests | 294 unit/integration tests and 46 e2e tests (desktop + mobile). The **zero-unapproved-write test** proposes every action type, as Ask and as you, and checks a fingerprint of all your data is unchanged; others cover the allowlist, validation, staleness, expiry, a tampered payload, other users' ids, batch approval, undo (expiry, staleness, once only) and each type's execute/undo. Screenshots: [`docs/screenshots/phase-3a/`](docs/screenshots/phase-3a/) |
+
+Not yet: a stale proposal isn't re-previewed automatically (you make the change again), cards have no Edit button, and a bulk change can't drop single rows before approval. Imports can't be undone yet.
+
+**Next: Phase 3b.** Budgets on Overview and "am I on track?" in Ask, a Settings page for rules, budgets and bills, drafts (cancellation and fee-waiver text, ACT-2), `export_csv` and the weekly digest. Real DBS/POSB and UOB bank-account samples, when you have them, turn the provisional parsers into verified ones. See the PRD §12.
 
 ## Local development
 

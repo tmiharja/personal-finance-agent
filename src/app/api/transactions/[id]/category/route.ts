@@ -1,14 +1,12 @@
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { ProposalError } from "@/server/actions/common";
-import { proposeMerchantRule } from "@/server/actions/rules";
-import { setTransactionCategory, TxnError } from "@/server/finance/transactions";
-import { isSameOrigin, jsonError, sessionUserId } from "@/server/http";
-import { logError } from "@/server/log";
+import { applyNow, propose } from "@/server/actions";
+import { isSameOrigin, jsonError, masterKeys, sessionUserId } from "@/server/http";
+import { actionError } from "@/server/proposal-route";
 
 const body = z.object({
   categoryId: z.uuid(),
-  /** "one": this transaction only (a direct edit). "merchant": propose a rule. */
+  /** "one": this transaction only (applied now, undoable). "merchant": propose a rule. */
   scope: z.enum(["one", "merchant"]),
 });
 
@@ -20,19 +18,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !z.uuid().safeParse(id).success) return jsonError("bad_request", 400);
+  const { categoryId, scope } = parsed.data;
   try {
-    if (parsed.data.scope === "one") {
+    if (scope === "one") {
       return Response.json(
-        await setTransactionCategory(getDb(), userId, id, parsed.data.categoryId),
+        await applyNow(getDb(), userId, masterKeys(), "recategorise_transactions", {
+          transactionIds: [id],
+          categoryId,
+        }),
       );
     }
-    return Response.json(await proposeMerchantRule(getDb(), userId, id, parsed.data.categoryId));
+    return Response.json(
+      await propose(getDb(), userId, "user", "create_rule", { transactionId: id, categoryId }),
+    );
   } catch (e) {
-    if (e instanceof TxnError) {
-      return jsonError(e.code, e.code === "transaction_not_found" ? 404 : 400);
-    }
-    if (e instanceof ProposalError) return jsonError(e.code, 400);
-    logError("transactions.category", e);
-    return jsonError("internal_error", 500);
+    return actionError(e, "transactions.category");
   }
 }

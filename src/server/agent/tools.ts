@@ -17,6 +17,13 @@ import type { BetaTool } from "@/server/llm/types";
 import { maskForLlm } from "@/server/pii/firewall";
 import { PER_MONTH, type Cadence } from "@/server/detect/recurring";
 import { resolvePeriod } from "./period";
+import {
+  PROPOSE_DESCRIPTIONS,
+  PROPOSE_SCHEMAS,
+  runPropose,
+  type ProposeTool,
+  type ProposedCard,
+} from "./proposals";
 
 /**
  * Ask's read-only tools (PRD ASK-2, architecture ⑮). Each runs parameterised
@@ -38,10 +45,14 @@ export type ToolOutcome = {
   view?: View;
   figure?: Figure;
   excluded?: SpendTotals["excluded"];
+  /** A change Ask proposed: shown as an approval card, never applied by Ask. */
+  proposal?: ProposedCard;
 };
 
 export type ToolContext = {
   tx: Tx;
+  /** From the server-side session, never a tool argument. */
+  userId: string;
   today: string;
   coverage: Range | null;
   categories: readonly string[];
@@ -102,6 +113,7 @@ const SCHEMAS = {
   get_subscriptions: z.object({}),
   get_bills: z.object({}),
   get_alerts: z.object({ include_closed: z.boolean() }),
+  ...PROPOSE_SCHEMAS,
 } as const;
 
 export type ToolName = keyof typeof SCHEMAS;
@@ -125,7 +137,8 @@ const DESCRIPTIONS: Record<ToolName, string> = {
   get_bills:
     "Card payments due (each card's latest statement: due date, total, minimum, paid or not) and detected recurring bills (payee, usual day, usual amount, next date).",
   get_alerts:
-    "Alerts raised by the detectors (price rises, trials that became paid, unusual or duplicate charges, foreign spending, card fees, payments due), each with its reason. Open ones only unless include_closed is true.",
+    "Alerts raised by the detectors (price rises, trials that became paid, unusual or duplicate charges, foreign spending, card fees, payments due), each with its id and reason. Open ones only unless include_closed is true.",
+  ...PROPOSE_DESCRIPTIONS,
 };
 
 /** Tool definitions in a fixed order (a changing tools list breaks prompt caching). */
@@ -350,15 +363,22 @@ async function run(
       };
     }
     case "get_alerts": {
-      const rows = sqlRows<{ type: string; reason: string; status: string; on: string | null }>(
+      const rows = sqlRows<{
+        id: string;
+        type: string;
+        reason: string;
+        status: string;
+        on: string | null;
+      }>(
         await ctx.tx.execute(sql`
-          select type, reason, status, occurred_on::text as on from alerts
+          select id, type, reason, status, occurred_on::text as on from alerts
           ${args.include_closed ? sql`` : sql`where status = 'open'`}
           order by occurred_on desc nulls last, created_at desc limit 30`),
       );
       return {
         result: {
           alerts: rows.map((r) => ({
+            id: r.id,
             type: r.type,
             reason: maskForLlm(r.reason),
             status: r.status,
@@ -597,5 +617,33 @@ async function run(
         view: viewFor(range, s.scope, count!.n),
       };
     }
+    default:
+      return propose(ctx, name, args);
   }
+}
+
+/** Merchants and categories resolved like the read tools, then proposed (never applied). */
+async function propose(
+  ctx: ToolContext,
+  name: ProposeTool,
+  args: Record<string, unknown>,
+): Promise<ToolOutcome> {
+  if (name !== "propose_bill" && name !== "propose_alert_decision") {
+    const resolved = await resolveScope(
+      ctx,
+      typeof args.category === "string" ? args.category : null,
+      typeof args.merchant === "string" ? args.merchant : null,
+    );
+    if ("error" in resolved) return { result: resolved.error };
+    args = { ...args, ...resolved.scope };
+  }
+  if (typeof args.from === "string" && typeof args.to === "string") checkRange(args.from, args.to);
+  const out = await runPropose(ctx.tx, ctx.userId, name, args);
+  return out.proposal
+    ? {
+        result: out.result,
+        proposal: out.proposal,
+        view: { href: "/app/activity", count: 1, label: "Open Activity" },
+      }
+    : { result: out.result };
 }
