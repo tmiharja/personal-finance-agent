@@ -113,7 +113,7 @@ Priorities: **P0** is needed for MVP, **P1** for v1, **P2** comes later.
 | IMP-1 | Upload **PDF** statements (Q7a) as P0. Several files can be dropped at once and each is processed separately. Files must be ≤ 4 MB and PDFs ≤ 30 pages. **CSV/XLS(X)** exports (Q7b) are P1, and come with bank-account statements. | P0 |
 | IMP-2 | **Password-protected PDFs**. Ask for a password only when the PDF needs one to open. The password is used in memory only and never stored or logged (Q8). Owner-password PDFs that only restrict copying or printing open without a prompt. DBS statements seen so far are of this kind; UOB statements seen so far aren't encrypted. | P0 |
 | IMP-3 | Detect the institution and statement type (savings/current or credit card) from layout fingerprints. | P0 |
-| IMP-4 | **Deterministic parser per bank and format first** (Q10). **MVP: DBS and UOB credit-card PDF statements**, specified in [`statement-formats.md`](statement-formats.md) from the real samples. Phase 2 adds OCBC cards, DBS/POSB, UOB and OCBC bank-account statements (PDF + CSV). Later: Citi, HSBC, Standard Chartered, Maybank, AMEX and Trust ★. | P0 |
+| IMP-4 | **Deterministic parser per bank and format first** (Q10). **MVP: DBS and UOB credit-card PDF statements**, specified in [`statement-formats.md`](statement-formats.md) from the real samples. Phase 2 adds **DBS/POSB and UOB bank-account statements** (PDF + CSV). Later (Phase 4): OCBC first, then Citi, HSBC, Standard Chartered, Maybank, AMEX and Trust ★. | P0 |
 | IMP-5 | **LLM fallback extractor** for unknown layouts, with the same output schema. Results are always marked "AI-extracted, please review", and the import is blocked unless reconciliation passes or you explicitly accept. | P1 |
 | IMP-6a | **Multi-card statements**. One PDF often holds several cards (the samples from both banks did). Each card section becomes its own card account, identified by bank + card product name (see §7.1a). Each card reconciles separately, and the cards together must add up to the statement's grand total (DBS) or summary total (UOB). | P0 |
 | IMP-6 | **Reconciliation**. For bank statements, opening balance + Σ transactions = closing balance. For card statements, previous balance + Σ signed rows (charges positive; payments, refunds and cashback negative, marked `CR`) = the card's total. This was verified on every card section of the real samples (kept out of the repo) and on all synthetic fixtures. A mismatch flags the statement, shows the difference and blocks one-click commit. | P0 |
@@ -123,7 +123,7 @@ Priorities: **P0** is needed for MVP, **P1** for v1, **P2** comes later.
 | IMP-9 | **De-duplication** (Q12). An exact fingerprint (account, date, amount, normalised descriptor, sequence) is skipped silently. Near-duplicates (same amount ±1 day, similar descriptor, a different source file) go to a review list in the import preview. Overlapping statement periods are handled. | P0 |
 | IMP-10 | **Transfer detection** (Q13). Credit-card bill payments and transfers between your own accounts are paired (opposite amounts within ±3 days, known descriptors such as "BILL PAYMENT", "FAST", "GIRO … CARD") and excluded from spend and income. Unpaired candidates ask you to confirm. | P0 |
 | IMP-11 | **Import preview → approve to commit.** Nothing is written to your ledger until you approve. Uncommitted previews expire after 24 h. | P0 |
-| IMP-12 | Backfill: show a progress checklist for "last 12 months per account" (Q9), with gaps highlighted, e.g. "OCBC 365 card: missing Apr, Jun". | P1 |
+| IMP-12 | Backfill: show a progress checklist for "last 12 months per account" (Q9), with gaps highlighted, e.g. "DBS Sample World Mastercard: missing Apr, Jun". | P1 |
 | IMP-13 | Raw files are **discarded after parsing** and never stored ★. Only a SHA-256 of the file is kept, to block exact re-uploads. | P0 |
 | IMP-14 | Live progress over SSE: Unlocking → Reading → Parsing → Reconciling → Categorising → Ready for review. | P0 |
 
@@ -250,6 +250,9 @@ All detectors are **deterministic code over the database, not LLM calls**. The L
 | Transaction reference numbers (`REF NO:` / `Ref No. :`) | Used **transiently** inside a keyed hash (HMAC with a per-user secret) for dedupe, then dropped. The hash can't be reversed. |
 | Long digit runs inside descriptors (transit trip IDs, merchant IDs, phone numbers) | Runs of 6+ digits are **replaced with `#`** before storage. For example, a transit descriptor becomes `BUS/MRT # SINGAPORE`, normalised to "SimplyGo / Transit". |
 | Statement date, due date, minimum payment, previous balance, card total | **Stored.** They're needed for bills and reconciliation. |
+| Bank account number, account holder name and address on a bank-account statement | **Never stored.** The account's **product name** (e.g. "POSB Sample Savings Account") is the only identifier, as for cards. |
+| Other people's names in PayNow, FAST and funds-transfer rows ("PAYNOW TO <name>") | **Removed** by the parser: the row is kept as "PayNow transfer" (direction and amount only). Business payees with a company suffix (PTE LTD, LTD, LLP…) are kept, since they are merchants. |
+| Opening and closing balance of a bank account | **Stored.** They're needed for reconciliation. |
 | Transaction date(s), amount, currency, FX amount + currency, sanitised descriptor | **Stored**, with the descriptor encrypted at the application level. |
 
 **Defence in depth (all P0):**
@@ -353,15 +356,15 @@ The main entities are `users`, `accounts`, `statements`, `transactions`, `mercha
 
 ## 12. Release plan (phases) ★ (Q61)
 
-**Status:** Phase 0 and Phase 1 are done: DBS + UOB card import with approval (1a), and categorisation, Transactions, Overview, Ask and the demo (1b). Phase 2a (the detectors: subscriptions, bills, alerts) is done. Phase 2b (OCBC cards and bank-account statements) waits on real samples. Two choices differ from the plan: Claude is called through the official Anthropic SDK rather than the Vercel AI SDK, and the charts are plain HTML/CSS rather than SVG (still no chart library). The README lists what was built and how it was verified.
+**Status:** Phase 0 and Phase 1 are done: DBS + UOB card import with approval (1a), and categorisation, Transactions, Overview, Ask and the demo (1b). Phase 2a (the detectors: subscriptions, bills, alerts) is done. Phase 2b is DBS/POSB and UOB bank-account statements with transfer pairing and income; other banks (OCBC first) move to Phase 4. The bank-account parsers are built against synthetic fixtures in the published layouts and are marked provisional until real samples pass the local reconciliation test. Two choices differ from the plan: Claude is called through the official Anthropic SDK rather than the Vercel AI SDK, and the charts are plain HTML/CSS rather than SVG (still no chart library). The README lists what was built and how it was verified.
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | **0. Foundations** | New repo, scaffold copied from Resume Optimiser conventions, Better Auth, RLS schema, envelope encryption, **PII firewall + no-PII test harness**, design shell, demo seed generator, synthetic DBS/UOB card-statement fixture generator | Two-user isolation and no-PII tests pass; shell matches the mockups |
 | **1. MVP: ingest → categorise → overview → ask** | **DBS + UOB credit-card PDF parsers**, multi-card split, reconciliation, dedupe, card-payment detection, import preview + approve, categorisation + correction rules, Overview, Transactions, Ask (read-only), demo | Golden-set targets for parsing and categories met; Q&A numbers guard at 100% |
-| **2. Detect + more banks** | OCBC cards; DBS/POSB, UOB and OCBC bank-account statements (PDF + CSV) with transfer pairing; subscriptions, price rise, unusual charges, card fees, card due dates, Alerts, Subscriptions screen, daily cron | Detector golden-set targets met |
+| **2. Detect + bank accounts** | (2b) DBS/POSB and UOB bank-account statements (PDF + CSV) with transfer pairing, income and card payments confirmed from the bank; (2a) subscriptions, price rise, unusual charges, card fees, card due dates, Alerts, Subscriptions screen, daily cron | Detector golden-set targets met; every synthetic transfer and card payment paired; real bank samples reconcile locally |
 | **3. Act** | The full proposal/approval engine (all ACT-* items), agent proposals in chat, Activity + undo, drafts, budgets, bills, weekly digest, export | Zero unapproved-write tests pass; audit complete |
-| **4. Polish + publish** | LLM-fallback parser, more banks, admin page, privacy page, portfolio project page + blog post with eval results | Public launch |
+| **4. Polish + publish** | LLM-fallback parser, more banks (OCBC cards and accounts first), admin page, privacy page, portfolio project page + blog post with eval results | Public launch |
 
 ## 13. Risks and mitigations
 
@@ -384,4 +387,4 @@ Resolved in v2: sample statements (DBS + UOB cards), auth (Better Auth), Q&A mod
 2. **Name**: is "Finance Agent" fine, or do you have a brand name and domain in mind (e.g. a `*.toninmotion` subdomain)?
 3. **Google sign-in**: include it at launch, or keep to email + passkeys only? ★ The default is email + passkeys only.
 4. **Hero image**: will you supply light/dark hero images as you did for the Resume Optimiser?
-5. **Bank accounts and OCBC** (Phase 2): send samples when you're ready (PDF, and CSV if your bank exports it).
+5. **DBS/POSB and UOB bank-account samples** (Phase 2b): one statement PDF from each, plus the CSV export if your internet banking offers one. They stay local and git-ignored, and are used only to verify the provisional parsers. OCBC is deferred to Phase 4.

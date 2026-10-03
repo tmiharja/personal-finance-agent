@@ -68,7 +68,7 @@ The agent can read your data but never changes anything on its own. Every write 
 | Evaluation | A golden eval over the fixture household's planted events: **recall 17/17**; 18 of 20 detections are planted events and the other 2 are correct overdue-payment alerts (two cards due 2 Oct 2026 with no payment in the data). Edge cases: trials, price levels, coverage gaps, ignored subscriptions, idempotent re-runs |
 | Tests | 192 unit/integration tests and 36 e2e tests (desktop + mobile). The no-PII harness now covers detector output too. Screenshots: [`docs/screenshots/phase-2a/`](docs/screenshots/phase-2a/) |
 
-**Next: Phase 2b.** OCBC cards, and DBS/POSB, UOB and OCBC bank-account statements (PDF + CSV) with transfer pairing. This needs real samples, which stay local and git-ignored. See the PRD §12.
+**Next: Phase 2b (in progress).** DBS/POSB and UOB bank-account statements (PDF + CSV), with transfer pairing, income, and card payments confirmed from the bank. OCBC moves to Phase 4. See the PRD §12.
 
 ## Local development
 
