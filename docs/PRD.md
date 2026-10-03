@@ -353,6 +353,8 @@ The main entities are `users`, `accounts`, `statements`, `transactions`, `mercha
 
 ## 12. Release plan (phases) ★ (Q61)
 
+**Status:** Phase 0 is done. The README lists what was built and how it was verified.
+
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | **0. Foundations** | New repo, scaffold copied from Resume Optimiser conventions, Better Auth, RLS schema, envelope encryption, **PII firewall + no-PII test harness**, design shell, demo seed generator, synthetic DBS/UOB card-statement fixture generator | Two-user isolation and no-PII tests pass; shell matches the mockups |
