@@ -74,7 +74,7 @@ export default function MonthTrend({
         ))}
       </div>
       <table className="sr-only">
-        <caption>Card spend by month</caption>
+        <caption>Spend by month</caption>
         <tbody>
           {months.map((m) => (
             <tr key={m.month}>

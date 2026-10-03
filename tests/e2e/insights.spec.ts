@@ -14,6 +14,10 @@ test("the demo opens on a month with spend by category and a 12-month trend", as
   const stats = page.getByRole("main").locator("dl");
   await expect(stats).toContainText("Spent");
   await expect(stats).toContainText("Card payments");
+  // Income from the bank accounts, with own-account transfers left out.
+  await expect(stats).toContainText("Income");
+  await expect(stats).toContainText(/transfers excluded/);
+  await expect(page.getByText(/In your bank accounts/)).toBeVisible();
   // Twelve months, each reachable by keyboard and screen reader.
   await expect(page.getByRole("link", { name: /^[A-Z][a-z]{2} 20\d\d: S\$/ })).toHaveCount(12);
   await page.getByRole("link", { name: /^Mar 2026: S\$/ }).click();
@@ -100,4 +104,27 @@ test("imports are off in the demo", async ({ page }) => {
   });
   expect(res.status()).toBe(403);
   expect(await res.json()).toEqual({ error: "demo_read_only" });
+});
+
+test("bank transactions: PayNow names are never shown, and a transfer can be confirmed as your own", async ({
+  page,
+}) => {
+  await startDemo(page);
+  await page.goto("/app/transactions?merchant=PayNow%20transfer");
+  const rows = page.getByRole("row");
+  await expect(rows.filter({ hasText: "PAYNOW TRANSFER OUT" }).first()).toBeVisible();
+  await expect(page.getByText(/JORDAN|ALEX/)).toHaveCount(0);
+  // The own-account FAST transfers were matched across accounts and are locked.
+  await page.goto("/app/transactions?merchant=FAST%20transfer");
+  await expect(page.getByText("matched across accounts").first()).toBeVisible();
+  // An unmatched PayNow in can be confirmed as a transfer between your own accounts.
+  await page.goto("/app/transactions?merchant=PayNow%20transfer");
+  const incoming = rows.filter({ hasText: "PAYNOW TRANSFER IN" }).first();
+  await incoming.getByRole("combobox").selectOption({ label: "Transfers" });
+  await expect(page.getByText(/money moving between your own accounts/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /All PayNow transfer transactions/ })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "This transaction only" }).click();
+  await expect(incoming.locator("select option:checked")).toHaveText("Transfers");
 });

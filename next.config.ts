@@ -20,6 +20,18 @@ const csp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The demo workspace is seeded from the synthetic fixtures' expected JSON (never
+  // the PDFs or CSVs); the seed's file reads are dynamic, so they're listed here.
+  outputFileTracingIncludes: {
+    "/api/demo": ["./evals/fixtures/synthetic/{dbs,uob,posb,uob-one}/*-??.expected.json"],
+  },
+  outputFileTracingExcludes: {
+    "/api/demo": [
+      "./evals/fixtures/synthetic/**/*.{pdf,csv}",
+      "./evals/fixtures/synthetic/**/*.csv.expected.json",
+      "./evals/fixtures/synthetic/{ledger.json,variants/**}",
+    ],
+  },
   async headers() {
     return [
       {

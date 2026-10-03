@@ -278,31 +278,6 @@ export default function PreviewCard({
           </p>
         ) : (
           <>
-            {summary.pairing &&
-              summary.pairing.cardPayments +
-                summary.pairing.transfers +
-                summary.pairing.linkedCardPayments >
-                0 && (
-                <p className="mt-1 text-[13px] text-muted">
-                  Matched with your other accounts:{" "}
-                  {[
-                    summary.pairing.cardPayments + summary.pairing.linkedCardPayments > 0 &&
-                      `${summary.pairing.cardPayments + summary.pairing.linkedCardPayments} card ${
-                        summary.pairing.cardPayments + summary.pairing.linkedCardPayments === 1
-                          ? "payment"
-                          : "payments"
-                      }`,
-                    summary.pairing.transfers > 0 &&
-                      `${summary.pairing.transfers} ${
-                        summary.pairing.transfers === 1 ? "transfer" : "transfers"
-                      } between your accounts`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}{" "}
-                  (not counted as spending or income)
-                </p>
-              )}
-
             {!summary.allReconciled && (
               <label className="mb-4 flex items-start gap-2 text-[13px]">
                 <input

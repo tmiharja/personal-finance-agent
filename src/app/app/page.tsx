@@ -6,7 +6,7 @@ import Stat from "@/components/charts/stat";
 import EmptyState from "@/components/empty-state";
 import PageTitle from "@/components/app/page-title";
 import { getDb } from "@/db/client";
-import { money, monthLabel } from "@/lib/format";
+import { money, monthLabel, shortDate } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
 import { getMonthOverview } from "@/server/finance/overview";
 import { addMonths, monthRange } from "@/server/finance/spend";
@@ -142,7 +142,18 @@ export default async function OverviewPage({
         <h2 id="coming-up" className="sr-only">
           Coming up
         </h2>
-        <ul className="grid gap-3 text-[15px] md:grid-cols-3">
+        <ul
+          className={`grid gap-3 text-[15px] ${o.balances ? "sm:grid-cols-2 lg:grid-cols-4" : "md:grid-cols-3"}`}
+        >
+          {o.balances && (
+            <li className="rounded-lg border border-rule px-4 py-3">
+              <span className="block text-[13px] text-muted">
+                In your bank {o.balances.accounts === 1 ? "account" : "accounts"}
+              </span>
+              <span className="tabular font-medium">{money(o.balances.cents)}</span>
+              <span className="text-[13px] text-muted"> on {shortDate(o.balances.asOf)}</span>
+            </li>
+          )}
           <li className="rounded-lg border border-rule px-4 py-3">
             <Link href="/app/subscriptions" className="block hover:underline">
               <span className="block text-[13px] text-muted">Subscriptions</span>

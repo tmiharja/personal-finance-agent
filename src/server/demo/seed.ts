@@ -34,16 +34,20 @@ type ExpectedStatement = {
   }[];
 };
 
-export const FIXTURES_DIR = join(process.cwd(), "evals", "fixtures", "synthetic");
+const FIXTURE_DIRS = ["dbs", "uob", "posb", "uob-one"] as const;
 
 /** Card statements, then the bank accounts' PDF statements (their CSVs carry the same rows). */
-export function loadFixtureStatements(dir = FIXTURES_DIR): ExpectedStatement[] {
+export function loadFixtureStatements(): ExpectedStatement[] {
   const out: ExpectedStatement[] = [];
-  for (const bank of ["dbs", "uob", "posb", "uob-one"]) {
-    for (const f of readdirSync(join(dir, bank))
+  for (const bank of FIXTURE_DIRS) {
+    // A statically scoped path, so the build traces only this folder; next.config.ts
+    // narrows it to the expected JSON (never the PDFs or CSVs).
+    for (const f of readdirSync(join(process.cwd(), "evals", "fixtures", "synthetic", bank))
       .filter((n) => n.endsWith(".expected.json") && !n.endsWith(".csv.expected.json"))
       .sort()) {
-      const st = JSON.parse(readFileSync(join(dir, bank, f), "utf8")) as ExpectedStatement;
+      const st = JSON.parse(
+        readFileSync(join(process.cwd(), "evals", "fixtures", "synthetic", bank, f), "utf8"),
+      ) as ExpectedStatement;
       // Only synthetic data may ever be seeded.
       if (st.synthetic !== true) throw new Error(`${bank}/${f} is not marked synthetic`);
       out.push(st);
@@ -106,9 +110,8 @@ export async function seedDemoWorkspace(
   db: AppDb,
   userId: string,
   keys: MasterKeys,
-  dir = FIXTURES_DIR,
 ): Promise<SeedResult> {
-  const fixtures = loadFixtureStatements(dir);
+  const fixtures = loadFixtureStatements();
   return withUser(db, userId, async (tx) => {
     const crypto = await getUserCrypto(tx, userId, keys);
     const categoryIds = await ensureDefaultCategories(tx, userId);

@@ -67,5 +67,43 @@ test("a file that isn't a supported statement is refused", async ({ page, isMobi
     mimeType: "application/pdf",
     buffer: Buffer.from("not really a pdf"),
   });
-  await expect(page.getByText("Only PDF statements are supported for now.")).toBeVisible();
+  await expect(page.getByText("Upload a PDF statement or your bank's CSV export.")).toBeVisible();
+  // A CSV that isn't a supported bank export.
+  await page.getByLabel("Statement files").setInputFiles({
+    name: "budget.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("date,amount\n2026-01-01,12.30\n"),
+  });
+  await expect(page.getByText(/doesn't look like a DBS\/POSB or UOB statement/)).toBeVisible();
+});
+
+test("a bank CSV export imports, and its card bill payments pair with the card", async ({
+  page,
+  isMobile,
+}) => {
+  await signIn(page, newEmail(isMobile ? "bm" : "bd"));
+  await page.goto("/app/import");
+  await page.getByLabel("Statement files").setInputFiles(fixture("dbs/2026-03"));
+  const cards = page.getByRole("region", { name: /DBS statement 14 Mar 2026/ });
+  await cards.getByRole("button", { name: /Approve import/ }).click();
+  await expect(cards.getByText(/Imported 27 transactions/)).toBeVisible();
+
+  await page.goto("/app/import");
+  await page
+    .getByLabel("Statement files")
+    .setInputFiles(join(process.cwd(), "evals", "fixtures", "synthetic", "posb", "2026-03.csv"));
+  const bank = page.getByRole("region", { name: /DBS statement 31 Mar 2026/ });
+  await expect(bank.getByText(/DBS bank-account statement/)).toBeVisible();
+  await expect(bank.getByText("Posb Sample Savings Account")).toBeVisible();
+  // The CSV export prints no opening balance, so there's nothing to reconcile against.
+  await expect(bank.getByText("No balances to check")).toBeVisible();
+  await expect(bank.getByText(/Matched with your other accounts: 2 card payments/)).toBeVisible();
+  // People's names never reach the preview.
+  await bank.getByText("Show transactions").first().click();
+  await expect(bank.getByText("PAYNOW TRANSFER OUT").first()).toBeVisible();
+  await expect(bank.getByText(/JORDAN|ALEX/)).toHaveCount(0);
+  // Unverifiable totals need an explicit "import anyway".
+  await bank.getByLabel(/Import anyway/).check();
+  await bank.getByRole("button", { name: /Approve import/ }).click();
+  await expect(bank.getByText(/2 matched with your other accounts/)).toBeVisible();
 });
