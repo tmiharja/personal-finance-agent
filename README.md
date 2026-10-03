@@ -58,7 +58,17 @@ The agent can read your data but never changes anything on its own. Every write 
 | Demo | "Try the demo" opens a no-signup workspace with the fictional Alex Tan's 12 months. Imports are off, corrections and approvals work, and it's deleted after 24 hours by the daily cron. Limits per visitor per day are keyed by a daily-rotating HMAC of the IP, so no IP is stored |
 | Tests | 173 unit/integration tests and 28 e2e tests (desktop + mobile) with an offline model (`LLM_MOCK=1`): categoriser, golden categories, transactions and rule proposals, spend definitions against fixture ground truth, period resolution, the numbers guard, the Ask loop, demo lifecycle, and the no-PII harness over every model request body. Screenshots: [`docs/screenshots/phase-1b/`](docs/screenshots/phase-1b/) |
 
-**Next: Phase 2.** OCBC cards, bank-account statements with transfer pairing, and the detectors (subscriptions, price rises, unusual charges, fees, bills). See the PRD §12.
+**Phase 2a: detectors (done).**
+
+| Area | What's in place |
+|---|---|
+| Detectors | Deterministic and idempotent. They run after every approval, after the demo seed and in the daily cron (`/api/cron/daily`). **Subscriptions:** weekly, monthly, quarterly or yearly charges at a steady price, with trial-to-paid and price-rise (>5%) detection; their status (active, overdue, possibly cancelled) is measured against each card's latest statement. **Bills:** recurring utilities, telco, insurance, town council and loan payments, plus card payment due dates. **Alerts:** unusual amount for a merchant, first charge at a new merchant (S$200+), possible duplicate within 48 hours, foreign-currency charges with an FX fee estimate, card annual fees with GST, and card payments due in 3 days with no payment seen. Every alert states its reason and links its transactions |
+| Screens | Subscriptions (monthly total, price changes, "Not a subscription? Ignore"), Bills (card payments with paid/due/overdue, recurring bills), an Alerts inbox (Open and Dismissed/expected, with Dismiss, "This was expected" and Reopen), and "Coming up" tiles on Overview. Activity history names what each approval changed |
+| Ask | Three more read-only tools: `get_subscriptions`, `get_bills`, `get_alerts` (11 in total) |
+| Evaluation | A golden eval over the fixture household's planted events: **recall 17/17, precision 18/18** (every alert raised is a planted event or a real property of the synthetic data). Edge cases: trials, price levels, coverage gaps, ignored subscriptions, idempotent re-runs |
+| Tests | 192 unit/integration tests and 36 e2e tests (desktop + mobile). The no-PII harness now covers detector output too. Screenshots: [`docs/screenshots/phase-2a/`](docs/screenshots/phase-2a/) |
+
+**Next: Phase 2b.** OCBC cards, and DBS/POSB, UOB and OCBC bank-account statements (PDF + CSV) with transfer pairing. This needs real samples, which stay local and git-ignored. See the PRD §12.
 
 ## Local development
 

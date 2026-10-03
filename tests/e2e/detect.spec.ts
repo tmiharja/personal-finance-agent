@@ -24,7 +24,7 @@ test("alerts explain themselves and can be dismissed and reopened", async ({ pag
   await startDemo(page);
   await page.goto("/app/alerts");
   const dup = page.getByRole("listitem").filter({ hasText: "Possible duplicate" });
-  await expect(dup.getByText(/Two charges of S\$89\.90 at Lazada within 48 hours/)).toBeVisible();
+  await expect(dup.getByText(/Two charges of S\$89\.90 at Lazada on 3 Jul 2026/)).toBeVisible();
   await expect(page.getByText("Card fee", { exact: true })).toBeVisible();
   await expect(page.getByText(/Annual fee of S\$196\.20 plus GST of S\$17\.66/)).toBeVisible();
   await dup.getByRole("button", { name: "Dismiss: Possible duplicate" }).click();

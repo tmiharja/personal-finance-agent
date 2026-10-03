@@ -53,7 +53,8 @@ export default async function SubscriptionsPage() {
   return (
     <>
       <PageTitle title="Subscriptions">
-        Found from your statements: three or more charges on a regular schedule at a steady price.
+        Found from your statements: three or more charges on a regular schedule (two for yearly
+        ones) at a steady price.
       </PageTitle>
       <p className="tabular text-[15px]">
         <span className="text-[24px] font-semibold tracking-tight">{money(monthlyCents)}</span>

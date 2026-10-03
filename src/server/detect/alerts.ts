@@ -143,7 +143,7 @@ export function chargeAlerts(
         dedupeKey: `duplicate_charge|${twin.id}|${r.id}`,
         subject: r.merchant,
         occurredOn: r.date,
-        reason: `Two charges of ${money(r.amountCents)} at ${r.merchant} within 48 hours (${longDate(twin.date)} and ${longDate(r.date)}). If you were charged twice, ask the merchant or your bank to reverse one.`,
+        reason: `Two charges of ${money(r.amountCents)} at ${r.merchant} ${twin.date === r.date ? `on ${longDate(r.date)}` : `within 48 hours (${longDate(twin.date)} and ${longDate(r.date)})`}. If you were charged twice, ask the merchant or your bank to reverse one.`,
         transactionIds: [twin.id, r.id],
         details: { amountCents: r.amountCents },
       });
