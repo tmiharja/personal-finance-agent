@@ -230,10 +230,14 @@ function parseAccountPdf(lines: Line[], layout: Layout): ParseResult {
   const cards: ParsedCard[] = sections.map((s) => {
     const ordinal = (seen.get(s.productName) ?? 0) + 1;
     seen.set(s.productName, ordinal);
+    // Every printed running balance must follow from the row before it: errors that
+    // cancel out can still make opening − Σ rows equal the closing balance.
     let running = s.opening;
+    let runningOk = true;
     for (const r of s.rows) {
       if (running !== null && r.balance !== null && running - r.cents !== r.balance) {
         warnings.push("running_balance_mismatch");
+        runningOk = false;
         break;
       }
       running = r.balance ?? (running === null ? null : running - r.cents);
@@ -258,7 +262,7 @@ function parseAccountPdf(lines: Line[], layout: Layout): ParseResult {
       ordinal,
       previousBalanceCents: s.opening === null ? null : -s.opening,
       totalCents: s.closing === null ? null : -s.closing,
-      reconciled: balances ? s.opening! - sum === s.closing : false,
+      reconciled: balances ? runningOk && s.opening! - sum === s.closing : false,
       rows,
     };
   });

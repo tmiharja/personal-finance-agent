@@ -122,6 +122,20 @@ describe("bank-account statements (provisional layouts): golden fixtures", () =>
     expect(statement.warnings).toContain("running_balance_mismatch");
   });
 
+  it("a PDF whose printed running balance is wrong is not reconciled, even if the totals add up", async () => {
+    const { extractLines } = await import("@/server/ingest/pdf");
+    const { parseDbsAccount } = await import("@/server/ingest/parsers/bank-pdf");
+    const { lines } = await extractLines(load("posb/2026-03.pdf"));
+    expect(parseDbsAccount(lines).statement.cards[0]!.reconciled).toBe(true);
+    // Change one row's printed balance; opening, rows and closing stay as they are.
+    const row = lines.find((l) => /^\d{2}\/03\/2026\b/.test(l.text) && l.items.length >= 4)!;
+    const balance = row.items.at(-1)!;
+    balance.str = "1.00";
+    const { statement } = parseDbsAccount(lines);
+    expect(statement.cards[0]!.reconciled).toBe(false);
+    expect(statement.warnings).toContain("running_balance_mismatch");
+  });
+
   it("refuses a CSV that isn't a supported bank export", () => {
     const csv = new TextEncoder().encode("date,amount\n2026-01-01,12.30\n");
     expect(() => parseStatementCsv(csv)).toThrow(ParseError);

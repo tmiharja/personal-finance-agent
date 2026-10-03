@@ -234,8 +234,9 @@ export async function insertPreparedStatement(
     totalCents: input.totalCents,
   };
 
-  // Re-importing the same card statement refreshes every summary field; whether it
-  // reconciles is recomputed below from the rows actually stored.
+  // Re-importing the same statement refreshes every summary field it prints; a file
+  // that prints no balance (a CSV export) keeps the balances already verified from
+  // the PDF. Whether it reconciles is recomputed below from the rows actually stored.
   const [stmt] = await tx
     .insert(statements)
     .values({
@@ -248,9 +249,18 @@ export async function insertPreparedStatement(
     })
     .onConflictDoUpdate({
       target: [statements.userId, statements.accountId, statements.statementDate],
-      set: { ...summary, ...(input.importId ? { importId: input.importId } : {}) },
+      set: {
+        ...summary,
+        previousBalanceCents: sql`coalesce(excluded.previous_balance_cents, ${statements.previousBalanceCents})`,
+        totalCents: sql`coalesce(excluded.total_cents, ${statements.totalCents})`,
+        ...(input.importId ? { importId: input.importId } : {}),
+      },
     })
-    .returning({ id: statements.id });
+    .returning({
+      id: statements.id,
+      previous: statements.previousBalanceCents,
+      total: statements.totalCents,
+    });
 
   const uncategorised = categoryIds.get("Uncategorised") ?? null;
   const values = input.rows.map((r) => {
@@ -302,10 +312,11 @@ export async function insertPreparedStatement(
     ),
   );
   // No balances in the file (some CSV exports): nothing to check, so null, not a pass.
+  // Against the balances now stored (this file's, or ones kept from an earlier file).
+  const previous = stmt!.previous;
+  const total = stmt!.total;
   const reconciled =
-    input.previousBalanceCents === null || input.totalCents === null
-      ? null
-      : input.previousBalanceCents + Number(sum!.cents) === input.totalCents;
+    previous === null || total === null ? null : previous + Number(sum!.cents) === total;
   await tx.update(statements).set({ reconciled }).where(eq(statements.id, stmt!.id));
   return { inserted: inserted.length, duplicates: values.length - inserted.length, reconciled };
 }

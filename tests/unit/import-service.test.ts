@@ -269,7 +269,17 @@ describe("import: bank-account statements", () => {
     // The DBS export has no opening balance: unverified, not a pass.
     expect(acct!.reconciled).toBeNull();
     expect(preview.summary.allReconciled).toBe(false);
-    await rejectProposal(db, "alex", preview.proposalId);
+    // Importing it anyway keeps the balances the PDF verified.
+    await approveProposal(db, "alex", keys, preview.proposalId);
+    const [march] = sqlRows<{ previous: string | null; reconciled: boolean | null }>(
+      await withUser(db, "alex", (tx) =>
+        tx.execute(sql`select s.previous_balance_cents::text as previous, s.reconciled
+                       from statements s join accounts a on a.id = s.account_id
+                       where a.kind = 'deposit' and s.statement_date = '2026-03-31'`),
+      ),
+    );
+    expect(march).toMatchObject({ reconciled: true });
+    expect(march!.previous).not.toBeNull();
   });
 
   it("the UOB account's FAST transfer pairs with the POSB receipt across banks", async () => {
