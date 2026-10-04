@@ -1,3 +1,4 @@
+import { BANKS } from "@/lib/banks";
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
@@ -77,7 +78,7 @@ const id = () => uuid("id").primaryKey().defaultRandom();
 
 // ------------------------------------------------------------------ enums
 
-export const bankEnum = pgEnum("bank", ["DBS", "UOB", "OCBC"]);
+export const bankEnum = pgEnum("bank", BANKS);
 export const accountKindEnum = pgEnum("account_kind", ["card", "deposit"]);
 export const importStatusEnum = pgEnum("import_status", [
   "previewed",
@@ -590,6 +591,25 @@ export const llmSpendArchive = pgTable("llm_spend_archive", {
   month: date("month").primaryKey(),
   costUsd: numeric("cost_usd", { precision: 12, scale: 6 }).notNull(),
 });
+
+/**
+ * Parse outcomes per day (PRD OPS-3), counts only: no user, no file, no values.
+ * Written as the owner role; read by the admin page.
+ */
+export const parseStats = pgTable(
+  "parse_stats",
+  {
+    day: date("day").notNull(),
+    /** A bank code, or "unknown" when the file wasn't recognised. */
+    bank: text("bank").notNull(),
+    /** "parser" (deterministic) or "ai" (the fallback extractor). */
+    method: text("method").notNull(),
+    /** "reconciled", "unreconciled", "no_balance", or an error code. */
+    outcome: text("outcome").notNull(),
+    n: integer("n").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.bank, t.method, t.outcome] })],
+);
 
 /** Tables app_user may touch. Used by the grants migration test and the no-PII dump. */
 export const USER_TABLES = [

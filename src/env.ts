@@ -48,6 +48,8 @@ const rawSchema = z.object({
   // Per-route models; only priced models are accepted (src/server/llm/pricing.ts).
   MODEL_CATEGORISE: z.enum(MODEL_IDS).default("claude-haiku-4-5"),
   MODEL_ASK: z.enum(MODEL_IDS).default("claude-sonnet-5-5"),
+  // Statement layouts no parser knows (PRD IMP-5), only with the user's consent.
+  MODEL_EXTRACT: z.enum(MODEL_IDS).default("claude-haiku-4-5"),
   // Guardrails (PRD §7.3), in USD and questions.
   LLM_GLOBAL_MONTHLY_USD: z.coerce.number().positive().default(40),
   LLM_USER_MONTHLY_USD: z.coerce.number().positive().default(3),
@@ -57,6 +59,9 @@ const rawSchema = z.object({
   DEMO_QUESTIONS_PER_DAY: z.coerce.number().int().positive().default(10),
   // Tests/e2e only: deterministic offline responses instead of the API.
   LLM_MOCK: flag,
+  // The owner (PRD OPS-3): comma-separated sign-in emails that may open /app/admin.
+  // Set in the deployment's environment only; never committed.
+  ADMIN_EMAILS: optionalString,
 });
 
 /** Required in production only; dev and tests fall back to local defaults. Values are the names to set. */

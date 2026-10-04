@@ -6,7 +6,7 @@ import { withUser, type Tx } from "@/db/with-user";
 import { getEnv } from "@/env";
 import { costUsd, type TokenUsage } from "./pricing";
 
-export type LlmRoute = "categorise" | "ask";
+export type LlmRoute = "categorise" | "ask" | "extract";
 
 /** Records one call (or one question's turns) for the user. Counts only. */
 export async function recordUsage(

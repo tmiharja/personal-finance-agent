@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { longDate, money, shortDate, titleCase } from "@/lib/format";
+import { BANK_LABEL } from "@/lib/banks";
 import { cn } from "@/lib/utils";
 import { errorMessage, type CommitResult, type ImportPreview } from "./types";
 
@@ -80,8 +81,8 @@ export default function PreviewCard({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <h2 className="text-[17px] font-semibold">
-          {summary.bank} {deposit ? "bank-account" : "credit-card"} statement ·{" "}
-          {longDate(summary.statementDate)}
+          {BANK_LABEL[summary.bank] ?? summary.bank} {deposit ? "bank-account" : "credit-card"}{" "}
+          statement · {longDate(summary.statementDate)}
         </h2>
         <span className="text-[13px] text-muted">
           {summary.dueDate && <>Due {longDate(summary.dueDate)}</>}
@@ -141,6 +142,17 @@ export default function PreviewCard({
             (not counted as spending or income)
           </p>
         )}
+
+      {summary.warnings.includes("ai_extracted") && (
+        <p role="note" className="mt-3 rounded-lg bg-accent-soft px-4 py-3 text-[15px]">
+          <strong className="font-semibold">AI-extracted, please review.</strong> We don&rsquo;t
+          have a reader for this layout yet, so Claude read it. Compare the rows below with your
+          statement before importing.
+          {summary.allReconciled
+            ? " They add up to the statement's balances."
+            : " They don't add up to the statement's balances, so importing needs your explicit OK below."}
+        </p>
+      )}
 
       {!summary.allReconciled && (
         <p role="alert" className="mt-3 rounded-lg bg-warn-soft px-4 py-3 text-[15px] text-warn">
@@ -278,6 +290,12 @@ export default function PreviewCard({
           </p>
         ) : (
           <>
+            {summary.warnings.includes("ai_extracted") && (
+              <p className="mb-4 text-[13px] text-muted">
+                AI-extracted: check the rows above against your statement before approving.
+              </p>
+            )}
+
             {!summary.allReconciled && (
               <label className="mb-4 flex items-start gap-2 text-[13px]">
                 <input

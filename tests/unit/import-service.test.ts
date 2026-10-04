@@ -318,6 +318,54 @@ describe("import: bank-account statements", () => {
   });
 });
 
+describe("import: AI fallback for unknown layouts (IMP-5)", () => {
+  it("only with your OK: a layout no parser reads is refused, then read by AI on request", async () => {
+    const file = pdf("sample-bank/2026-08");
+    await expect(previewImport(db, "alex", keys, { bytes: file })).rejects.toMatchObject({
+      code: "unsupported_format",
+    });
+    const p = await previewImport(db, "alex", keys, { bytes: file, ai: true });
+    expect(p.summary).toMatchObject({
+      bank: "OTHER",
+      parserVersion: "ai-fallback@1",
+      allReconciled: true,
+    });
+    expect(p.summary.warnings).toContain("ai_extracted");
+    // The model call is recorded like any other (counts and cost only).
+    const [u] = sqlRows<{ route: string }>(
+      await withUser(db, "alex", (tx) =>
+        tx.execute(sql`select route from usage where route = 'extract'`),
+      ),
+    );
+    expect(u).toEqual({ route: "extract" });
+    // Approval works as for any import, and the card shows by product name.
+    const result = await approveProposal(db, "alex", keys, p.proposalId);
+    expect(result.inserted).toBeGreaterThan(0);
+    const stats = sqlRows<{ bank: string; method: string; outcome: string; n: number }>(
+      await db.execute(
+        sql`select bank, method, outcome, n from parse_stats order by method, bank, outcome`,
+      ),
+    );
+    expect(stats).toContainEqual({ bank: "OTHER", method: "ai", outcome: "reconciled", n: 1 });
+    expect(stats).toContainEqual({
+      bank: "unknown",
+      method: "parser",
+      outcome: "unsupported_format",
+      n: 1,
+    });
+    expect(stats.some((r) => r.bank === "DBS" && r.method === "parser")).toBe(true);
+  });
+
+  it("refuses a file that isn't a statement, even with AI", async () => {
+    const notes = new TextEncoder().encode("Shopping list\nmilk\neggs\n");
+    await expect(previewImport(db, "alex", keys, { bytes: notes, ai: true })).rejects.toMatchObject(
+      {
+        code: "not_a_statement",
+      },
+    );
+  });
+});
+
 describe("import: no PII stored or logged", () => {
   it("database dump and logs carry no names, card numbers or raw descriptors", async () => {
     const dump = await dumpDatabase(db);

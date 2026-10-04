@@ -11,10 +11,12 @@ type Item = {
   key: string;
   name: string;
   file: File;
-  status: "queued" | "reading" | "password" | "preview" | "error";
+  status: "queued" | "reading" | "password" | "preview" | "error" | "unknown";
   passwordError?: boolean;
   error?: string;
   preview?: ImportPreview;
+  /** Held in this tab only, so "Read it with AI" can reopen a protected PDF. */
+  password?: string;
 };
 
 let seq = 0;
@@ -22,13 +24,20 @@ let seq = 0;
 async function upload(
   file: File,
   password?: string,
-): Promise<{ preview?: ImportPreview; error?: string }> {
+  ai = false,
+): Promise<{ preview?: ImportPreview; error?: string; aiAvailable?: boolean }> {
   const form = new FormData();
   form.set("file", file);
   if (password) form.set("password", password);
+  if (ai) form.set("ai", "1");
   const res = await fetch("/api/import", { method: "POST", body: form });
-  const body = (await res.json().catch(() => ({}))) as ImportPreview & { error?: string };
-  return res.ok ? { preview: body } : { error: body.error ?? "internal_error" };
+  const body = (await res.json().catch(() => ({}))) as ImportPreview & {
+    error?: string;
+    aiAvailable?: boolean;
+  };
+  return res.ok
+    ? { preview: body }
+    : { error: body.error ?? "internal_error", aiAvailable: body.aiAvailable };
 }
 
 export default function ImportFlow({ initial }: { initial?: ImportPreview | null }) {
@@ -42,15 +51,17 @@ export default function ImportFlow({ initial }: { initial?: ImportPreview | null
   const update = (key: string, patch: Partial<Item>) =>
     setItems((list) => list.map((it) => (it.key === key ? { ...it, ...patch } : it)));
 
-  async function run(item: Item, password?: string) {
+  async function run(item: Item, password?: string, ai = false) {
     update(item.key, { status: "reading", error: undefined, passwordError: false });
-    const { preview, error } = await upload(item.file, password);
+    const { preview, error, aiAvailable } = await upload(item.file, password, ai);
     if (preview) {
       update(item.key, { status: "preview", preview });
       router.refresh(); // the header's pending-approvals count
     } else if (error === "password_required") update(item.key, { status: "password" });
     else if (error === "password_incorrect")
       update(item.key, { status: "password", passwordError: true });
+    else if (error === "unsupported_format" && aiAvailable && !ai)
+      update(item.key, { status: "unknown", password });
     else update(item.key, { status: "error", error: errorMessage(error ?? "") });
   }
 
@@ -127,6 +138,40 @@ export default function ImportFlow({ initial }: { initial?: ImportPreview | null
             ) : (
               <div className="border-t border-rule pt-4">
                 <p className="text-[15px] font-medium break-all">{it.name}</p>
+                {it.status === "unknown" && (
+                  <div
+                    role="region"
+                    aria-label="Read this statement with AI?"
+                    className="mt-2 max-w-[560px] rounded-lg border border-rule px-4 py-3 text-[15px]"
+                  >
+                    <p className="font-medium">We don&rsquo;t have a reader for this layout yet.</p>
+                    <p className="mt-1 text-[13px] text-muted">
+                      Claude can read it instead. Before anything is sent, names, addresses, card
+                      and account numbers, NRIC, phone numbers and emails are removed from the text;
+                      the file itself never leaves our server. The result is marked
+                      &ldquo;AI-extracted&rdquo;, and you check every row before anything is
+                      imported.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Button size="sm" onClick={() => void run(it, it.password, true)}>
+                        Read it with AI
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          update(it.key, {
+                            status: "error",
+                            password: undefined,
+                            error: errorMessage("unsupported_format"),
+                          })
+                        }
+                      >
+                        No thanks
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 {(it.status === "queued" || it.status === "reading") && (
                   <p role="status" className="step-pulse mt-1 text-[13px] text-muted">
                     {it.status === "queued" ? "Waiting…" : "Reading, parsing and reconciling…"}

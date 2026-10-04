@@ -30,6 +30,24 @@ function realLlm(apiKey: string): Llm {
         stopReason: response.stop_reason,
       };
     },
+    async extract(req) {
+      const response = await client.messages.parse(
+        {
+          model: req.model,
+          max_tokens: req.maxTokens,
+          system: req.system,
+          messages: [{ role: "user", content: req.prompt }],
+          output_config: { format: zodOutputFormat(req.schema) },
+        },
+        { signal: req.signal },
+      );
+      return {
+        output: response.parsed_output ?? null,
+        usage: fromApiUsage(response.usage),
+        model: response.model,
+        stopReason: response.stop_reason,
+      };
+    },
     async turn(params, onText, signal) {
       const stream = client.beta.messages.stream(params, { signal });
       stream.on("text", onText);
