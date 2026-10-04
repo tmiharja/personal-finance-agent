@@ -110,7 +110,9 @@ sequenceDiagram
   alt known bank layout
     API->>API: deterministic parser → transactions + statement totals
   else unknown layout
-    API->>LLM: masked text → structured transactions
+    API-->>U: "Read it with AI?" (nothing sent yet)
+    U->>API: same file + consent
+    API->>LLM: redacted, masked text → structured transactions
   end
   API->>API: reconcile totals (block if mismatch)
   API->>DB: read existing fingerprints, rules, accounts
@@ -196,7 +198,7 @@ The detectors are SQL/TS only and make no LLM calls, so the daily run costs no t
 | ⑦ | **Unlock** | pdf.js/unpdf opens the PDF with the user's password in memory. The password and file bytes are dropped after parsing. Scanned/image-only files are rejected. |
 | ⑧ | **Detect bank + format** | Fingerprints header text, layout and column labels to pick a `(bank, product, version)` parser. |
 | ⑨ | **Deterministic parsers** | One module per bank and format. **MVP: DBS and UOB credit-card PDFs** ([`statement-formats.md`](statement-formats.md)); Phase 2b adds DBS/POSB and UOB bank-account statements (PDF + CSV); OCBC comes in Phase 4. Outputs a `ParsedStatement` of kind `card` (rows + printed totals + due date/min payment) or `deposit` (rows + opening/closing balance). It has no field for card numbers, names or addresses. |
-| ⑨b | **LLM fallback extractor** | Page text, **after the PII firewall** → the same schema via structured output on Haiku. Always marked "AI-extracted". |
+| ⑨b | **LLM fallback extractor** | Only after you agree, for a layout no parser reads. Page text with the address block and holder name dropped, **then the PII firewall** → a fixed schema via structured output on Haiku 4.5 (`messages.parse`). The server signs amounts and reconciles, and the result is always marked "AI-extracted" for review (`src/server/ingest/fallback.ts`, [`statement-formats.md`](statement-formats.md) §9). |
 | ⑨c | **PII firewall** | Runs on every string before storage, before any LLM call and before logging. It masks Luhn-valid card numbers, NRIC/FIN, postal codes, emails, phone numbers, account numbers in payment rows, and the cardholder names seen in this upload (held in memory only). It replaces 6+ digit runs in descriptors with `#`. A surviving hit blocks the import with an error code. |
 | ⑩ | **Reconcile** | Bank: opening + Σ = closing. Card: previous − credits + charges = new balance. On mismatch it flags and blocks one-click commit. This is the verifier for ⑨b too. |
 | ⑪ | **Normalise, dedupe, transfers** | Converts to minor units and dates in SGT, applies the FX fields, builds the exact fingerprint, scores fuzzy near-duplicates, and pairs transfers / card payments across accounts (`src/server/finance/transfers.ts`: a pure matcher, counted in the preview and applied on approval; `transfer_pair_id` / `transfer_account_id`, ownership-checked under RLS). |
@@ -212,6 +214,8 @@ The detectors are SQL/TS only and make no LLM calls, so the daily run costs no t
 | ㉑ | **`audit_log`** | Append-only, enforced by a DB trigger that blocks UPDATE/DELETE except during account wipe. Records the proposer (agent, detector or user), preview, decision, result and undo. |
 | ㉒ | **Detectors** | Subscriptions, price rise, trial conversion, unusual charge, duplicates, card fees, bills and due dates. Pure functions over SQL results that write alerts and *suggested* proposals. |
 | ㉓ | **Cron** | Daily detectors, demo workspace cleanup and retention jobs. The weekly digest is computed in-app when Overview opens (`src/server/finance/digest.ts`), so it needs no job. |
+
+| ㉔ | **Admin (OPS-3)** | `/app/admin`, for addresses in `ADMIN_EMAILS` only (anyone else gets a 404). Users, imports by bank, parse outcomes (`parse_stats`), reconciliation, AI cost by route against the budget, and the eval scoreboard (`evals/results.json`, written by `npm run eval`). Counts and costs only (`src/server/admin/stats.ts`). |
 
 ### External
 
