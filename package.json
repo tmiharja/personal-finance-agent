@@ -19,6 +19,7 @@
     "test:e2e": "playwright test",
     "check": "npm run lint && npm run typecheck && npm run format:check && npm run test",
     "fixtures": "node evals/fixtures/generate-statements.mjs",
+    "eval": "tsx scripts/eval.ts",
     "check:pii": "node scripts/check-no-pii.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",

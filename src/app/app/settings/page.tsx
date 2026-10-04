@@ -9,6 +9,7 @@ import RuleRow from "@/components/settings/rule-row";
 import { getDb } from "@/db/client";
 import { longDate, titleCase } from "@/lib/format";
 import { requireUser } from "@/server/auth/session";
+import { isAdmin } from "@/server/admin/stats";
 import { getSettings } from "@/server/finance/settings";
 import AddPasskey from "./add-passkey";
 
@@ -46,6 +47,13 @@ export default async function SettingsPage() {
               <AddPasskey />
             </div>
           </>
+        )}
+        {isAdmin(user) && (
+          <div className="border-t border-rule py-4">
+            <Link href="/app/admin" className="link text-[15px]">
+              Admin
+            </Link>
+          </div>
         )}
         <div className="border-t border-rule py-4">
           <SignOutButton className="link text-[15px]" />
