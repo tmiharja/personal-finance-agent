@@ -5,9 +5,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
-import { imports, proposedActions } from "@/db/schema";
+import { accounts, imports, proposedActions } from "@/db/schema";
 import { withUser } from "@/db/with-user";
 import type { MasterKeys } from "@/server/crypto/envelope";
+import { storedIdentityKey } from "@/server/finance/ledger";
 import { getOverviewCounts } from "@/server/finance/overview";
 import {
   approveProposal,
@@ -315,6 +316,76 @@ describe("import: bank-account statements", () => {
       { ordinal: 1, keyed: true },
       { ordinal: 2, keyed: true },
     ]);
+  });
+});
+
+describe("import: AI fallback for unknown layouts (IMP-5)", () => {
+  it("only with your OK: a layout no parser reads is refused, then read by AI on request", async () => {
+    const file = pdf("sample-bank/2026-08");
+    await expect(previewImport(db, "alex", keys, { bytes: file })).rejects.toMatchObject({
+      code: "unsupported_format",
+    });
+    const p = await previewImport(db, "alex", keys, { bytes: file, ai: true });
+    expect(p.summary).toMatchObject({
+      bank: "OTHER",
+      parserVersion: "ai-fallback@1",
+      allReconciled: true,
+    });
+    expect(p.summary.warnings).toContain("ai_extracted");
+    // The model call is recorded like any other (counts and cost only).
+    const [u] = sqlRows<{ route: string }>(
+      await withUser(db, "alex", (tx) =>
+        tx.execute(sql`select route from usage where route = 'extract'`),
+      ),
+    );
+    expect(u).toEqual({ route: "extract" });
+    // Approval works as for any import, and the card shows by product name.
+    const result = await approveProposal(db, "alex", keys, p.proposalId);
+    expect(result.inserted).toBeGreaterThan(0);
+    const stats = sqlRows<{ bank: string; method: string; outcome: string; n: number }>(
+      await db.execute(
+        sql`select bank, method, outcome, n from parse_stats order by method, bank, outcome`,
+      ),
+    );
+    expect(stats).toContainEqual({ bank: "OTHER", method: "ai", outcome: "reconciled", n: 1 });
+    expect(stats).toContainEqual({
+      bank: "unknown",
+      method: "parser",
+      outcome: "unsupported_format",
+      n: 1,
+    });
+    expect(stats.some((r) => r.bank === "DBS" && r.method === "parser")).toBe(true);
+  });
+
+  it("a section read without a number dedupes against the account a parser keyed", async () => {
+    await withUser(db, "alex", async (tx) => {
+      const keyed = await tx
+        .select()
+        .from(accounts)
+        .where(sql`identity_key is not null`)
+        .limit(1);
+      const a = keyed[0]!;
+      expect(
+        await storedIdentityKey(tx, {
+          bank: a.bank,
+          productName: a.productName,
+          ordinal: a.ordinal,
+        }),
+      ).toBe(a.identityKey);
+      // A different ordinal of the same product is a different account.
+      expect(
+        await storedIdentityKey(tx, { bank: a.bank, productName: a.productName, ordinal: 99 }),
+      ).toBeNull();
+    });
+  });
+
+  it("refuses a file that isn't a statement, even with AI", async () => {
+    const notes = new TextEncoder().encode("Shopping list\nmilk\neggs\n");
+    await expect(previewImport(db, "alex", keys, { bytes: notes, ai: true })).rejects.toMatchObject(
+      {
+        code: "not_a_statement",
+      },
+    );
   });
 });
 

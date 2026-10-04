@@ -1,3 +1,4 @@
+import type { Bank } from "@/lib/banks";
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
@@ -10,6 +11,7 @@ import {
   insertPreparedStatement,
   prepareRows,
   findAccount,
+  storedIdentityKey,
   upsertAccount,
   type LedgerRow,
   type PreparedRow,
@@ -18,7 +20,17 @@ import { needsReview, type Categorised } from "@/server/categorise/categorise";
 import { categoriseStatement } from "@/server/categorise/context";
 import { audit, canonical, expireIfDue, sha256 } from "@/server/actions/common";
 import type { ActionPreview, ActionType, Proposer } from "@/server/actions/engine";
-import { parseStatementFile, type ParsedStatement } from "@/server/ingest/parsers";
+import { extractWithAi } from "@/server/ingest/fallback";
+import { PdfError } from "@/server/ingest/pdf";
+import {
+  ParseError,
+  parseStatementFile,
+  type ParsedStatement,
+  type ParseResult,
+} from "@/server/ingest/parsers";
+import { reconcileOutcome, recordParseOutcome } from "@/server/ingest/stats";
+import { getLlm } from "@/server/llm/client";
+import { budgetBlock, recordUsage } from "@/server/llm/usage";
 import {
   countNewPairs,
   loadPairCandidates,
@@ -27,7 +39,8 @@ import {
   type PairCandidate,
 } from "@/server/finance/transfers";
 import { longDate } from "@/lib/format";
-import { logEvent } from "@/server/log";
+import { logError, logEvent } from "@/server/log";
+import { getEnv } from "@/env";
 
 /**
  * Statement import (PRD IMP-1…IMP-14, ACT-6):
@@ -89,7 +102,7 @@ export type PreviewCard = {
 
 /** Counts and totals only: safe to store unencrypted and to put in a proposal. */
 export type ImportSummary = {
-  bank: "DBS" | "UOB";
+  bank: Bank;
   /** Absent on previews made before Phase 2b: those are card statements. */
   kind?: "card" | "deposit";
   parserVersion: string;
@@ -223,7 +236,9 @@ async function buildPreview(
     const cats = categorised?.byCard[cardIndex];
     // The number becomes a one-way, per-user digest here and is dropped.
     const number = accountRefs[cardIndex]?.replace(/\D/g, "");
-    const identityKey = number ? crypto.dedupe(["account", statement.bank, number]) : null;
+    const identityKey = number
+      ? crypto.dedupe(["account", statement.bank, number])
+      : await storedIdentityKey(tx, { bank: statement.bank, ...card });
     const ref = { bank: statement.bank, ...card, identityKey };
     const existingId = await findAccount(tx, ref);
     const prepared = prepareRows(
@@ -395,15 +410,74 @@ function rowsFromStored(stored: StoredPreview, dupes: Set<string>): PreviewRow[]
  * Step 1: parse the upload and create a pending `commit_import` proposal.
  * Re-uploading a file that is still awaiting approval returns the same preview.
  */
+/**
+ * The deterministic parsers first. A layout none of them reads goes to the AI
+ * fallback extractor (PRD IMP-5) only when you asked for it (`ai`), within the
+ * LLM budgets; its usage is recorded like any other model call.
+ */
+async function parseWithFallback(
+  db: AppDb,
+  userId: string,
+  file: { bytes: Uint8Array; password?: string; ai?: boolean },
+): Promise<ParseResult> {
+  try {
+    const parsed = await parseStatementFile(file.bytes, { password: file.password });
+    await recordParseOutcome(db, {
+      bank: parsed.statement.bank,
+      method: "parser",
+      outcome: reconcileOutcome(parsed.statement),
+    });
+    return parsed;
+  } catch (e) {
+    const code = e instanceof ParseError ? e.code : null;
+    if (code !== "unsupported_format" || !file.ai) {
+      if (code) await recordParseOutcome(db, { bank: "unknown", method: "parser", outcome: code });
+      throw e;
+    }
+  }
+  const llm = await getLlm();
+  if (!llm || (await budgetBlock(db, userId, "extract"))) {
+    await recordParseOutcome(db, { bank: "unknown", method: "ai", outcome: "ai_unavailable" });
+    throw new ParseError("ai_unavailable");
+  }
+  const model = getEnv().MODEL_EXTRACT;
+  try {
+    const { result } = await extractWithAi(llm, model, file.bytes, {
+      password: file.password,
+      signal: AbortSignal.timeout(55_000),
+      // Recorded as soon as the model answers, so a refused answer still counts.
+      onUsage: async (used, servedBy) => {
+        await withUser(db, userId, (tx) => recordUsage(tx, userId, "extract", servedBy, used));
+      },
+    });
+    await recordParseOutcome(db, {
+      bank: result.statement.bank,
+      method: "ai",
+      outcome: reconcileOutcome(result.statement),
+    });
+    logEvent("import.ai_extracted", {
+      bank: result.statement.bank,
+      rows: result.statement.cards.reduce((s, c) => s + c.rows.length, 0),
+    });
+    return result;
+  } catch (e) {
+    const code = e instanceof ParseError ? e.code : "ai_failed";
+    await recordParseOutcome(db, { bank: "unknown", method: "ai", outcome: code });
+    if (e instanceof ParseError || e instanceof PdfError) throw e;
+    logError("import.ai_extract", e);
+    throw new ParseError("ai_unavailable");
+  }
+}
+
 export async function previewImport(
   db: AppDb,
   userId: string,
   keys: MasterKeys,
-  file: { bytes: Uint8Array; password?: string },
+  file: { bytes: Uint8Array; password?: string; ai?: boolean },
 ): Promise<ImportPreview> {
   const fileSha256 = sha256(file.bytes);
-  // Parse outside the transaction: pure CPU work, no database.
-  const parsed = await parseStatementFile(file.bytes, { password: file.password });
+  // Parse outside the transaction: CPU work, or one model call for the AI fallback.
+  const parsed = await parseWithFallback(db, userId, file);
   // Categorise outside it too: the classifier is a network call. Skipped for a
   // file that already has a live preview or was committed.
   const categorised = await categoriseStatement(db, userId, fileSha256, parsed);

@@ -1,0 +1,71 @@
+{
+  "generatedOn": "2026-10-04",
+  "ai": "mock",
+  "suites": [
+    {
+      "id": "parsers",
+      "label": "Statements parsed exactly (DBS/POSB and UOB, PDF and CSV)",
+      "pass": 72,
+      "total": 72,
+      "target": 1,
+      "ok": true
+    },
+    {
+      "id": "reconciliation",
+      "label": "Card and account sections that reconcile",
+      "pass": 84,
+      "total": 84,
+      "target": 1,
+      "ok": true
+    },
+    {
+      "id": "ai_fallback",
+      "label": "Unknown layouts read exactly by the AI fallback, and reconciled",
+      "pass": 3,
+      "total": 3,
+      "target": 1,
+      "ok": true
+    },
+    {
+      "id": "categories_correct",
+      "label": "Categories right when rules and the merchant map decide",
+      "pass": 1126,
+      "total": 1126,
+      "target": 0.99,
+      "ok": true
+    },
+    {
+      "id": "categories_coverage",
+      "label": "Rows categorised without the AI classifier",
+      "pass": 1126,
+      "total": 1191,
+      "target": 0.85,
+      "ok": true
+    },
+    {
+      "id": "detector_recall",
+      "label": "Planted events found (subscriptions, bills, alerts)",
+      "pass": 19,
+      "total": 19,
+      "target": 0.8,
+      "ok": true
+    },
+    {
+      "id": "detector_precision",
+      "label": "Detections that are planted events",
+      "pass": 20,
+      "total": 22,
+      "target": 0.9,
+      "note": "The others are correct overdue-payment alerts for cards due with no payment in the data.",
+      "ok": true
+    },
+    {
+      "id": "pairing",
+      "label": "Card payments and own transfers paired across accounts",
+      "pass": 60,
+      "total": 60,
+      "target": 1,
+      "ok": true
+    }
+  ]
+}

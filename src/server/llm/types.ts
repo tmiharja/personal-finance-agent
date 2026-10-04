@@ -40,14 +40,28 @@ export type ClassifyResponse<T> = {
   stopReason: string | null;
 };
 
+export type ExtractRequest<S extends z.ZodType> = {
+  model: string;
+  system: string;
+  /** The statement text, already redacted (PII removed) and wrapped as data. */
+  prompt: string;
+  schema: S;
+  maxTokens: number;
+  /** The same redacted lines, for the offline mock. */
+  lines: string[];
+  signal?: AbortSignal;
+};
+
 /**
- * The two ways the app calls Claude. The real implementation uses the Anthropic
+ * The ways the app calls Claude. The real implementation uses the Anthropic
  * SDK; LLM_MOCK=1 swaps in a deterministic offline one for tests and e2e.
  */
 export interface Llm {
   readonly mock: boolean;
   /** One structured-output call (the categoriser). */
   classify<S extends z.ZodType>(req: ClassifyRequest<S>): Promise<ClassifyResponse<z.output<S>>>;
+  /** One structured-output call reading a statement layout no parser knows (IMP-5). */
+  extract<S extends z.ZodType>(req: ExtractRequest<S>): Promise<ClassifyResponse<z.output<S>>>;
   /** One streamed agent turn (Ask). Text deltas go to `onText`; resolves with the full message. */
   turn(
     params: TurnParams,

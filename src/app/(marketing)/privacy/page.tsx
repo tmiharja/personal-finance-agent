@@ -23,12 +23,14 @@ const SECTIONS: { h: string; p: string[] }[] = [
     p: [
       "In Singapore (Vercel sin1; database in ap-southeast-1). Full transaction descriptions are encrypted with a key that is unique to you. A short merchant name (like “Grab”) is kept unencrypted so totals can be calculated.",
       "Some features send minimised, masked text (never card numbers, names or addresses) to Anthropic's Claude API, which processes it outside Singapore.",
+      "If you upload a statement whose layout we don't have a reader for, we ask before anything is sent. If you agree, its text (with your name, address, card and account numbers removed) is sent to Claude to be read. The file stays on our server, and the result is marked “AI-extracted” for you to check before it is imported.",
     ],
   },
   {
     h: "Your control",
     p: [
       "Nothing in your data changes without your approval, and approved changes can be undone. You can export everything, or delete your account and all data at any time.",
+      "The operator's admin page shows counts and costs only (how many users and imports, how often parsing works, what the AI costs). It shows no one's transactions, amounts, descriptions or email address.",
     ],
   },
   {

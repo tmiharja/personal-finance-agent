@@ -14,6 +14,11 @@ export const IMPORT_ERRORS: Record<string, string> = {
   password_incorrect: "That password didn't open the file. Try again.",
   unsupported_format:
     "This doesn't look like a DBS/POSB or UOB statement. Card statements (PDF) and bank-account statements (PDF or the bank's CSV export) are supported.",
+  not_a_statement: "This doesn't look like a bank or card statement, so nothing was imported.",
+  too_long_for_ai:
+    "This statement is too long to read with AI. Try one month at a time, or a shorter export.",
+  ai_unavailable:
+    "Reading statements with AI isn't available right now (it may be at its monthly limit). Nothing was imported.",
   no_cards: "We couldn't find any card sections in this statement.",
   no_accounts: "We couldn't find any account in this statement.",
   no_statement_date: "We couldn't find the statement date in this file.",

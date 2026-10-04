@@ -38,6 +38,7 @@ export default defineConfig({
       DEMO_WORKSPACES_PER_DAY: "10000",
       DEMO_QUESTIONS_PER_DAY: "10000",
       ANTHROPIC_API_KEY: "",
+      ADMIN_EMAILS: "e2e-owner-d@example.com,e2e-owner-m@example.com",
     },
   },
 });

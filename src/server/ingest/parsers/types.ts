@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BANKS } from "@/lib/banks";
 
 /**
  * Parser output (docs/statement-formats.md). A statement is either a credit-card
@@ -40,7 +41,7 @@ export const parsedCardSchema = z.strictObject({
 });
 
 export const parsedStatementSchema = z.strictObject({
-  bank: z.enum(["DBS", "UOB"]),
+  bank: z.enum(BANKS),
   kind: z.enum(STATEMENT_KINDS),
   parserVersion: z.string(),
   statementDate: isoDate,
@@ -77,7 +78,14 @@ export type ParseResult = {
 export class ParseError extends Error {
   constructor(
     readonly code:
-      "unsupported_format" | "no_cards" | "no_accounts" | "no_statement_date" | "invalid_output",
+      | "unsupported_format"
+      | "no_cards"
+      | "no_accounts"
+      | "no_statement_date"
+      | "invalid_output"
+      | "not_a_statement"
+      | "too_long_for_ai"
+      | "ai_unavailable",
   ) {
     super(`Parse error: ${code}`);
     this.name = "ParseError";

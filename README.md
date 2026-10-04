@@ -18,6 +18,7 @@ The agent can read your data but never changes anything on its own. Every write 
 | [`docs/architecture.md`](docs/architecture.md) | High-level architecture flow (diagram: [`docs/architecture.png`](docs/architecture.png)) |
 | [`docs/statement-formats.md`](docs/statement-formats.md) | Parser spec for DBS and UOB credit-card statements |
 | [`evals/fixtures/`](evals/fixtures/) | Synthetic statements (fictional person, test card numbers) for parser and detector evals |
+| [`evals/results.json`](evals/results.json) | The eval scoreboard, written by `npm run eval` |
 | [`scripts/check-no-pii.mjs`](scripts/check-no-pii.mjs) | The PII guard that runs locally and in CI |
 
 ## Status
@@ -105,7 +106,18 @@ Not yet: a stale proposal isn't re-previewed automatically (you make the change 
 | Weekly digest | "Last week" on Overview (DET-10): spend Monday to Sunday against the week before, where it went, new alerts, and what's due in the next 7 days. It checks each card's and account's statements: a week they don't all cover yet (or a gap from a missing statement) is marked as such instead of showing S$0 |
 | Tests | 317 unit/integration tests and 54 e2e tests (desktop + mobile): budget progress and pace, `get_budgets`, CSV contents and injection, export audit, Settings, drafts, the digest week and coverage, and e2e for budgets, export, drafts and manual bills. Screenshots: [`docs/screenshots/phase-3b/`](docs/screenshots/phase-3b/) |
 
-**Next: Phase 4 (polish and publish).** An LLM-fallback parser for layouts the deterministic parsers don't know, more banks (OCBC first), an admin page, and the portfolio write-up with eval results. Real DBS/POSB and UOB bank-account samples, when you have them, turn the provisional parsers into verified ones. See the PRD §12.
+**Phase 4a: AI fallback reader, admin page and eval scoreboard (done).**
+
+| Area | What's in place |
+|---|---|
+| AI fallback | A statement layout no parser reads (another bank, a new DBS/UOB format) is no longer a dead end (PRD IMP-5). The import page asks first, "Read it with AI?", and nothing is sent unless you agree. The text then has its address block and holder name dropped, goes through the PII firewall, and is read by **Claude Haiku 4.5** with structured output. The server signs the amounts and reconciles each card or account itself, and the preview is marked **"AI-extracted, please review"**. A password-protected PDF is unlocked once and kept in the tab only for that retry. Budget guardrails apply, and the call is costed under its own route. Spec: [`docs/statement-formats.md`](docs/statement-formats.md) §9 |
+| Banks | The bank code now covers OCBC, Citibank, HSBC, Standard Chartered, Maybank, AMEX and "Other bank", which arrive through the fallback. DBS/POSB and UOB keep their deterministic parsers |
+| Parse stats | Each upload's outcome (bank code, parser or AI, reconciled / unreconciled / unsupported / failed) is counted per day in `parse_stats`, with no user and no values |
+| Admin | `/app/admin`, for `ADMIN_EMAILS` only (a 404 for anyone else, demos included; PRD OPS-3): users, imports by bank, the parser failure rate, reconciliation, AI cost this month by route against the budget, and the eval scoreboard. Counts and costs only |
+| Eval scoreboard | `npm run eval` runs every measure over the synthetic household and writes [`evals/results.json`](evals/results.json); a unit test fails if it's out of date. Now: statements parsed exactly **72/72**, sections reconciled **84/84**, unknown layouts read by the AI fallback **3/3** (offline extractor), categories right when rules and the merchant map decide **1126/1126**, rows categorised without the classifier **1126/1191**, planted events found **19/19**, detections that are planted events **20/22** (the other 2 are correct overdue-payment alerts), card payments and transfers paired **60/60** |
+| Tests | 337 unit/integration tests and 58 e2e tests (desktop + mobile): redaction (no name, address or number reaches the request), the server's conversion and reconciliation, refusing non-statements and oversized files, consent, budget blocks and usage through the import service, admin access and its counts-only output, and e2e for the consent flow and the admin page. Screenshots: [`docs/screenshots/phase-4a/`](docs/screenshots/phase-4a/) |
+
+**Next: Phase 4b (publish).** The portfolio project page and write-up with the eval results, and the launch checklist. Deterministic parsers for more banks (OCBC first) wait on real samples; until then the AI fallback reads them. Real DBS/POSB and UOB bank-account samples, when you have them, turn the provisional parsers into verified ones. See the PRD §12.
 
 ## Local development
 
@@ -137,12 +149,14 @@ The database role in `DATABASE_URL` should be the database owner with `CREATEROL
 | `npm run fixtures` | Regenerates the synthetic statements (deterministic) |
 | `npm run check:pii` | Scans the repo for personal data. Runs in CI on every push |
 | `npm run keys:rewrap` | Finishes a `MASTER_KEY` rotation (see below) |
+| `npm run eval` | Runs the eval scoreboard over the synthetic household and writes `evals/results.json` (offline extractor; `-- --live` uses Claude). Commit the file when a measure changes: a unit test checks it's current |
 
 ## Deploying (Vercel)
 
 1. Connect Neon (Singapore, `aws-ap-southeast-1`) through the Vercel Marketplace, then run `npm run db:migrate` against it.
 2. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `MASTER_KEY`, `RESEND_API_KEY` and `EMAIL_FROM`. The app refuses to start in production without them. Also set `CRON_SECRET` (`openssl rand -hex 32`): the daily cron in `vercel.json` (`/api/cron/daily`) uses it to expire overdue previews and delete their encrypted data, and refuses to run without it.
 3. `vercel.json` pins functions to `sin1`.
+4. Optional: `ADMIN_EMAILS` (comma-separated) opens `/app/admin` to those signed-in addresses; `MODEL_EXTRACT` overrides the AI fallback's model (default `claude-haiku-4-5`).
 
 **Back up `MASTER_KEY` somewhere safe.** Without it, encrypted data can't be read.
 

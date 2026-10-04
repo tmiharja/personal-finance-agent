@@ -72,6 +72,11 @@ function cardNumbers(text: string): RegExpMatchArray[] {
   });
 }
 
+/** The distinct card numbers in a text, as digits, in order of appearance. In memory only. */
+export function findCardNumbers(text: string): string[] {
+  return [...new Set(cardNumbers(text).map((m) => m[0].replace(/[ -]/g, "")))];
+}
+
 function nameTokens(ctx: PiiContext): string[] {
   return (ctx.names ?? []).map((n) => n.trim()).filter((n) => n.length >= 3);
 }

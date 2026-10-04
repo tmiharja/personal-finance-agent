@@ -1,3 +1,4 @@
+import type { Bank } from "@/lib/banks";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AppDb } from "@/db/client";
@@ -20,7 +21,7 @@ import { pairTransfers } from "@/server/finance/transfers";
 /** Shape of evals/fixtures/synthetic/<dir>/*.expected.json (docs/statement-formats.md §3). */
 type ExpectedStatement = {
   synthetic: true;
-  bank: "DBS" | "UOB";
+  bank: Bank;
   /** Absent on card fixtures. */
   kind?: "card" | "deposit";
   statementDate: string;

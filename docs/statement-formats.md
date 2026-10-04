@@ -160,7 +160,7 @@ Implemented in `src/server/ingest/parsers/` (`dbs-card-pdf@1`, `uob-card-pdf@1`,
 
 ```ts
 type ParsedStatement = {
-  bank: "DBS" | "UOB";
+  bank: "DBS" | "UOB" | "OCBC" | "CITI" | "HSBC" | "SCB" | "MAYBANK" | "AMEX" | "OTHER"; // others: AI fallback only
   kind: "card" | "deposit";           // credit-card or bank-account statement
   parserVersion: string;              // e.g. "dbs-card-pdf@1"; bank accounts end in "-provisional"
   statementDate: string;              // ISO date
@@ -269,3 +269,17 @@ A PDF and the CSV of the same month produce identical rows, so importing both de
 - **Encrypted variants** (`synthetic/variants/`, RC4-128 via `@pdfsmaller/pdf-encrypt-lite`, deterministic): an owner-password, copy-restricted DBS statement that must open without a prompt, and a UOB statement with a fictional open password that must be asked for.
 - **Bank accounts:** 12 months of a POSB savings account and a UOB One account, each as PDF and CSV (`synthetic/posb/`, `synthetic/uob-one/`), parse exactly (`tests/unit/bank-parsers.test.ts`), including a December that runs over a page break. **Real bank-account samples have not been tested yet**: the parser versions say `provisional` until they have.
 - **Status:** both card parsers pass every fixture and variant exactly (`tests/unit/parsers.test.ts`). They also reconcile every card section and the statement totals of the real DBS and UOB samples (local-only test, no values recorded).
+
+## 9. Unknown layouts: the AI fallback (PRD IMP-5)
+
+A file no parser recognises (`unsupported_format`) is not read by default. The import page asks first; only if you agree is it read by `ai-fallback@1` (`src/server/ingest/fallback.ts`):
+
+1. **Text only.** The PDF (or CSV) is turned into lines on the server; the file never leaves it. Over 1,500 lines is refused (`too_long_for_ai`).
+2. **Redaction.** In the header (everything above the first transaction row), the address block and every line that looks like a person's name are dropped, with or without an address under them; so is any "Dear …" line. The names are held back for the PII firewall. On transfer rows (PayNow, FAST, funds transfers) the counterparty becomes `[NAME]` unless it is a business (PTE LTD, LLP, town council…), on the row and on the detail lines under it, as the bank parsers do. Everything left goes through `maskForLlm`: card and account numbers, NRIC/FIN, phone numbers, emails and postal codes become placeholders. A final scan refuses to send anything that still looks like personal data.
+3. **Structured output.** Claude Haiku 4.5 (`MODEL_EXTRACT`) returns a fixed schema: bank code, kind, dates, and per card or account the product name, opening and closing balances and rows, each with an unsigned amount, a direction and a type (`card_bill` for a credit-card bill payment on either statement). Text in the statement is treated as data, never instructions. The call's cost is recorded as soon as it answers, even if the answer is then refused.
+4. **The server decides.** It signs amounts, maps types to row kinds, validates amounts and real calendar dates (2026-02-30 is refused), removes placeholders and anything number-like from product names and descriptors, and reconciles each section (`opening ± Σ rows = closing`) itself. Bank-account rows go through the bank parsers' row classifier, so card bills, salary and own transfers get the same kinds and descriptors, and a person's name never reaches the preview. When the file has one card number per card section, it becomes that card's reference (one-way digest, as with the parsers), so a card read by AI is the same account with the same dedupe keys. The output is the same `ParsedStatement` as the parsers', with `parserVersion: "ai-fallback@1"` and the warning `ai_extracted`.
+5. **Review.** The preview says "AI-extracted, please review" above the rows. A section that doesn't reconcile needs "Import anyway", as with any parser.
+
+Budget guardrails apply (the call is recorded under the route `extract`), and without an API key the import page simply refuses the file as before. Every upload's outcome is counted in `parse_stats` (day, bank code, method, outcome, count: no user and no values) for the admin page; a statement whose card totals don't match its printed total counts as unreconciled.
+
+**Fixtures.** `synthetic/sample-bank/` holds three statements from a fictional "Sample Bank" in a layout no parser reads. The offline extractor (`LLM_MOCK=1`) reads that layout, so the whole path, from redaction to reconciliation, is tested without the network; `npm run eval -- --live` runs the same suite against the real model.

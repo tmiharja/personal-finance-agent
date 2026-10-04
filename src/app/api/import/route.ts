@@ -1,4 +1,5 @@
 import { getDb } from "@/db/client";
+import { getEnv } from "@/env";
 import { isSameOrigin, jsonError, masterKeys, sessionUser } from "@/server/http";
 import { ImportError, previewImport } from "@/server/import/service";
 import { PdfError } from "@/server/ingest/pdf";
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
   }
   const file = form.get("file");
   const password = form.get("password");
+  // "Read it with AI": only after you chose it for a layout no parser reads (IMP-5).
+  const ai = form.get("ai") === "1";
   if (!(file instanceof File)) return jsonError("bad_request", 400);
   if (file.size > MAX_BYTES) return jsonError("too_large", 413);
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -44,9 +47,18 @@ export async function POST(request: Request) {
     const preview = await previewImport(getDb(), userId, masterKeys(), {
       bytes,
       password: typeof password === "string" && password ? password : undefined,
+      ai,
     });
     return Response.json(preview);
   } catch (e) {
+    if (e instanceof ParseError && e.code === "unsupported_format") {
+      // Tell the page whether it can offer the AI fallback for this file.
+      const env = getEnv();
+      return Response.json(
+        { error: e.code, aiAvailable: Boolean(env.ANTHROPIC_API_KEY || env.LLM_MOCK) },
+        { status: 422 },
+      );
+    }
     if (e instanceof PdfError || e instanceof ParseError) return jsonError(e.code, 422);
     if (e instanceof PiiViolation) return jsonError("pii_blocked", 422);
     if (e instanceof ImportError) {
