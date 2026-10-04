@@ -82,7 +82,9 @@ describe("AI fallback extractor (IMP-5)", () => {
         want.cards[0]!.rows.map((r) => [r.txnDate, r.amountCents, r.rawDescriptor, r.kind]),
       );
       expect(result.names).toEqual(["ALEX TAN"]);
-      expect(result.accountRefs).toEqual([null]);
+      // The card number (in memory only) identifies the card, as a parser's would.
+      expect(result.accountRefs).toHaveLength(1);
+      expect(result.accountRefs?.[0]).toMatch(/^\d{16}$/);
     },
   );
 
@@ -166,14 +168,105 @@ describe("AI fallback extractor (IMP-5)", () => {
       );
     expect(() => bad({ amount: "12,3.4.5" })).toThrow(ParseError);
     expect(() => bad({ date: "20/08/2026" })).toThrow(ParseError);
+    // An impossible date is refused, not rolled into the next month.
+    expect(() => bad({ date: "2026-02-30" })).toThrow(ParseError);
+    expect(() => bad({ post_date: "2026-13-01" })).toThrow(ParseError);
+    // A name the firewall knows is refused in a product name.
     expect(() =>
       toParseResult(
-        { ...base, accounts: [{ ...base.accounts[0]!, product_name: "CARD 4111 1111 1111 1111" }] },
-        [],
+        { ...base, accounts: [{ ...base.accounts[0]!, product_name: "ALEX TAN CARD" }] },
+        ["ALEX TAN"],
       ),
     ).toThrow(ParseError);
     expect(() => toParseResult({ ...base, is_statement: false, accounts: [] }, [])).toThrow(
       expect.objectContaining({ code: "not_a_statement" }),
     );
+  });
+
+  it("never keeps a number in a product name", () => {
+    const product = (name: string) =>
+      toParseResult({ ...base, accounts: [{ ...base.accounts[0]!, product_name: name }] }, [])
+        .statement.cards[0]!.productName;
+    expect(product("CARD 4111 1111 1111 1111")).toBe("CARD");
+    expect(product("Sample Savings Account ending 1234")).toBe("SAMPLE SAVINGS ACCOUNT");
+    expect(product("REWARDS CARD XXXX-XXXX-XXXX-1234")).toBe("REWARDS CARD");
+    expect(product("SAMPLE ACCOUNT NO. 123-45678-9")).toBe("SAMPLE ACCOUNT");
+    expect(product("SAMPLE ACCOUNT #0123")).toBe("SAMPLE ACCOUNT");
+    expect(product("SAMPLE 365 CARD")).toBe("SAMPLE 365 CARD"); // a product number stays
+  });
+
+  it("bank statements: card bills aren't spending, and people's names are dropped", () => {
+    const row = base.accounts[0]!.rows[0]!;
+    const r = toParseResult(
+      {
+        ...base,
+        kind: "deposit",
+        accounts: [
+          {
+            ...base.accounts[0]!,
+            opening_balance: "1000.00",
+            closing_balance: "250.00",
+            rows: [
+              {
+                ...row,
+                description: "BILL PAYMENT DBS CARD CENTRE",
+                amount: "500.00",
+                type: "card_bill",
+              },
+              { ...row, description: "PAYNOW TO JORDAN LIM", amount: "100.00", type: "transfer" },
+              {
+                ...row,
+                description: "FAST PAYMENT SAMPLE RENOVATION PTE LTD",
+                amount: "150.00",
+                type: "payment",
+              },
+            ],
+          },
+        ],
+      },
+      [],
+    );
+    const rows = r.statement.cards[0]!.rows;
+    expect(rows.map((x) => x.kind)).toEqual(["card_payment", "charge", "charge"]);
+    expect(rows[0]!.rawDescriptor).toBe("CARD PAYMENT DBS CARD");
+    expect(rows[1]!.rawDescriptor).toBe("PAYNOW TRANSFER OUT");
+    expect(rows[2]!.rawDescriptor).toContain("SAMPLE RENOVATION PTE LTD");
+    expect(JSON.stringify(r)).not.toContain("JORDAN");
+  });
+
+  it("drops the holder's name even with no address under it, and transfer payees", () => {
+    const { lines, names } = redactForAi([
+      "Sample Bank",
+      "Mr Alex Tan",
+      "Statement of Account   Statement Date 20 Aug 2026",
+      "01 Aug  PAYNOW TO JORDAN LIM  100.00",
+      "02 Aug  FAST PAYMENT  50.00",
+      "  Jordan Lim",
+      "03 Aug  NETS QR  12.30",
+      "  SAMPLE MART SINGAPORE",
+      "04 Aug  PAYNOW FROM SAMPLE PROPERTY PTE LTD  80.00",
+    ]);
+    const text = lines.join("\n");
+    expect(names).toEqual(["Alex Tan"]);
+    expect(text).not.toMatch(/Alex|Tan\b|JORDAN|Jordan/);
+    expect(text).toContain("PAYNOW TO [NAME]  100.00");
+    expect(text).toContain("SAMPLE MART SINGAPORE"); // a purchase's merchant stays
+    expect(text).toContain("SAMPLE PROPERTY PTE LTD"); // so does a business payee
+    expect(text).toContain("Statement Date 20 Aug 2026");
+  });
+
+  it("records what the call cost even when its answer is refused", async () => {
+    const used: number[] = [];
+    const truncated: Llm = {
+      ...mockLlm,
+      extract: async (req) => ({ ...(await mockLlm.extract(req)), stopReason: "max_tokens" }),
+    };
+    await expect(
+      extractWithAi(truncated, "claude-haiku-4-5", load(files[0]!), {
+        onUsage: async (u) => void used.push(u.outputTokens),
+      }),
+    ).rejects.toMatchObject({ code: "too_long_for_ai" });
+    expect(used).toHaveLength(1);
+    expect(used[0]).toBeGreaterThan(0);
   });
 });

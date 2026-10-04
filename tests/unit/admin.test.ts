@@ -7,6 +7,8 @@ import { user } from "@/db/schema";
 import { getAdminStats, isAdmin } from "@/server/admin/stats";
 import { seedDemoWorkspace } from "@/server/demo/seed";
 import { runEvals } from "@/server/evals/run";
+import { reconcileOutcome } from "@/server/ingest/stats";
+import type { ParsedStatement } from "@/server/ingest/parsers";
 import { mockLlm } from "@/server/llm/mock";
 import { leaks } from "../helpers/no-pii";
 import { createTestDb, createUser } from "../helpers/test-db";
@@ -49,6 +51,28 @@ describe("admin (OPS-3)", () => {
     const blob = JSON.stringify(s);
     expect(leaks(blob)).toEqual([]);
     expect(blob).not.toMatch(/owner@example\.com|Grab|Shopee/);
+  });
+});
+
+describe("parse outcomes", () => {
+  it("a statement whose card totals don't match its printed total isn't reconciled", () => {
+    const card = {
+      productName: "CARD",
+      ordinal: 1,
+      previousBalanceCents: 0,
+      totalCents: 0,
+      rows: [],
+    };
+    const st = (totalsMatch: boolean | null, reconciled: boolean | null) =>
+      ({
+        kind: "card",
+        totalsMatch,
+        cards: [{ ...card, reconciled }],
+      }) as unknown as ParsedStatement;
+    expect(reconcileOutcome(st(true, true))).toBe("reconciled");
+    expect(reconcileOutcome(st(false, true))).toBe("unreconciled");
+    expect(reconcileOutcome(st(true, false))).toBe("unreconciled");
+    expect(reconcileOutcome(st(null, null))).toBe("no_balance");
   });
 });
 

@@ -90,6 +90,25 @@ async function resolveAccount(tx: Tx, ref: AccountRef): Promise<Resolution> {
   };
 }
 
+/**
+ * For a section read without a number (the AI fallback): the digest of the stored
+ * account it resolves to by name and ordinal, so its rows dedupe against the rows
+ * a parser imported for that account.
+ */
+export async function storedIdentityKey(tx: Tx, ref: AccountRef): Promise<string | null> {
+  const [a] = await tx
+    .select({ key: accounts.identityKey })
+    .from(accounts)
+    .where(
+      and(
+        eq(accounts.bank, ref.bank),
+        eq(accounts.productName, ref.productName),
+        eq(accounts.ordinal, ref.ordinal ?? 1),
+      ),
+    );
+  return a?.key ?? null;
+}
+
 /** The stored account for a statement section, or null if importing it would create one. */
 export async function findAccount(tx: Tx, ref: AccountRef): Promise<string | null> {
   return (await resolveAccount(tx, ref)).id;

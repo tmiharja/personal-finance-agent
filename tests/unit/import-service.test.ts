@@ -5,9 +5,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import type { AppDb } from "@/db/client";
 import { sqlRows } from "@/db/rows";
-import { imports, proposedActions } from "@/db/schema";
+import { accounts, imports, proposedActions } from "@/db/schema";
 import { withUser } from "@/db/with-user";
 import type { MasterKeys } from "@/server/crypto/envelope";
+import { storedIdentityKey } from "@/server/finance/ledger";
 import { getOverviewCounts } from "@/server/finance/overview";
 import {
   approveProposal,
@@ -354,6 +355,28 @@ describe("import: AI fallback for unknown layouts (IMP-5)", () => {
       n: 1,
     });
     expect(stats.some((r) => r.bank === "DBS" && r.method === "parser")).toBe(true);
+  });
+
+  it("a section read without a number dedupes against the account a parser keyed", async () => {
+    await withUser(db, "alex", async (tx) => {
+      const keyed = await tx
+        .select()
+        .from(accounts)
+        .where(sql`identity_key is not null`)
+        .limit(1);
+      const a = keyed[0]!;
+      expect(
+        await storedIdentityKey(tx, {
+          bank: a.bank,
+          productName: a.productName,
+          ordinal: a.ordinal,
+        }),
+      ).toBe(a.identityKey);
+      // A different ordinal of the same product is a different account.
+      expect(
+        await storedIdentityKey(tx, { bank: a.bank, productName: a.productName, ordinal: 99 }),
+      ).toBeNull();
+    });
   });
 
   it("refuses a file that isn't a statement, even with AI", async () => {

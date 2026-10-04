@@ -23,7 +23,7 @@ export type BankRowInput = {
 
 export type BankRow = { rawDescriptor: string; kind: ParsedRow["kind"] };
 
-const COMPANY =
+export const COMPANY =
   /\b(PTE\.? ?LTD\.?|PRIVATE LIMITED|LTD\.?|LIMITED|LLP|LLC|INC\.?|CORP(ORATION)?|SDN\.? BHD\.?|PLC|TOWN COUNCIL|MCST|IRAS|CPF BOARD|HDB|MINISTRY|AUTHORITY|SOCIETY|FOUNDATION|UNIVERSITY|HOSPITAL|INSURANCE|ASSURANCE)\b/i;
 
 const CARD_ISSUER =
@@ -33,13 +33,13 @@ const CARD_PAYMENT =
 const SALARY = /\b(SALARY|PAYROLL|SAL CR|SALARY CREDIT|BONUS)\b|^SAL\b/i;
 const INTEREST = /\b(INTEREST|BONUS INT|INT\.? CREDIT|INT EARNED)\b/i;
 const OWN_TRANSFER = /\b(OWN (A\/C|ACCOUNTS?)|BETWEEN (YOUR |MY )?OWN|TO MY ACCOUNT)\b/i;
-const PERSON_TRANSFER =
+export const PERSON_TRANSFER =
   /\b(PAYNOW|FAST|FUNDS? TRANSFER|FUNDS? TRF|FUND TRF|IBG|INWARD CREDIT|TRF|TRANSFER|I-BANK)\b/i;
 const ATM = /\b(ATM|CASH WITHDRAWAL|CASH WDL|AWL)\b/i;
 const FEE = /\b(SERVICE CHARGE|FALL.?BELOW|ACCOUNT FEE|ANNUAL FEE|COMMISSION|HANDLING FEE)\b/i;
 const REFUND = /\b(REVERSAL|REFUND|REVERSED)\b/i;
 const CASHBACK = /\b(CASHBACK|CASH REBATE|REBATE)\b/i;
-const GIRO = /\bGIRO\b/i;
+export const GIRO = /\bGIRO\b/i;
 const PURCHASE =
   /\b(NETS( QR)?|POS|POINT-OF-SALE|DEBIT CARD|VISA DEBIT|MASTERCARD DEBIT|DEBIT PURCHASE)\b/i;
 
@@ -107,9 +107,11 @@ export function bankRow(input: BankRowInput): BankRow {
   }
   if (out && PURCHASE.test(text)) return { kind: "charge", rawDescriptor: merchant(input) };
   // Unrecognised: the type line, plus company names only (details may name a person).
-  const company = companies(input.details)[0];
+  const company = companies(input.details)
+    .map(stripPrefix)
+    .find((c) => !clean(input.type).toUpperCase().includes(c.toUpperCase()));
   return {
     kind: out ? "charge" : "income",
-    rawDescriptor: clean(`${input.type}${company ? ` ${stripPrefix(company)}` : ""}`).toUpperCase(),
+    rawDescriptor: clean(`${input.type}${company ? ` ${company}` : ""}`).toUpperCase(),
   };
 }

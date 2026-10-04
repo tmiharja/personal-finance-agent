@@ -106,7 +106,7 @@ function mockExtract(lines: readonly string[]) {
         description: desc,
         amount: m[7]!.replace(/,/g, ""),
         direction: m[6] ? "credit" : "debit",
-        type: /PAYMENT/.test(desc) ? "payment" : /REFUND/.test(desc) ? "refund" : "purchase",
+        type: /PAYMENT/.test(desc) ? "card_bill" : /REFUND/.test(desc) ? "refund" : "purchase",
       },
     ];
   });

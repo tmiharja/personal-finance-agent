@@ -11,6 +11,7 @@ import {
   insertPreparedStatement,
   prepareRows,
   findAccount,
+  storedIdentityKey,
   upsertAccount,
   type LedgerRow,
   type PreparedRow,
@@ -235,7 +236,9 @@ async function buildPreview(
     const cats = categorised?.byCard[cardIndex];
     // The number becomes a one-way, per-user digest here and is dropped.
     const number = accountRefs[cardIndex]?.replace(/\D/g, "");
-    const identityKey = number ? crypto.dedupe(["account", statement.bank, number]) : null;
+    const identityKey = number
+      ? crypto.dedupe(["account", statement.bank, number])
+      : await storedIdentityKey(tx, { bank: statement.bank, ...card });
     const ref = { bank: statement.bank, ...card, identityKey };
     const existingId = await findAccount(tx, ref);
     const prepared = prepareRows(
@@ -439,15 +442,14 @@ async function parseWithFallback(
   }
   const model = getEnv().MODEL_EXTRACT;
   try {
-    const {
-      result,
-      usage: used,
-      model: servedBy,
-    } = await extractWithAi(llm, model, file.bytes, {
+    const { result } = await extractWithAi(llm, model, file.bytes, {
       password: file.password,
       signal: AbortSignal.timeout(55_000),
+      // Recorded as soon as the model answers, so a refused answer still counts.
+      onUsage: async (used, servedBy) => {
+        await withUser(db, userId, (tx) => recordUsage(tx, userId, "extract", servedBy, used));
+      },
     });
-    await withUser(db, userId, (tx) => recordUsage(tx, userId, "extract", servedBy, used));
     await recordParseOutcome(db, {
       bank: result.statement.bank,
       method: "ai",

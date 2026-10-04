@@ -8,7 +8,8 @@ export type ParseMethod = "parser" | "ai";
 
 /** How a parsed statement came out: every section reconciled, one didn't, or nothing to check. */
 export function reconcileOutcome(st: ParsedStatement): string {
-  if (st.cards.some((c) => c.reconciled === false)) return "unreconciled";
+  if (st.totalsMatch === false || st.cards.some((c) => c.reconciled === false))
+    return "unreconciled";
   if (st.cards.some((c) => c.reconciled === null)) return "no_balance";
   return "reconciled";
 }
