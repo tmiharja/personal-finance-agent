@@ -1565,4 +1565,159 @@ writeFileSync(
     2,
   ) + "\n",
 );
+// ---------------------------------------------------------------- unknown layout
+
+// "Sample Bank": a fictional bank in a layout no deterministic parser reads, for
+// the AI fallback extractor (PRD IMP-5) and its eval. Its own random stream, so
+// every other fixture stays byte-identical.
+const sbRng = mulberry32(SEED + 2);
+const sbInt = (lo, hi) => lo + Math.floor(sbRng() * (hi - lo + 1));
+const sbCents = (lo, hi) => Math.round((lo + sbRng() * (hi - lo)) * 100);
+const SB_CARD = { product: "SAMPLE BANK REWARDS CARD", pan: "5105 1051 0510 5100" };
+const SB_MERCHANTS = [
+  ["KOPI SAMPLE CAFE SINGAPORE", 4, 12],
+  ["SAMPLE MART SINGAPORE", 15, 90],
+  ["CITY CABS SAMPLE SINGAPORE", 9, 28],
+  ["SAMPLE BOOKSHOP SINGAPORE", 12, 60],
+  ["SAMPLE PHARMACY SINGAPORE", 8, 45],
+  ["STREAMFLIX SAMPLE", 15.98, 15.98],
+];
+const ddMMslash = (dt) =>
+  `${String(dt.getUTCDate()).padStart(2, "0")}/${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
+
+function sampleBankStatements() {
+  let previous = 0;
+  return [6, 7, 8].map((m) => {
+    const stmtDate = d(2026, m, 20);
+    const from = addDays(d(2026, m - 1, 20), 1);
+    const rows = [];
+    if (previous > 0) {
+      rows.push({
+        txnDate: addDays(from, 5),
+        postDate: addDays(from, 6),
+        desc: "PAYMENT RECEIVED - THANK YOU",
+        cents: -previous,
+        kind: "card_payment",
+      });
+    }
+    const n = sbInt(9, 14);
+    for (let i = 0; i < n; i++) {
+      const [desc, lo, hi] = SB_MERCHANTS[sbInt(0, SB_MERCHANTS.length - 1)];
+      const date = addDays(from, sbInt(0, 29));
+      rows.push({
+        txnDate: date,
+        postDate: addDays(date, 1),
+        desc,
+        cents: sbCents(lo, hi),
+        kind: "charge",
+      });
+    }
+    if (m === 7) {
+      const date = addDays(from, 12);
+      rows.push({
+        txnDate: date,
+        postDate: addDays(date, 1),
+        desc: "SAMPLE MART SINGAPORE REFUND",
+        cents: -sbCents(10, 20),
+        kind: "refund",
+      });
+    }
+    rows.sort((a, b) => a.txnDate - b.txnDate || a.desc.localeCompare(b.desc));
+    const total = previous + rows.reduce((t, r) => t + r.cents, 0);
+    const st = {
+      stmtDate,
+      dueDate: addDays(stmtDate, 25),
+      previous,
+      total,
+      minimum: minPay(total),
+      rows,
+    };
+    previous = total;
+    return st;
+  });
+}
+
+async function renderSampleBank(st) {
+  const { pdf, fonts } = await newPdf(
+    `Synthetic Sample Bank card statement ${iso(st.stmtDate).slice(0, 7)}`,
+  );
+  const L = new Layout(pdf, fonts, {
+    onNewPage: (l) => {
+      l.text("SAMPLE BANK SINGAPORE", 40, { size: 12, bold: true, y: 800 });
+      l.text("Card Account Summary", 40, { size: 9, y: 787 });
+    },
+  });
+  L.newPage();
+  L.y = 750;
+  for (const a of [PERSON.name, ...PERSON.address]) (L.text(a, 40, { size: 8.5 }), L.line(11));
+  L.y = 680;
+  const kv = [
+    ["Statement Date", ddMonYYYY(st.stmtDate)],
+    ["Payment Due Date", ddMonYYYY(st.dueDate)],
+    ["Previous Balance", `S$ ${money(st.previous)}`],
+    ["New Balance", `S$ ${money(st.total)}`],
+    ["Minimum Amount Due", `S$ ${money(st.minimum)}`],
+  ];
+  for (const [k, v] of kv)
+    (L.text(k, 330, { bold: true }), L.text(v, 555, { right: true }), L.line(13));
+  L.y = 600;
+  L.text(`${SB_CARD.product}   Card Number ${SB_CARD.pan}`, 40, { bold: true });
+  L.line(18);
+  L.text("Trans Date", 40, { bold: true });
+  L.text("Post Date", 100, { bold: true });
+  L.text("Transaction Details", 160, { bold: true });
+  L.text("Amount (SGD)", 555, { bold: true, right: true });
+  L.line(16);
+  for (const r of st.rows) {
+    L.ensure(14);
+    L.text(ddMMslash(r.txnDate), 40);
+    L.text(ddMMslash(r.postDate), 100);
+    L.text(r.desc, 160);
+    L.text(`${r.cents < 0 ? "-" : ""}${money(r.cents)}`, 555, { right: true });
+    L.line(13);
+  }
+  L.line(8);
+  L.text("New Balance", 160, { bold: true });
+  L.text(money(st.total), 555, { right: true, bold: true });
+  furniture(pdf, fonts, L.pages, (p, i, n) =>
+    p.drawText(`Page ${i + 1} of ${n}`, { x: 500, y: 24, size: 7, font: fonts.reg }),
+  );
+  return pdf.save({ useObjectStreams: false });
+}
+
+mkdirSync(join(OUT, "sample-bank"), { recursive: true });
+for (const st of sampleBankStatements()) {
+  const name = iso(st.stmtDate).slice(0, 7);
+  writeFileSync(join(OUT, "sample-bank", `${name}.pdf`), await renderSampleBank(st));
+  writeFileSync(
+    join(OUT, "sample-bank", `${name}.expected.json`),
+    JSON.stringify(
+      {
+        synthetic: true,
+        note: "Fictional bank and layout; expected output of the AI fallback extractor.",
+        bank: "OTHER",
+        kind: "card",
+        statementDate: iso(st.stmtDate),
+        dueDate: iso(st.dueDate),
+        minimumPaymentCents: st.minimum,
+        cards: [
+          {
+            productName: SB_CARD.product,
+            previousBalanceCents: st.previous,
+            totalCents: st.total,
+            rows: st.rows.map((r) => ({
+              txnDate: iso(r.txnDate),
+              postDate: iso(r.postDate),
+              amountCents: r.cents,
+              rawDescriptor: r.desc,
+              kind: r.kind,
+            })),
+          },
+        ],
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+}
 console.log("synthetic statements written to", OUT);

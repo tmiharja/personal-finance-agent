@@ -1,0 +1,102 @@
+{
+  "synthetic": true,
+  "note": "Fictional bank and layout; expected output of the AI fallback extractor.",
+  "bank": "OTHER",
+  "kind": "card",
+  "statementDate": "2026-09-20",
+  "dueDate": "2026-10-15",
+  "minimumPaymentCents": 5000,
+  "cards": [
+    {
+      "productName": "SAMPLE BANK REWARDS CARD",
+      "previousBalanceCents": 32724,
+      "totalCents": 31828,
+      "rows": [
+        {
+          "txnDate": "2026-08-21",
+          "postDate": "2026-08-22",
+          "amountCents": 1074,
+          "rawDescriptor": "CITY CABS SAMPLE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-08-21",
+          "postDate": "2026-08-22",
+          "amountCents": 472,
+          "rawDescriptor": "KOPI SAMPLE CAFE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-08-26",
+          "postDate": "2026-08-27",
+          "amountCents": -32724,
+          "rawDescriptor": "PAYMENT RECEIVED - THANK YOU",
+          "kind": "card_payment"
+        },
+        {
+          "txnDate": "2026-08-29",
+          "postDate": "2026-08-30",
+          "amountCents": 3492,
+          "rawDescriptor": "SAMPLE MART SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-09-02",
+          "postDate": "2026-09-03",
+          "amountCents": 1527,
+          "rawDescriptor": "CITY CABS SAMPLE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-09-03",
+          "postDate": "2026-09-04",
+          "amountCents": 593,
+          "rawDescriptor": "KOPI SAMPLE CAFE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-09-04",
+          "postDate": "2026-09-05",
+          "amountCents": 7712,
+          "rawDescriptor": "SAMPLE MART SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-09-11",
+          "postDate": "2026-09-12",
+          "amountCents": 603,
+          "rawDescriptor": "KOPI SAMPLE CAFE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-09-14",
+          "postDate": "2026-09-15",
+          "amountCents": 5006,
+          "rawDescriptor": "SAMPLE BOOKSHOP SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-09-14",
+          "postDate": "2026-09-15",
+          "amountCents": 4647,
+          "rawDescriptor": "SAMPLE MART SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-09-14",
+          "postDate": "2026-09-15",
+          "amountCents": 6116,
+          "rawDescriptor": "SAMPLE MART SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-09-19",
+          "postDate": "2026-09-20",
+          "amountCents": 586,
+          "rawDescriptor": "KOPI SAMPLE CAFE SINGAPORE",
+          "kind": "charge"
+        }
+      ]
+    }
+  ]
+}

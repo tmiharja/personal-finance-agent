@@ -1,0 +1,102 @@
+{
+  "synthetic": true,
+  "note": "Fictional bank and layout; expected output of the AI fallback extractor.",
+  "bank": "OTHER",
+  "kind": "card",
+  "statementDate": "2026-07-20",
+  "dueDate": "2026-08-14",
+  "minimumPaymentCents": 5000,
+  "cards": [
+    {
+      "productName": "SAMPLE BANK REWARDS CARD",
+      "previousBalanceCents": 0,
+      "totalCents": 26990,
+      "rows": [
+        {
+          "txnDate": "2026-06-24",
+          "postDate": "2026-06-25",
+          "amountCents": 1598,
+          "rawDescriptor": "STREAMFLIX SAMPLE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-06-26",
+          "postDate": "2026-06-27",
+          "amountCents": 2253,
+          "rawDescriptor": "CITY CABS SAMPLE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-06-29",
+          "postDate": "2026-06-30",
+          "amountCents": 2898,
+          "rawDescriptor": "SAMPLE MART SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-06-30",
+          "postDate": "2026-07-01",
+          "amountCents": 443,
+          "rawDescriptor": "KOPI SAMPLE CAFE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-07-04",
+          "postDate": "2026-07-05",
+          "amountCents": 1575,
+          "rawDescriptor": "SAMPLE BOOKSHOP SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-07-06",
+          "postDate": "2026-07-07",
+          "amountCents": 900,
+          "rawDescriptor": "CITY CABS SAMPLE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-07-08",
+          "postDate": "2026-07-09",
+          "amountCents": 5200,
+          "rawDescriptor": "SAMPLE BOOKSHOP SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-07-11",
+          "postDate": "2026-07-12",
+          "amountCents": 3510,
+          "rawDescriptor": "SAMPLE MART SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-07-15",
+          "postDate": "2026-07-16",
+          "amountCents": 749,
+          "rawDescriptor": "KOPI SAMPLE CAFE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-07-16",
+          "postDate": "2026-07-17",
+          "amountCents": 2144,
+          "rawDescriptor": "SAMPLE BOOKSHOP SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-07-18",
+          "postDate": "2026-07-19",
+          "amountCents": 2373,
+          "rawDescriptor": "CITY CABS SAMPLE SINGAPORE",
+          "kind": "charge"
+        },
+        {
+          "txnDate": "2026-07-20",
+          "postDate": "2026-07-21",
+          "amountCents": 3347,
+          "rawDescriptor": "SAMPLE BOOKSHOP SINGAPORE",
+          "kind": "charge"
+        }
+      ]
+    }
+  ]
+}
